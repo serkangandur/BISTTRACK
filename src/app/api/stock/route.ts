@@ -4,10 +4,11 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Scraping API Route v4.0.
+ * Gelişmiş Hibrit Scraping API Route v5.0.
  * BIST, Emtia ve Döviz verilerini CNN Türk'ten (Tabelle 1 yöntemi),
  * Kripto (BTC/ETH) verilerini ise Mynet'ten doğrudan ₺ bazlı çeker.
  * Hassasiyet: Kripto miktarları için 7 hane, fiyatlar için 4 hane destekler.
+ * Hata Önleme: BIST endeks değerlerinin kripto fiyatlarıyla karışmasını engeller.
  */
 
 export async function GET(request: NextRequest) {
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. PARALEL İSTEKLER (BIST, Altın, Gümüş, Döviz ve Mynet Kripto)
+    // 1. PARALEL İSTEKLER
     const requests = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
@@ -126,29 +127,53 @@ export async function GET(request: NextRequest) {
     scrapeEmtiaTable(1, 'ALTIN');
     scrapeEmtiaTable(2, 'GUMUS');
 
-    // 5. KRİPTO MANTIĞI (Mynet Finans - Doğrudan ₺)
+    // 5. KRİPTO MANTIĞI (Mynet Finans - Nokta Atışı & BIST Filtresi)
     const processMynetCrypto = (result: any, symbol: string) => {
       if (result.status === 'fulfilled' && requestedSymbols.includes(symbol)) {
         const $ = cheerio.load(result.value.data);
         
-        // Mynet'te fiyat genellikle .dt-price veya .last-price class'ındadır.
-        // Regex ile metin içindeki fiyat yapısını yakala (Nokta binlik, virgül ondalık)
+        // Doğrudan fiyat kutularını hedef al
         let priceText = $('.dt-price').first().text().trim() || 
                         $('.last-price').first().text().trim() ||
-                        $('body').text();
-        
-        const priceRegex = /([\d.]+,[\d]+)/;
-        const match = priceText.match(priceRegex);
+                        $('.data-price').first().text().trim();
 
-        if (match && match[1]) {
-          const rawPrice = match[1];
-          const cleanPrice = parseFloat(rawPrice.replace(/\./g, '').replace(',', '.'));
+        // Eğer seçicilerle bulunamadıysa regex ile metin içinde ara ama endekslerden kaçın
+        if (!priceText) {
+          const bodyText = $('body').text();
+          // Regex: Binlik noktalı ve virgül ondalıklı yapıyı yakala
+          const matches = bodyText.match(/([\d.]+,[\d]+)/g);
+          if (matches) {
+            for (const m of matches) {
+              const p = parseFloat(m.replace(/\./g, '').replace(',', '.'));
+              // BIST Filtresi: Eğer BTC bakıyorsak fiyat çok daha yüksek olmalı. 
+              // BIST genelde 8k-15k arasındadır. BTC ise milyonlar seviyesindedir.
+              if (symbol === 'BTC' && p > 500000) {
+                priceText = m;
+                break;
+              }
+              if (symbol === 'ETH' && p > 50000) {
+                priceText = m;
+                break;
+              }
+            }
+          }
+        }
+
+        if (priceText) {
+          const cleanPrice = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
           
           if (!isNaN(cleanPrice) && cleanPrice > 0) {
+            // BIST Endeks Değeri Kontrolü (Hatalı veriyi engelle)
+            // Eğer BTC için 13k-14k gibi bir rakam geldiyse bu BIST'tir, atla.
+            if (symbol === 'BTC' && cleanPrice < 100000) {
+               console.warn(`[API] ${symbol} için hatalı endeks verisi tespit edildi, atlanıyor: ${cleanPrice}`);
+               return;
+            }
+
             console.log(`[API] ${symbol} Mynet Fiyatı: ${cleanPrice.toLocaleString('tr-TR')} ₺`);
             updates.push({
               symbol,
-              price: Number(cleanPrice.toFixed(7)), // 7 hane hassasiyet korunuyor
+              price: Number(cleanPrice.toFixed(4)), // Fiyatlar için 4 hane
               change: 0
             });
           }
