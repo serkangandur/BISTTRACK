@@ -29,7 +29,6 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     name: "",
     quantity: "",
     averageCost: "",
-    currentPrice: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -38,18 +37,20 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     if (!formData.symbol || !formData.quantity || !formData.averageCost) {
       toast({
         title: "Eksik Bilgi",
-        description: "Lütfen zorunlu alanları doldurunuz.",
+        description: "Lütfen zorunlu alanları (Sembol, Adet, Maliyet) doldurunuz.",
         variant: "destructive",
       });
       return;
     }
 
+    const cost = Number(formData.averageCost);
+
     onAdd({
       symbol: formData.symbol.toUpperCase(),
       name: formData.name || formData.symbol.toUpperCase(),
       quantity: Number(formData.quantity),
-      averageCost: Number(formData.averageCost),
-      currentPrice: Number(formData.currentPrice) || Number(formData.averageCost),
+      averageCost: cost,
+      currentPrice: cost, // Başlangıçta maliyet atanır, hemen ardından canlı veri çekilir
       dailyChange: 0,
     });
 
@@ -58,13 +59,12 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
       name: "",
       quantity: "",
       averageCost: "",
-      currentPrice: "",
     });
     setOpen(false);
     
     toast({
       title: "Başarılı",
-      description: `${formData.symbol.toUpperCase()} portföyünüze eklendi.`,
+      description: `${formData.symbol.toUpperCase()} portföyünüze eklendi. Fiyatlar birazdan güncellenecektir.`,
     });
   };
 
@@ -93,7 +93,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Şirket Adı</Label>
+              <Label htmlFor="name">Şirket Adı (Opsiyonel)</Label>
               <Input
                 id="name"
                 placeholder="Türk Hava Yolları"
@@ -103,6 +103,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               />
             </div>
           </div>
+          
           <div className="space-y-2">
             <Label htmlFor="quantity">Adet</Label>
             <Input
@@ -114,32 +115,27 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="averageCost">Birim Maliyet (₺)</Label>
-              <Input
-                id="averageCost"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                className="bg-white/5 border-white/10"
-                value={formData.averageCost}
-                onChange={(e) => setFormData({ ...formData, averageCost: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="currentPrice">Güncel Fiyat (₺)</Label>
-              <Input
-                id="currentPrice"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                className="bg-white/5 border-white/10"
-                value={formData.currentPrice}
-                onChange={(e) => setFormData({ ...formData, currentPrice: e.target.value })}
-              />
-            </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="averageCost">Birim Maliyet (₺)</Label>
+            <Input
+              id="averageCost"
+              type="number"
+              step="0.01"
+              placeholder="0.00"
+              className="bg-white/5 border-white/10"
+              value={formData.averageCost}
+              onChange={(e) => setFormData({ ...formData, averageCost: e.target.value })}
+            />
           </div>
+
+          <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 mt-2">
+            <p className="text-[10px] text-primary font-medium uppercase tracking-tight">Bilgi</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Güncel fiyat verileri Yahoo Finance üzerinden otomatik olarak çekilecektir.
+            </p>
+          </div>
+
           <DialogFooter className="pt-4">
             <Button type="submit" className="w-full font-bold">Kaydet</Button>
           </DialogFooter>
