@@ -45,7 +45,7 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
             const totalValue = stock.quantity * stock.currentPrice;
             const totalCost = stock.quantity * stock.averageCost;
             const pl = totalValue - totalCost;
-            const plPercentage = (pl / totalCost) * 100;
+            const plPercentage = totalCost > 0 ? (pl / totalCost) * 100 : 0;
             const isUp = pl >= 0;
 
             return (
@@ -60,14 +60,20 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
                 <TableCell className="text-muted-foreground">₺{stock.averageCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 font-semibold">
-                    ₺{stock.currentPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-                    <span className={cn(
-                      "text-[10px] flex items-center",
-                      stock.dailyChange >= 0 ? "text-bist-up" : "text-bist-down"
-                    )}>
-                      {stock.dailyChange >= 0 ? <ArrowUp className="w-2 h-2 mr-0.5" /> : <ArrowDown className="w-2 h-2 mr-0.5" />}
-                      %{Math.abs(stock.dailyChange).toFixed(2)}
-                    </span>
+                    {stock.currentPrice === stock.averageCost && stock.dailyChange === 0 ? (
+                      <span className="text-xs text-muted-foreground animate-pulse">Yükleniyor...</span>
+                    ) : (
+                      <>
+                        ₺{stock.currentPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+                        <span className={cn(
+                          "text-[10px] flex items-center",
+                          stock.dailyChange >= 0 ? "text-bist-up" : "text-bist-down"
+                        )}>
+                          {stock.dailyChange >= 0 ? <ArrowUp className="w-2 h-2 mr-0.5" /> : <ArrowDown className="w-2 h-2 mr-0.5" />}
+                          %{Math.abs(stock.dailyChange).toFixed(2)}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="font-bold">₺{totalValue.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>

@@ -37,20 +37,21 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     if (!formData.symbol || !formData.quantity || !formData.averageCost) {
       toast({
         title: "Eksik Bilgi",
-        description: "Lütfen zorunlu alanları (Sembol, Adet, Maliyet) doldurunuz.",
+        description: "Lütfen zorunlu alanları (Sembol, Adet, Ortalama Fiyat) doldurunuz.",
         variant: "destructive",
       });
       return;
     }
 
     const cost = Number(formData.averageCost);
+    const symbolUpper = formData.symbol.toUpperCase().trim();
 
     onAdd({
-      symbol: formData.symbol.toUpperCase(),
-      name: formData.name || formData.symbol.toUpperCase(),
+      symbol: symbolUpper,
+      name: formData.name || symbolUpper,
       quantity: Number(formData.quantity),
       averageCost: cost,
-      currentPrice: cost, // Başlangıçta maliyet atanır, hemen ardından canlı veri çekilir
+      currentPrice: cost, // Başlangıçta maliyeti gösteriyoruz, hemen ardından fetch tetiklenecek
       dailyChange: 0,
     });
 
@@ -63,8 +64,8 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     setOpen(false);
     
     toast({
-      title: "Başarılı",
-      description: `${formData.symbol.toUpperCase()} portföyünüze eklendi. Fiyatlar birazdan güncellenecektir.`,
+      title: "Hisse Eklendi",
+      description: `${symbolUpper} portföyünüze eklendi. Canlı fiyat birazdan güncellenecektir.`,
     });
   };
 
@@ -132,7 +133,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
           <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 mt-2">
             <p className="text-[10px] text-primary font-medium uppercase tracking-tight">Bilgi</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Güncel fiyat verileri Yahoo Finance üzerinden otomatik olarak çekilecektir.
+              Hisse eklendikten sonra canlı fiyat verisi Yahoo Finance'den otomatik olarak çekilerek "Güncel Fiyat" alanına yazılacaktır.
             </p>
           </div>
 

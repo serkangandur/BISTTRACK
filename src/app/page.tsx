@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -20,11 +19,11 @@ export default function PortfolioDashboard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Initial load with local data first
+    // İlk yükleme
     setHoldings(INITIAL_HOLDINGS);
     setIsLoading(false);
     
-    // Then try to fetch fresh prices automatically on mount
+    // Verileri çek
     fetchStockPrices(INITIAL_HOLDINGS);
   }, []);
 
@@ -32,8 +31,7 @@ export default function PortfolioDashboard() {
   useEffect(() => {
     if (holdings.length === 0) return;
 
-    const AUTO_REFRESH_MS = 15 * 60 * 1000; // 15 dakika
-    
+    const AUTO_REFRESH_MS = 15 * 60 * 1000;
     const intervalId = setInterval(() => {
       fetchStockPrices(holdings);
     }, AUTO_REFRESH_MS);
@@ -49,10 +47,11 @@ export default function PortfolioDashboard() {
       const symbols = currentHoldings.map(h => h.symbol);
       const updates = await getLiveStockPrices(symbols);
       
-      if (updates.length > 0) {
+      if (updates && updates.length > 0) {
         setHoldings(prev => prev.map(holding => {
-          const update = updates.find(u => u.symbol === holding.symbol);
-          if (update) {
+          // Sembol eşleşmesini büyük harf duyarlı yapıyoruz
+          const update = updates.find(u => u.symbol.toUpperCase() === holding.symbol.toUpperCase());
+          if (update && update.price > 0) {
             return {
               ...holding,
               currentPrice: update.price,
@@ -64,7 +63,7 @@ export default function PortfolioDashboard() {
         
         toast({
           title: "Fiyatlar Güncellendi",
-          description: "Yahoo Finance üzerinden en güncel BIST verileri çekildi.",
+          description: "Yahoo Finance üzerinden canlı veriler başarıyla alındı.",
         });
       }
     } catch (error) {
@@ -86,7 +85,7 @@ export default function PortfolioDashboard() {
     const id = Math.random().toString(36).substring(2, 9);
     const updatedHoldings = [...holdings, { ...newStock, id }];
     setHoldings(updatedHoldings);
-    // Fetch price for the new stock as well
+    // Yeni eklenen hisse dahil tüm listeyi güncelle
     fetchStockPrices(updatedHoldings);
   };
 
@@ -97,7 +96,7 @@ export default function PortfolioDashboard() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-primary"></div>
+        <Loader2 className="animate-spin h-12 w-12 text-primary" />
       </div>
     );
   }
@@ -139,9 +138,7 @@ export default function PortfolioDashboard() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -153,13 +150,9 @@ export default function PortfolioDashboard() {
           <AddStockDialog onAdd={handleAddStock} />
         </div>
 
-        {/* Summary Cards */}
         <SummaryCards holdings={holdings} />
-
-        {/* Charts & Analytics */}
         <PortfolioCharts holdings={holdings} />
 
-        {/* Holdings Table */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-white">Varlıklarım</h3>
@@ -172,11 +165,10 @@ export default function PortfolioDashboard() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="mt-20 border-t border-white/5 py-10 bg-card/20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-muted-foreground">
-            © 2024 BISTrack. Veriler Yahoo Finance üzerinden her 15 dakikada bir otomatik olarak güncellenir.
+            © 2024 BISTrack. Veriler Yahoo Finance üzerinden otomatik olarak güncellenir.
           </p>
         </div>
       </footer>
