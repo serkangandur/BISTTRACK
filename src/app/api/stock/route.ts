@@ -4,8 +4,8 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * CNN Türk Finans üzerinden BIST verilerini çeken güvenli API Route.
- * Veri kazıma (Scraping) yöntemi ile Borsa İstanbul tüm hisselerini tarar.
+ * CNN Türk Finans üzerinden BIST verilerini çeken esnek scraping API Route.
+ * Satır bazlı metin arama ve regex ile fiyat tespiti yöntemini kullanır.
  */
 
 export async function GET(request: NextRequest) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     .map(s => s.trim().toUpperCase());
 
   try {
-    console.log(`[API/STOCK] CNN Türk Finans kazıma başlatılıyor... URL: https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri`);
+    console.log(`[API/STOCK] CNN Türk kazıma başlatılıyor... URL: https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri`);
 
     const targetUrl = 'https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri';
 
@@ -39,36 +39,46 @@ export async function GET(request: NextRequest) {
     // Sayfadaki tüm tablo satırlarını (tr) tara
     $('tr').each((_, element) => {
       const tds = $(element).find('td');
+      if (tds.length < 3) return; // Yetersiz sütun varsa atla
+
+      // Satırdaki tüm metni birleştirip hangi hisse olduğunu anlıyoruz
+      const rowText = $(element).text().toUpperCase();
       
-      // CNN Türk tablosunda genellikle:
-      // td[0]: Sembol (ACSEL)
-      // td[2]: Son Fiyat
-      // td[3]: Değişim (%)
-      if (tds.length >= 4) {
-        const symbol = $(tds[0]).text().trim().toUpperCase();
+      requestedSymbols.forEach(s => {
+        // Satırın içinde sembol (örn: ISMEN) geçiyor mu?
+        // Tam eşleşme sağlamak için ilk sütuna bakmak daha güvenlidir
+        const firstTdText = $(tds[0]).text().trim().toUpperCase();
         
-        // Eğer bu sembol portföyde varsa veriyi işle
-        if (requestedSymbols.includes(symbol)) {
-          const lastPriceStr = $(tds[2]).text().trim();
-          const changeStr = $(tds[3]).text().trim();
-
-          // Türkçe formatı (1.250,50) -> Standart sayı formatına (1250.50) çevir
-          // Önce binlik ayracı olan noktayı sil, sonra ondalık ayracı olan virgülü noktaya çevir
-          const price = parseFloat(lastPriceStr.replace(/\./g, '').replace(',', '.'));
-          const change = parseFloat(changeStr.replace('%', '').replace(',', '.'));
-
-          if (!isNaN(price)) {
-            updates.push({
-              symbol: symbol,
-              price: price,
-              change: isNaN(change) ? 0 : change
-            });
-          }
+        if (firstTdText === s || rowText.includes(s)) {
+          // Bu satırda fiyatı bulmaya çalış
+          let priceFoundForThisSymbol = false;
+          
+          tds.each((i, td) => {
+            if (priceFoundForThisSymbol) return;
+            
+            const cellVal = $(td).text().trim();
+            // İçinde rakam ve virgül olan hücre fiyattır (Örn: 1.250,50 veya 41,50)
+            // Noktaları (binlik ayracı) silip kontrol ediyoruz
+            const cleanCheck = cellVal.replace(/\./g, '');
+            if (/^\d+([,]\d+)?$/.test(cleanCheck) && cleanCheck.length > 0) {
+               const price = parseFloat(cleanCheck.replace(',', '.'));
+               
+               // Sadece gerçekçi fiyatları al ve mükerrer eklemeyi engelle
+               if (!isNaN(price) && price > 0 && !updates.find(u => u.symbol === s)) {
+                 updates.push({ 
+                   symbol: s, 
+                   price: price, 
+                   change: 0 // Değişim oranı opsiyonel, ana odak fiyat
+                 });
+                 priceFoundForThisSymbol = true;
+               }
+            }
+          });
         }
-      }
+      });
     });
 
-    console.log(`[API/STOCK] Başarılı: ${updates.length} hisse güncellendi.`);
+    console.log(`[BAŞARILI] Bulunan hisseler:`, updates.map(u => u.symbol));
     
     // Eğer bazı hisseler bulunamadıysa terminale log bas
     if (updates.length < requestedSymbols.length) {
@@ -80,15 +90,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(updates, { status: 200 });
 
   } catch (error: any) {
-    console.error("KRITIK_HATA: CNN Türk kazıma sırasında bir sorun oluştu!");
-    console.error("Hata Mesajı:", error.message);
+    console.error("KRITIK_HATA:", error.message);
     
-    if (error.code === 'ECONNABORTED') {
-      console.error("Hata Detayı: Bağlantı zaman aşımına uğradı (Timeout).");
-    } else if (error.response) {
-      console.error(`Hata Detayı: Sunucu ${error.response.status} koduyla yanıt verdi.`);
-    }
-
     // Uygulamanın çökmemesi için boş liste dön
     return NextResponse.json([], { status: 200 });
   }
