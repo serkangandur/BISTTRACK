@@ -40,6 +40,8 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
   });
 
   const isEmtia = formData.category === "Emtia";
+  const isDoviz = formData.category === "Döviz";
+  const needsDropdown = isEmtia || isDoviz;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,11 +107,22 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               value={formData.category} 
               onValueChange={(val) => {
                 const cat = val as AssetCategory;
+                let defaultSymbol = "";
+                let defaultName = "";
+                
+                if (cat === "Emtia") {
+                  defaultSymbol = "ALTIN";
+                  defaultName = "Gram Altın";
+                } else if (cat === "Döviz") {
+                  defaultSymbol = "USD";
+                  defaultName = "ABD Doları";
+                }
+
                 setFormData({ 
                   ...formData, 
                   category: cat,
-                  symbol: cat === "Emtia" ? "ALTIN" : "", // Varsayılan emtia sembolü
-                  name: cat === "Emtia" ? "Gram Altın" : ""
+                  symbol: defaultSymbol,
+                  name: defaultName
                 });
               }}
             >
@@ -127,27 +140,40 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="symbol">Sembol/Kod</Label>
-              {isEmtia ? (
+              {needsDropdown ? (
                 <Select 
                   value={formData.symbol} 
-                  onValueChange={(val) => setFormData({ 
-                    ...formData, 
-                    symbol: val, 
-                    name: val === "ALTIN" ? "Gram Altın" : "Gram Gümüş" 
-                  })}
+                  onValueChange={(val) => {
+                    let name = val;
+                    if (val === "ALTIN") name = "Gram Altın";
+                    if (val === "GUMUS") name = "Gram Gümüş";
+                    if (val === "USD") name = "ABD Doları";
+                    if (val === "EUR") name = "Euro";
+                    setFormData({ ...formData, symbol: val, name });
+                  }}
                 >
                   <SelectTrigger className="bg-white/5 border-white/10">
                     <SelectValue placeholder="Seçiniz" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ALTIN">Gram Altın (ALTIN)</SelectItem>
-                    <SelectItem value="GUMUS">Gram Gümüş (GUMUS)</SelectItem>
+                    {isEmtia && (
+                      <>
+                        <SelectItem value="ALTIN">Gram Altın (ALTIN)</SelectItem>
+                        <SelectItem value="GUMUS">Gram Gümüş (GUMUS)</SelectItem>
+                      </>
+                    )}
+                    {isDoviz && (
+                      <>
+                        <SelectItem value="USD">ABD Doları (USD)</SelectItem>
+                        <SelectItem value="EUR">Euro (EUR)</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               ) : (
                 <Input
                   id="symbol"
-                  placeholder="Örn: THYAO, BTC, USD"
+                  placeholder="Örn: THYAO, BTC"
                   className="bg-white/5 border-white/10"
                   value={formData.symbol}
                   onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
@@ -161,7 +187,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                 placeholder="Örn: Bitcoin"
                 className="bg-white/5 border-white/10"
                 value={formData.name}
-                disabled={isEmtia} // Emtia için otomatik isim atanır
+                disabled={needsDropdown}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
@@ -173,7 +199,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               <Input
                 id="quantity"
                 type="number"
-                step={isEmtia ? "0.0001" : "1"}
+                step={(isEmtia || isDoviz) ? "0.0001" : "1"}
                 placeholder="0"
                 className="bg-white/5 border-white/10"
                 value={formData.quantity}
@@ -181,7 +207,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="averageCost">Maliyet/Fiyat</Label>
+              <Label htmlFor="averageCost">Maliyet/Fiyat (₺)</Label>
               <Input
                 id="averageCost"
                 type="number"

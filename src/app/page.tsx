@@ -73,14 +73,12 @@ export default function PortfolioDashboard() {
   
   const lastFetchedCount = useRef(0);
 
-  // 1. Anonim Oturum Yönetimi
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
       initiateAnonymousSignIn(auth);
     }
   }, [user, isUserLoading, auth]);
 
-  // 2. Portföy Verilerini Dinle
   const portfoliosQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return collection(firestore, 'users', user.uid, 'portfolios');
@@ -93,7 +91,6 @@ export default function PortfolioDashboard() {
     return 'default-portfolio';
   }, [portfolios]);
 
-  // Varsayılan Portföy Oluşturma
   useEffect(() => {
     if (!isPortfoliosLoading && portfolios && portfolios.length === 0 && user && firestore) {
       const portfolioRef = doc(firestore, 'users', user.uid, 'portfolios', 'default-portfolio');
@@ -107,7 +104,6 @@ export default function PortfolioDashboard() {
     }
   }, [portfolios, isPortfoliosLoading, user, firestore]);
 
-  // 3. Varlıkları (StockHoldings) Dinle
   const stocksQuery = useMemoFirebase(() => {
     if (!user || !firestore || !portfolioId) return null;
     return collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
@@ -115,7 +111,6 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // 4. Fiyat Çekme Fonksiyonu
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0 || isRefreshing) return;
     
@@ -139,11 +134,10 @@ export default function PortfolioDashboard() {
     }
   }, [isRefreshing]);
 
-  // 5. Otomatik Fiyat Güncelleme
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
       const fetchable = dbStocks
-        .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü", "Temettü Sabit"].includes(s.category))
+        .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü", "Temettü Sabit", "Döviz"].includes(s.category))
         .map(s => s.symbol);
       
       if (fetchable.length > 0 && dbStocks.length !== lastFetchedCount.current) {
@@ -153,7 +147,6 @@ export default function PortfolioDashboard() {
     }
   }, [dbStocks, isStocksLoading, fetchStockPrices]);
 
-  // 6. Verileri Birleştir ve Hesapla
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
     
@@ -169,23 +162,19 @@ export default function PortfolioDashboard() {
     });
   }, [dbStocks, marketData]);
 
-  // STRATEJİK İZOLASYON: Toplam Portföy Değeri (Temettü Sabit Hariç)
   const totalValue = useMemo(() => {
     return assets
       .filter(a => a.category !== "Temettü Sabit")
       .reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0);
   }, [assets]);
 
-  // STRATEJİK İZOLASYON: Filtrelenmiş Liste
   const filteredAssets = useMemo(() => {
     if (activeCategory === "Özet") {
-      // Özet görünümünde Temettü Sabit'leri göstermiyoruz (İzolasyon Kuralı)
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
   }, [assets, activeCategory]);
 
-  // 7. İşlem Fonksiyonları
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
     if (!user || !firestore || !portfolioId) return;
     const stocksRef = collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
@@ -224,7 +213,6 @@ export default function PortfolioDashboard() {
 
   return (
     <div className="min-h-screen bg-[#101418] text-white flex">
-      {/* Sol Sidebar */}
       <aside className="w-64 sticky top-0 h-screen border-r border-white/5 bg-background/50 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex shrink-0">
         <div className="flex items-center gap-3 px-2 py-4 mb-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
@@ -268,7 +256,6 @@ export default function PortfolioDashboard() {
         </div>
       </aside>
 
-      {/* Ana İçerik */}
       <div className="flex-1 flex flex-col min-w-0">
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">

@@ -32,6 +32,12 @@ interface StockTableProps {
 export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
 
+  const getCurrencySymbol = (symbol: string) => {
+    if (symbol.toUpperCase() === "USD") return "$";
+    if (symbol.toUpperCase() === "EUR") return "€";
+    return "";
+  };
+
   return (
     <div className="rounded-xl border border-white/5 bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl">
       <Table>
@@ -39,9 +45,9 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
           <TableRow className="hover:bg-transparent border-white/5">
             <TableHead className="font-semibold py-4">Varlık & Kategori</TableHead>
             <TableHead className="font-semibold">Miktar</TableHead>
-            <TableHead className="font-semibold">Maliyet</TableHead>
-            <TableHead className="font-semibold">Güncel Fiyat</TableHead>
-            <TableHead className="font-semibold">Toplam Değer</TableHead>
+            <TableHead className="font-semibold">Maliyet (₺)</TableHead>
+            <TableHead className="font-semibold">Güncel Fiyat (₺)</TableHead>
+            <TableHead className="font-semibold">Toplam Değer (₺)</TableHead>
             <TableHead className="font-semibold">Performans</TableHead>
             <TableHead className="text-right"></TableHead>
           </TableRow>
@@ -55,13 +61,15 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
             const isUp = pl >= 0;
             
             const isLoading = !stock.isLoaded;
-            const isEmtia = stock.category === "Emtia";
+            const isHighPrecision = ["Emtia", "Döviz", "Kripto"].includes(stock.category);
+            const dovizSymbol = getCurrencySymbol(stock.symbol);
 
             return (
               <TableRow key={stock.id} className="hover:bg-white/5 border-white/5 transition-colors group">
                 <TableCell className="font-bold py-4">
                   <div className="flex flex-col gap-1">
                     <span className="text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
+                      {dovizSymbol && <span className="text-primary">{dovizSymbol}</span>}
                       {stock.symbol}
                     </span>
                     <div className="flex items-center gap-1.5">
@@ -74,15 +82,15 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                   </div>
                 </TableCell>
                 <TableCell className="font-medium text-muted-foreground">
-                  {isEmtia 
-                    ? `${stock.quantity.toFixed(4).replace('.', ',')} gr` 
+                  {isHighPrecision 
+                    ? `${stock.quantity.toFixed(4).replace('.', ',')} ${stock.category === "Emtia" ? "gr" : ""}` 
                     : stock.quantity.toLocaleString("tr-TR")
                   }
                 </TableCell>
                 <TableCell className="text-muted-foreground">₺{stock.averageCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 font-semibold">
-                    {isLoading && ["Büyüme", "Emtia", "Temettü"].includes(stock.category) ? (
+                    {isLoading && ["Büyüme", "Emtia", "Temettü", "Döviz"].includes(stock.category) ? (
                       <span className="text-[10px] text-muted-foreground animate-pulse">Piyasa Bekleniyor...</span>
                     ) : (
                       <>
