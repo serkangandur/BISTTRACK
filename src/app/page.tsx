@@ -31,7 +31,7 @@ export default function PortfolioDashboard() {
   
   const [marketData, setMarketData] = useState<Record<string, StockPriceUpdate>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [hasInitialFetch, setHasInitialFetch] = useState(false);
+  const [initialFetchDone, setInitialFetchDone] = useState(false);
 
   // Anonim giriş yap
   useEffect(() => {
@@ -84,12 +84,12 @@ export default function PortfolioDashboard() {
           newData[u.symbol.toUpperCase()] = u;
         });
         setMarketData(prev => ({ ...prev, ...newData }));
-        setHasInitialFetch(true);
       }
     } catch (error) {
       console.error("Fiyat çekme hatası:", error);
     } finally {
       setIsRefreshing(false);
+      setInitialFetchDone(true);
     }
   }, []);
 
@@ -99,26 +99,33 @@ export default function PortfolioDashboard() {
     return dbStocks.map(s => {
       const symbolUpper = s.symbol.toUpperCase();
       const market = marketData[symbolUpper];
+      
       return {
         id: s.id,
         symbol: s.symbol,
         name: s.name || s.symbol,
         quantity: s.quantity,
         averageCost: s.averageCost,
-        currentPrice: market?.price || s.averageCost,
+        currentPrice: market?.price || s.averageCost, // Veri yoksa maliyeti göster ama isLoaded: false olsun
         dailyChange: market?.change || 0,
-        isLoaded: !!market
+        isLoaded: !!market // marketData içinde bu sembol varsa yüklendi demektir
       };
     });
   }, [dbStocks, marketData]);
 
-  // İlk veri geldiğinde fiyatları çek
+  // İlk veri geldiğinde veya liste değiştiğinde (yeni eklenen varsa) fiyatları çek
   useEffect(() => {
-    if (dbStocks && dbStocks.length > 0 && !hasInitialFetch && !isRefreshing) {
-      const symbols = dbStocks.map(s => s.symbol);
-      fetchStockPrices(symbols);
+    if (dbStocks && dbStocks.length > 0) {
+      const symbolsToFetch = dbStocks
+        .map(s => s.symbol)
+        .filter(sym => !marketData[sym.toUpperCase()]); // Sadece market verisi olmayanları değil, hepsini çekmek daha sağlıklı olabilir
+      
+      // Eğer hiç market verisi yoksa veya liste boyutu değiştiyse çek
+      if (!initialFetchDone || symbolsToFetch.length > 0) {
+        fetchStockPrices(dbStocks.map(s => s.symbol));
+      }
     }
-  }, [dbStocks, fetchStockPrices, hasInitialFetch, isRefreshing]);
+  }, [dbStocks, fetchStockPrices, initialFetchDone, marketData]);
 
   // Otomatik yenileme (15 dakikada bir)
   useEffect(() => {
@@ -149,8 +156,7 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    // Yeni eklenen için hemen fiyat çekmeyi tetiklemek için flag'i resetleyelim
-    setHasInitialFetch(false);
+    // Yeni eklenen için fetch tetiklenecek (useEffect sayesinde)
   };
 
   const handleDeleteStock = (id: string) => {
