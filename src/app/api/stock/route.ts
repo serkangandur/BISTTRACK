@@ -4,7 +4,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Hibrit Veri Motoru v23.0 - "Tam İsabet Kripto & BIST".
+ * Hibrit Veri Motoru v25.0 - "Nokta Atışı Kripto & BIST".
  * - Ana Kaynak (Kripto): Binance TR API (Resmi & Kurşun Geçirmez)
  * - Yedek Kaynak (Kripto): Midas "Nokta Atışı" Scraping (Görseldeki 86k seviyeleri için)
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1)
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([], { status: 200 });
   }
 
-  // Frontend'den gelen sembolleri orijinal haliyle koru
+  // Frontend'den gelen sembolleri orijinal haliyle koru (Eşleşme için kritik)
   const requestedSymbols = symbolsParam
     .split(',')
     .map(s => s.trim());
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. KRİPTO: BİNANCE TR API (BİRİNCİ ÖNCELİK)
+    // 1. KRİPTO: BİNANCE TR API (BİRİNCİ ÖNCELİK - EN GÜVENİLİR)
     let btcPrice: number | null = null;
     let ethPrice: number | null = null;
 
@@ -56,17 +56,19 @@ export async function GET(request: NextRequest) {
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 8000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 8000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 8000 }),
+      // Midas Linkleri (ETH için görseldeki 86k değerini garanti etmek için)
       axios.get('https://www.getmidas.com/canli-kripto/bitcoin-fiyati/', { headers, timeout: 8000 }),
       axios.get('https://www.getmidas.com/canli-kripto/ethereum-fiyati/', { headers, timeout: 8000 }),
     ];
 
     const results = await Promise.allSettled(mainRequests);
 
-    // MİDAS YEDEĞİ İŞLEME (Binance başarısızsa)
+    // MİDAS YEDEĞİ İŞLEME (Binance başarısızsa veya veri 100k altındaysa)
     const processMidas = (idx: number, type: 'BTC' | 'ETH') => {
       const res = results[idx];
       if (res.status === 'fulfilled' && res.value) {
         const $ = cheerio.load(res.value.data);
+        // Sayfadaki en büyük fiyat hanesini yakala (.currency-price veya .last-price)
         const pText = $('.currency-price').first().text().trim() || 
                       $('.last-price').first().text().trim() || 
                       $('h1').first().text().trim();
@@ -75,9 +77,11 @@ export async function GET(request: NextRequest) {
         if (match) {
           const rawPrice = match[0];
           const p = parseFloat(rawPrice.replace(/\./g, '').replace(',', '.'));
+          
           if (!isNaN(p) && p > 0) {
-            if (type === 'BTC' && (!btcPrice || btcPrice < 100000)) btcPrice = p;
-            if (type === 'ETH' && (!ethPrice || ethPrice < 15000)) ethPrice = p;
+            // Güvenlik: BIST endeksi (13.934) ile karışmaması için alt sınır kontrolü
+            if (type === 'BTC' && p > 1000000 && (!btcPrice || btcPrice < 100000)) btcPrice = p;
+            if (type === 'ETH' && p > 30000 && (!ethPrice || ethPrice < 15000)) ethPrice = p;
             console.log(`[MİDAS] ${type} Fiyatı: ${p.toLocaleString('tr-TR')} ₺`);
           }
         }
@@ -93,14 +97,14 @@ export async function GET(request: NextRequest) {
       // BTC EŞLEŞTİRME (İsimde Bitcoin veya BTC geçiyorsa)
       if (btcPrice && (reqUpper.includes('BITCOIN') || reqUpper.includes('BİTCOİN') || reqUpper === 'BTC')) {
         updates.push({ symbol: req, price: Number(btcPrice.toFixed(4)), change: 0 });
-        console.log(`[BAŞARI] '${req}' eşleşti: ${btcPrice.toLocaleString('tr-TR')} ₺`);
+        console.log(`[BAŞARI] '${req}' varlığına ${btcPrice.toLocaleString('tr-TR')} ₺ bağlandı.`);
         return;
       }
 
-      // ETH EŞLEŞTİRME (İsimde Ethereum veya ETH geçiyorsa)
+      // ETH EŞLEŞTİRME (İsimde Ethereum, Etherium veya ETH geçiyorsa)
       if (ethPrice && (reqUpper.includes('ETHEREUM') || reqUpper.includes('ETHERİUM') || reqUpper === 'ETH')) {
         updates.push({ symbol: req, price: Number(ethPrice.toFixed(4)), change: 0 });
-        console.log(`[BAŞARI] '${req}' eşleşti: ${ethPrice.toLocaleString('tr-TR')} ₺`);
+        console.log(`[BAŞARI] '${req}' varlığına ${ethPrice.toLocaleString('tr-TR')} ₺ bağlandı.`);
         return;
       }
 

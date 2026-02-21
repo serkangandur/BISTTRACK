@@ -116,7 +116,7 @@ export default function PortfolioDashboard() {
     
     setIsRefreshing(true);
     try {
-      const response = await fetch(`/api/stock?symbols=${symbols.join(',')}`);
+      const response = await fetch(`/api/stock?symbols=${encodeURIComponent(symbols.join(','))}`);
       if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
       const updates: StockPriceUpdate[] = await response.json();
       
