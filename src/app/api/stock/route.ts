@@ -65,7 +65,10 @@ export async function GET(request: NextRequest) {
                   if (requestedSymbols.includes(target.symbol)) {
                     updates.push({ symbol: target.symbol, price, change: 0 });
                   }
-                  if (target.symbol === 'USD') usdTryRate = price;
+                  if (target.symbol === 'USD') {
+                    usdTryRate = price;
+                    console.log(`[API] Güncel USD/TRY Kuru: ${usdTryRate}`);
+                  }
                   found = true;
                   return false;
                 }
@@ -74,6 +77,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
+        // Fallback Regex
         if (!found) {
           const bodyText = $('body').text();
           const regex = new RegExp(`${target.key}[\\s:]+([\\d.]+,[\\d]+)`, 'i');
@@ -169,20 +173,29 @@ export async function GET(request: NextRequest) {
           if (tds.length >= 2) {
             const label = $(tds[0]).text().trim().toUpperCase();
             if (target.keys.some(k => label.includes(k))) {
-              let priceText = $(tds[1]).text().trim() || $(tds[2]).text().trim();
-              
+              // Fiyat genellikle 2. veya 3. sütundadır
+              let priceText = "";
+              const cell1 = $(tds[1]).text().trim();
+              const cell2 = $(tds[2]).text().trim();
+
+              if (cell1 && cell1.includes(',')) priceText = cell1;
+              else if (cell2 && cell2.includes(',')) priceText = cell2;
+
               if (priceText) {
                 const usdPrice = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
                 
                 if (!isNaN(usdPrice)) {
+                  // Eğer Dolar kuru çekilebildiyse TL'ye çevir, çekilemediyse ham Dolar fiyatını ver (Hata önleyici)
                   const finalPrice = usdTryRate > 0 ? usdPrice * usdTryRate : usdPrice;
-                  // 7 hane hassasiyeti koruyarak sayıya dönüştür
+                  
+                  console.log(`[API] ${target.symbol} Bulundu - USD: ${usdPrice}, TRY: ${finalPrice}`);
+                  
                   updates.push({ 
                     symbol: target.symbol, 
                     price: Number(finalPrice.toFixed(7)), 
                     change: 0 
                   });
-                  return false;
+                  return false; // Satırı bulduk, aramayı bitir
                 }
               }
             }
