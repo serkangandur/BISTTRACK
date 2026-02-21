@@ -4,10 +4,10 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Scraping API Route v3.0.
- * BIST, Emtia (Altın/Gümüş), Döviz (USD/EUR) ve Kripto (BTC/ETH) verilerini toplu çeker.
- * Kripto paralar için Dolar fiyatını çekip güncel kurla ₺'ye çevirir.
- * Hassasiyet: Kripto fiyatları için 7 hane destekler.
+ * Gelişmiş Hibrit Scraping API Route v4.0.
+ * BIST, Emtia ve Döviz verilerini CNN Türk'ten (Tabelle 1 yöntemi),
+ * Kripto (BTC/ETH) verilerini ise Mynet'ten doğrudan ₺ bazlı çeker.
+ * Hassasiyet: Kripto miktarları için 7 hane, fiyatlar için 4 hane destekler.
  */
 
 export async function GET(request: NextRequest) {
@@ -28,19 +28,19 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. PARALEL İSTEKLER (BIST, Altın, Gümüş, Döviz ve Kripto)
+    // 1. PARALEL İSTEKLER (BIST, Altın, Gümüş, Döviz ve Mynet Kripto)
     const requests = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 10000 }),
-      axios.get('https://finans.cnnturk.com/kripto-paralar', { headers, timeout: 10000 }),
+      axios.get('https://finans.mynet.com/bitcoin-try-kripto/', { headers, timeout: 10000 }), // BTC Mynet
+      axios.get('https://finans.mynet.com/ethereum-kripto/', { headers, timeout: 10000 }),    // ETH Mynet
     ];
 
     const results = await Promise.allSettled(requests);
 
-    // 2. DÖVİZ ÖZET TABLO MANTIĞI (Önce kuru çekelim ki kripto hesaplamada kullanalım)
-    let usdTryRate = 0;
+    // 2. DÖVİZ ÖZET TABLO MANTIĞI (CNN Türk)
     const dovizResult = results[3];
     if (dovizResult.status === 'fulfilled') {
       const $ = cheerio.load(dovizResult.value.data);
@@ -52,7 +52,6 @@ export async function GET(request: NextRequest) {
       ];
 
       targets.forEach(target => {
-        let found = false;
         firstTable.find('tr').each((_, el) => {
           const tds = $(el).find('td');
           if (tds.length >= 3) {
@@ -61,41 +60,17 @@ export async function GET(request: NextRequest) {
               const priceText = $(tds[2]).text().trim();
               if (priceText && priceText.includes(',')) {
                 const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
-                if (!isNaN(price)) {
-                  if (requestedSymbols.includes(target.symbol)) {
-                    updates.push({ symbol: target.symbol, price, change: 0 });
-                  }
-                  if (target.symbol === 'USD') {
-                    usdTryRate = price;
-                    console.log(`[API] Güncel USD/TRY Kuru: ${usdTryRate}`);
-                  }
-                  found = true;
-                  return false;
+                if (!isNaN(price) && requestedSymbols.includes(target.symbol)) {
+                  updates.push({ symbol: target.symbol, price: Number(price.toFixed(4)), change: 0 });
                 }
               }
             }
           }
         });
-
-        // Fallback Regex
-        if (!found) {
-          const bodyText = $('body').text();
-          const regex = new RegExp(`${target.key}[\\s:]+([\\d.]+,[\\d]+)`, 'i');
-          const match = bodyText.match(regex);
-          if (match && match[1]) {
-            const price = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(price)) {
-              if (requestedSymbols.includes(target.symbol)) {
-                updates.push({ symbol: target.symbol, price, change: 0 });
-              }
-              if (target.symbol === 'USD') usdTryRate = price;
-            }
-          }
-        }
       });
     }
 
-    // 3. BIST TABLO MANTIĞI
+    // 3. BIST TABLO MANTIĞI (CNN Türk)
     const bistResult = results[0];
     if (bistResult.status === 'fulfilled') {
       const $ = cheerio.load(bistResult.value.data);
@@ -117,31 +92,28 @@ export async function GET(request: NextRequest) {
           if (priceText) {
             const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
             if (!isNaN(price) && price > 0) {
-              updates.push({ symbol, price, change: 0 });
+              updates.push({ symbol, price: Number(price.toFixed(4)), change: 0 });
             }
           }
         }
       });
     }
 
-    // 4. EMTİA MANTIĞI
-    const scrapeEmtiaTable = (resultIdx: number, symbol: string, targetKey: string) => {
+    // 4. EMTİA MANTIĞI (CNN Türk - Tabelle 1)
+    const scrapeEmtiaTable = (resultIdx: number, symbol: string) => {
       const result = results[resultIdx];
       if (result.status === 'fulfilled' && requestedSymbols.includes(symbol)) {
         const $ = cheerio.load(result.value.data);
-        let found = false;
-
         $('table').first().find('tr').each((_, el) => {
           const tds = $(el).find('td');
           if (tds.length >= 3) {
             const rowLabel = $(tds[0]).text().trim().toLowerCase();
-            if (rowLabel.includes(targetKey.toLowerCase())) {
+            if (rowLabel.includes('gram')) {
               const priceText = $(tds[2]).text().trim();
               if (priceText && priceText.includes(',')) {
                 const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
                 if (!isNaN(price)) {
-                  updates.push({ symbol, price, change: 0 });
-                  found = true;
+                  updates.push({ symbol, price: Number(price.toFixed(4)), change: 0 });
                   return false;
                 }
               }
@@ -151,58 +123,41 @@ export async function GET(request: NextRequest) {
       }
     };
 
-    scrapeEmtiaTable(1, 'ALTIN', 'Gram');
-    scrapeEmtiaTable(2, 'GUMUS', 'Gram');
+    scrapeEmtiaTable(1, 'ALTIN');
+    scrapeEmtiaTable(2, 'GUMUS');
 
-    // 5. KRİPTO MANTIĞI (₺ Hesaplamalı - 7 Hane Hassasiyet)
-    const kriptoResult = results[4];
-    if (kriptoResult.status === 'fulfilled') {
-      const $ = cheerio.load(kriptoResult.value.data);
-      const firstTable = $('table').first();
+    // 5. KRİPTO MANTIĞI (Mynet Finans - Doğrudan ₺)
+    const processMynetCrypto = (result: any, symbol: string) => {
+      if (result.status === 'fulfilled' && requestedSymbols.includes(symbol)) {
+        const $ = cheerio.load(result.value.data);
+        
+        // Mynet'te fiyat genellikle .dt-price veya .last-price class'ındadır.
+        // Regex ile metin içindeki fiyat yapısını yakala (Nokta binlik, virgül ondalık)
+        let priceText = $('.dt-price').first().text().trim() || 
+                        $('.last-price').first().text().trim() ||
+                        $('body').text();
+        
+        const priceRegex = /([\d.]+,[\d]+)/;
+        const match = priceText.match(priceRegex);
 
-      const cryptoTargets = [
-        { symbol: 'BTC', keys: ['BITCOIN', 'BTC'] },
-        { symbol: 'ETH', keys: ['ETHEREUM', 'ETH'] }
-      ];
-
-      cryptoTargets.forEach(target => {
-        if (!requestedSymbols.includes(target.symbol)) return;
-
-        firstTable.find('tr').each((_, el) => {
-          const tds = $(el).find('td');
-          if (tds.length >= 2) {
-            const label = $(tds[0]).text().trim().toUpperCase();
-            if (target.keys.some(k => label.includes(k))) {
-              // Fiyat genellikle 2. veya 3. sütundadır
-              let priceText = "";
-              const cell1 = $(tds[1]).text().trim();
-              const cell2 = $(tds[2]).text().trim();
-
-              if (cell1 && cell1.includes(',')) priceText = cell1;
-              else if (cell2 && cell2.includes(',')) priceText = cell2;
-
-              if (priceText) {
-                const usdPrice = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
-                
-                if (!isNaN(usdPrice)) {
-                  // Eğer Dolar kuru çekilebildiyse TL'ye çevir, çekilemediyse ham Dolar fiyatını ver (Hata önleyici)
-                  const finalPrice = usdTryRate > 0 ? usdPrice * usdTryRate : usdPrice;
-                  
-                  console.log(`[API] ${target.symbol} Bulundu - USD: ${usdPrice}, TRY: ${finalPrice}`);
-                  
-                  updates.push({ 
-                    symbol: target.symbol, 
-                    price: Number(finalPrice.toFixed(7)), 
-                    change: 0 
-                  });
-                  return false; // Satırı bulduk, aramayı bitir
-                }
-              }
-            }
+        if (match && match[1]) {
+          const rawPrice = match[1];
+          const cleanPrice = parseFloat(rawPrice.replace(/\./g, '').replace(',', '.'));
+          
+          if (!isNaN(cleanPrice) && cleanPrice > 0) {
+            console.log(`[API] ${symbol} Mynet Fiyatı: ${cleanPrice.toLocaleString('tr-TR')} ₺`);
+            updates.push({
+              symbol,
+              price: Number(cleanPrice.toFixed(7)), // 7 hane hassasiyet korunuyor
+              change: 0
+            });
           }
-        });
-      });
-    }
+        }
+      }
+    };
+
+    processMynetCrypto(results[4], 'BTC');
+    processMynetCrypto(results[5], 'ETH');
 
     const foundSymbols = updates.map(u => u.symbol).join(', ');
     console.log(`[API] Güncellenen Varlıklar (${updates.length}): ${foundSymbols}`);
