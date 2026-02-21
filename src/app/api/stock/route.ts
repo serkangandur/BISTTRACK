@@ -4,10 +4,10 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Veri Motoru v11.0 - "Her Yeri Tara" & "Kesin ₺ Filtresi".
+ * Gelişmiş Hibrit Veri Motoru v12.0 - "Doviz.com Kripto Entegrasyonu".
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1 / İlk Tablo Yöntemi)
- * - Kripto (BTC ve ETH): CNN Türk Tüm Satırları Tarama (Nokta Atışı Metin Eşleşmesi)
- * - Güvenlik: BTC > 1M ₺ ve ETH > 30K ₺ altındaki tüm verileri (BIST 13k veya Dolar fiyatı) eler.
+ * - Kripto (BTC ve ETH): Doviz.com (Bot Dostu ve Doğrudan ₺)
+ * - Güvenlik: BTC > 1M ₺ ve ETH > 30K ₺ altındaki verileri eler.
  */
 
 export async function GET(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 10000 }),
-      axios.get('https://finans.cnnturk.com/kripto-paralar', { headers, timeout: 10000 }),
+      axios.get('https://www.doviz.com/kripto-paralar', { headers, timeout: 10000 }), // YENİ KAYNAK: DOVIZ.COM
     ];
 
     const results = await Promise.allSettled(mainRequests);
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. BIST HİSSELERİ (CNN - TABLO MANTIĞI)
+    // 3. BIST HİSSELERİ (CNN)
     const bistResult = results[0];
     if (bistResult.status === 'fulfilled') {
       const $ = cheerio.load(bistResult.value.data);
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 4. EMTİA (CNN - TABELLE 1)
+    // 4. EMTİA (CNN)
     const scrapeEmtia = (idx: number, symbol: string) => {
       const res = results[idx];
       if (res.status === 'fulfilled' && requestedSymbols.includes(symbol)) {
@@ -122,54 +122,42 @@ export async function GET(request: NextRequest) {
     scrapeEmtia(1, 'ALTIN');
     scrapeEmtia(2, 'GUMUS');
 
-    // 5. KRİPTO (YENİ HER YERİ TARA MANTIĞI)
-    const cnnKriptoRes = results[4];
-    if (cnnKriptoRes.status === 'fulfilled') {
-      const $ = cheerio.load(cnnKriptoRes.value.data);
-      console.log("[TEST] Sayfada Kripto varlıkları aranıyor...");
+    // 5. KRİPTO (YENİ KAYNAK: DOVIZ.COM)
+    const dovizKriptoRes = results[4];
+    if (dovizKriptoRes.status === 'fulfilled') {
+      const $ = cheerio.load(dovizKriptoRes.value.data);
+      console.log("[TEST] Doviz.com Kripto verileri taranıyor...");
 
-      $('tr').each((_, row) => {
-        const rowText = $(row).text().trim().toLowerCase();
-        const cells = $(row).find('td');
-
-        // BTC ARAMA
-        if (requestedSymbols.includes('BTC') && rowText.includes('bitcoin') && rowText.includes('türk lirası')) {
-          console.log("[TEST] 'Bitcoin Türk Lirası' ibaresi aranan satırda bulundu.");
-          cells.each((_, cell) => {
-            const cellText = $(cell).text().trim();
-            if (cellText.includes(',') && !cellText.includes('%')) {
-              const price = parseFloat(cellText.replace(/\./g, '').replace(',', '.'));
-              // Mantıksal Sınır (Guardrail): 1M ₺
-              if (!isNaN(price) && price > 1000000) {
-                if (!updates.some(u => u.symbol === 'BTC')) {
-                  updates.push({ symbol: 'BTC', price: Number(price.toFixed(4)), change: 0 });
-                  console.log(`[BULDUM] BTC Fiyat: ${price.toLocaleString('tr-TR')} ₺`);
-                  return false;
+      const processCoin = (symbol: string, nameSearch: string, minPrice: number) => {
+        if (!requestedSymbols.includes(symbol)) return;
+        
+        $('table').first().find('tr').each((_, row) => {
+          const rowText = $(row).text().toLowerCase();
+          if (rowText.includes(nameSearch)) {
+            const tds = $(row).find('td');
+            // Doviz.com'da fiyata sahip hücreyi bul
+            tds.each((_, td) => {
+              const cellText = $(td).text().trim();
+              if (cellText.includes(',') && !cellText.includes('%')) {
+                const price = parseFloat(cellText.replace(/\./g, '').replace(',', '.'));
+                if (!isNaN(price) && price > minPrice) {
+                  if (!updates.some(u => u.symbol === symbol)) {
+                    updates.push({ symbol, price: Number(price.toFixed(4)), change: 0 });
+                    console.log(`[BULDUM] Doviz.com ${symbol} Fiyat: ${price.toLocaleString('tr-TR')} ₺`);
+                    return false;
+                  }
                 }
               }
-            }
-          });
-        }
+            });
+            if (updates.some(u => u.symbol === symbol)) return false;
+          }
+        });
+      };
 
-        // ETH ARAMA
-        if (requestedSymbols.includes('ETH') && rowText.includes('ethereum') && rowText.includes('türk lirası')) {
-          console.log("[TEST] 'Ethereum Türk Lirası' ibaresi aranan satırda bulundu.");
-          cells.each((_, cell) => {
-            const cellText = $(cell).text().trim();
-            if (cellText.includes(',') && !cellText.includes('%')) {
-              const price = parseFloat(cellText.replace(/\./g, '').replace(',', '.'));
-              // Mantıksal Sınır (Guardrail): 30K ₺
-              if (!isNaN(price) && price > 30000) {
-                if (!updates.some(u => u.symbol === 'ETH')) {
-                  updates.push({ symbol: 'ETH', price: Number(price.toFixed(4)), change: 0 });
-                  console.log(`[BULDUM] ETH Fiyat: ${price.toLocaleString('tr-TR')} ₺`);
-                  return false;
-                }
-              }
-            }
-          });
-        }
-      });
+      processCoin('BTC', 'bitcoin', 1000000);
+      processCoin('ETH', 'ethereum', 30000);
+    } else {
+      console.error("[HATA] Doviz.com'a bağlanılamadı");
     }
 
     const foundSymbols = updates.map(u => u.symbol).join(', ');
