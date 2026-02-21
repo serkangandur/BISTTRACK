@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // yahoo-finance2 kütüphanesinin bundle hatalarını önlemek için harici paket olarak işaretliyoruz
+  // yahoo-finance2 kütüphanesinin bundle hatalarını tamamen önlemek için
+  // serverExternalPackages içinde tutmaya devam ediyoruz, ancak artık doğrudan fetch kullanıyoruz.
   serverExternalPackages: ['yahoo-finance2'],
   images: {
     remotePatterns: [
