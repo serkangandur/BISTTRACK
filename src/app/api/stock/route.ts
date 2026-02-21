@@ -4,10 +4,9 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Veri Motoru v12.0 - "Doviz.com Kripto Entegrasyonu".
+ * Gelişmiş Hibrit Veri Motoru v15.0 - "Binance TR API Entegrasyonu".
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1 / İlk Tablo Yöntemi)
- * - Kripto (BTC ve ETH): Doviz.com (Bot Dostu ve Doğrudan ₺)
- * - Güvenlik: BTC > 1M ₺ ve ETH > 30K ₺ altındaki verileri eler.
+ * - Kripto (BTC ve ETH): Binance TR Resmi API (Kurşun Geçirmez ve Saf ₺)
  */
 
 export async function GET(request: NextRequest) {
@@ -28,13 +27,14 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. PARALEL İSTEKLER
+    // 1. PARALEL İSTEKLER (CNN Türk Scraping + Binance TR API)
     const mainRequests = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 10000 }),
-      axios.get('https://www.doviz.com/kripto-paralar', { headers, timeout: 10000 }), // YENİ KAYNAK: DOVIZ.COM
+      axios.get('https://api.binance.tr/api/v3/ticker/price?symbol=BTCTRY', { timeout: 10000 }),
+      axios.get('https://api.binance.tr/api/v3/ticker/price?symbol=ETHTRY', { timeout: 10000 }),
     ];
 
     const results = await Promise.allSettled(mainRequests);
@@ -122,43 +122,26 @@ export async function GET(request: NextRequest) {
     scrapeEmtia(1, 'ALTIN');
     scrapeEmtia(2, 'GUMUS');
 
-    // 5. KRİPTO (YENİ KAYNAK: DOVIZ.COM)
-    const dovizKriptoRes = results[4];
-    if (dovizKriptoRes.status === 'fulfilled') {
-      const $ = cheerio.load(dovizKriptoRes.value.data);
-      console.log("[TEST] Doviz.com Kripto verileri taranıyor...");
-
-      const processCoin = (symbol: string, nameSearch: string, minPrice: number) => {
-        if (!requestedSymbols.includes(symbol)) return;
-        
-        $('table').first().find('tr').each((_, row) => {
-          const rowText = $(row).text().toLowerCase();
-          if (rowText.includes(nameSearch)) {
-            const tds = $(row).find('td');
-            // Doviz.com'da fiyata sahip hücreyi bul
-            tds.each((_, td) => {
-              const cellText = $(td).text().trim();
-              if (cellText.includes(',') && !cellText.includes('%')) {
-                const price = parseFloat(cellText.replace(/\./g, '').replace(',', '.'));
-                if (!isNaN(price) && price > minPrice) {
-                  if (!updates.some(u => u.symbol === symbol)) {
-                    updates.push({ symbol, price: Number(price.toFixed(4)), change: 0 });
-                    console.log(`[BULDUM] Doviz.com ${symbol} Fiyat: ${price.toLocaleString('tr-TR')} ₺`);
-                    return false;
-                  }
-                }
-              }
-            });
-            if (updates.some(u => u.symbol === symbol)) return false;
+    // 5. KRİPTO (BİNANCE TR RESMİ API)
+    const processBinanceCrypto = (idx: number, symbol: string) => {
+      if (!requestedSymbols.includes(symbol)) return;
+      const res = results[idx];
+      if (res.status === 'fulfilled') {
+        const data = res.value.data;
+        if (data && data.price) {
+          const price = parseFloat(data.price);
+          if (!isNaN(price)) {
+            updates.push({ symbol, price: Number(price.toFixed(4)), change: 0 });
+            console.log(`[API] Binance TR ${symbol}: ${price.toLocaleString('tr-TR')} ₺`);
           }
-        });
-      };
+        }
+      } else {
+        console.error(`[API] Binance TR ${symbol} Hatası:`, res.reason.message);
+      }
+    };
 
-      processCoin('BTC', 'bitcoin', 1000000);
-      processCoin('ETH', 'ethereum', 30000);
-    } else {
-      console.error("[HATA] Doviz.com'a bağlanılamadı");
-    }
+    processBinanceCrypto(4, 'BTC');
+    processBinanceCrypto(5, 'ETH');
 
     const foundSymbols = updates.map(u => u.symbol).join(', ');
     console.log(`[API] Güncellenen Varlıklar (${updates.length}): ${foundSymbols}`);
