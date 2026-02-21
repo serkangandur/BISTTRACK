@@ -117,7 +117,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="averageCost">Birim Maliyet (₺)</Label>
+            <Label htmlFor="averageCost">Ortalama Fiyat (₺)</Label>
             <Input
               id="averageCost"
               type="number"

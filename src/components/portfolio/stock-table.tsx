@@ -33,7 +33,7 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
           <TableRow className="hover:bg-transparent border-white/5">
             <TableHead className="font-semibold py-4">Sembol</TableHead>
             <TableHead className="font-semibold">Adet</TableHead>
-            <TableHead className="font-semibold">Maliyet</TableHead>
+            <TableHead className="font-semibold">Ortalama Fiyat</TableHead>
             <TableHead className="font-semibold">Güncel Fiyat</TableHead>
             <TableHead className="font-semibold">Toplam Tutar</TableHead>
             <TableHead className="font-semibold">Kâr/Zarar</TableHead>
