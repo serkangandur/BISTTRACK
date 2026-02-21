@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -47,6 +48,10 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
             const pl = totalValue - totalCost;
             const plPercentage = totalCost > 0 ? (pl / totalCost) * 100 : 0;
             const isUp = pl >= 0;
+            
+            // Eğer fiyat maliyetle tam olarak aynıysa ve hiçbir değişim yoksa "yükleniyor" diyebiliriz, 
+            // ama en azından bir değer göstermek daha iyidir.
+            const isLoading = stock.currentPrice === stock.averageCost && stock.dailyChange === 0;
 
             return (
               <TableRow key={stock.id} className="hover:bg-white/5 border-white/5 transition-colors group">
@@ -60,8 +65,11 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
                 <TableCell className="text-muted-foreground">₺{stock.averageCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 font-semibold">
-                    {stock.currentPrice === stock.averageCost && stock.dailyChange === 0 ? (
-                      <span className="text-xs text-muted-foreground animate-pulse">Yükleniyor...</span>
+                    {isLoading ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground animate-pulse">Yükleniyor...</span>
+                        <span className="text-[10px] text-muted-foreground opacity-50">₺{stock.currentPrice.toFixed(2)}</span>
+                      </div>
                     ) : (
                       <>
                         ₺{stock.currentPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}

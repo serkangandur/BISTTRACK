@@ -1,3 +1,4 @@
+
 'use server';
 
 import yahooFinance from 'yahoo-finance2';
@@ -16,10 +17,13 @@ export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceU
   if (!symbols || symbols.length === 0) return [];
 
   try {
-    const formattedSymbols = symbols.map(s => s.endsWith('.IS') ? s : `${s}.IS`);
+    // Tüm sembollerin sonuna .IS ekliyoruz (Borsa İstanbul için)
+    const formattedSymbols = symbols.map(s => {
+      const clean = s.trim().toUpperCase();
+      return clean.endsWith('.IS') ? clean : `${clean}.IS`;
+    });
     
     // Yahoo Finance'dan verileri toplu halde çekiyoruz
-    // quote fonksiyonu dizi kabul eder ve dizi döndürür
     const quotes = await yahooFinance.quote(formattedSymbols);
     
     // Tek bir sembol gönderildiğinde dizi yerine obje dönebilir, garantiye alıyoruz
@@ -27,10 +31,14 @@ export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceU
 
     return quotesArray.map((quote) => {
       // BIST sembolünü temizliyoruz (THYAO.IS -> THYAO)
-      const cleanSymbol = quote.symbol.replace('.IS', '');
+      const cleanSymbol = quote.symbol.split('.')[0].toUpperCase();
       
       // Fiyat verisi için alternatif alanları kontrol ediyoruz
-      const price = quote.regularMarketPrice || quote.regularMarketPreviousClose || quote.bid || quote.ask || 0;
+      const price = quote.regularMarketPrice || 
+                    quote.regularMarketPreviousClose || 
+                    quote.bid || 
+                    quote.ask || 
+                    0;
       
       return {
         symbol: cleanSymbol,
@@ -39,7 +47,7 @@ export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceU
       };
     });
   } catch (error) {
-    console.error('General error fetching stock prices:', error);
+    console.error('Yahoo Finance Veri Çekme Hatası:', error);
     return [];
   }
 }

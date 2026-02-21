@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { StockHolding } from "@/lib/types";
 import { SummaryCards } from "@/components/portfolio/summary-cards";
 import { StockTable } from "@/components/portfolio/stock-table";
@@ -30,6 +31,7 @@ export default function PortfolioDashboard() {
   
   const [holdings, setHoldings] = useState<StockHolding[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasInitialFetch, setHasInitialFetch] = useState(false);
 
   // Anonim giriş yap
   useEffect(() => {
@@ -71,7 +73,41 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // DB verilerini yerel state ile senkronize et ve fiyatları çek
+  const fetchStockPrices = useCallback(async (currentHoldings: StockHolding[]) => {
+    if (currentHoldings.length === 0) return;
+    setIsRefreshing(true);
+    try {
+      const symbols = currentHoldings.map(h => h.symbol);
+      const updates = await getLiveStockPrices(symbols);
+      
+      if (updates && updates.length > 0) {
+        setHoldings(prev => prev.map(holding => {
+          const update = updates.find(u => 
+            u.symbol.toUpperCase() === holding.symbol.toUpperCase() ||
+            u.symbol.split('.')[0].toUpperCase() === holding.symbol.toUpperCase()
+          );
+          if (update && update.price > 0) {
+            return {
+              ...holding,
+              currentPrice: update.price,
+              dailyChange: update.change
+            };
+          }
+          return holding;
+        }));
+        
+        if (!hasInitialFetch) {
+          setHasInitialFetch(true);
+        }
+      }
+    } catch (error) {
+      console.error("Fiyat çekme hatası:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [hasInitialFetch]);
+
+  // DB verilerini yerel state ile senkronize et
   useEffect(() => {
     if (dbStocks) {
       const formattedStocks: StockHolding[] = dbStocks.map(s => ({
@@ -85,12 +121,12 @@ export default function PortfolioDashboard() {
       }));
       setHoldings(formattedStocks);
       
-      // Sadece yeni veriler geldiğinde fiyatları bir kez çek
-      if (formattedStocks.length > 0) {
+      // Veriler ilk geldiğinde fiyatları çek
+      if (formattedStocks.length > 0 && !isRefreshing && !hasInitialFetch) {
         fetchStockPrices(formattedStocks);
       }
     }
-  }, [dbStocks]);
+  }, [dbStocks, fetchStockPrices, isRefreshing, hasInitialFetch]);
 
   // Otomatik yenileme (15 dakikada bir)
   useEffect(() => {
@@ -100,46 +136,14 @@ export default function PortfolioDashboard() {
       fetchStockPrices(holdings);
     }, AUTO_REFRESH_MS);
     return () => clearInterval(intervalId);
-  }, [holdings]);
-
-  const fetchStockPrices = async (currentHoldings: StockHolding[]) => {
-    if (currentHoldings.length === 0) return;
-    setIsRefreshing(true);
-    try {
-      const symbols = currentHoldings.map(h => h.symbol);
-      const updates = await getLiveStockPrices(symbols);
-      
-      if (updates && updates.length > 0) {
-        setHoldings(prev => prev.map(holding => {
-          const update = updates.find(u => u.symbol.toUpperCase() === holding.symbol.toUpperCase());
-          if (update && update.price > 0) {
-            return {
-              ...holding,
-              currentPrice: update.price,
-              dailyChange: update.change
-            };
-          }
-          return holding;
-        }));
-        
-        toast({
-          title: "Fiyatlar Güncellendi",
-          description: "Piyasa verileri başarıyla alındı.",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "Fiyatlar güncellenirken bir sorun oluştu.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+  }, [holdings, fetchStockPrices]);
 
   const handleRefreshClick = () => {
     fetchStockPrices(holdings);
+    toast({
+      title: "Güncelleniyor",
+      description: "Piyasa verileri Yahoo Finance üzerinden tazeleniyor...",
+    });
   };
 
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
@@ -153,6 +157,8 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    // Yeni hisse eklenince initial fetch flag'ini resetle ki tetiklensin
+    setHasInitialFetch(false);
   };
 
   const handleDeleteStock = (id: string) => {
