@@ -74,8 +74,11 @@ export default function PortfolioDashboard() {
 
   // Fiyatları çekme fonksiyonu
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
-    if (symbols.length === 0) return;
+    if (symbols.length === 0 || isRefreshing) return;
+    
     setIsRefreshing(true);
+    console.log('[UI] Fiyatlar güncelleniyor:', symbols);
+    
     try {
       const updates = await getLiveStockPrices(symbols);
       if (updates && updates.length > 0) {
@@ -86,12 +89,12 @@ export default function PortfolioDashboard() {
         setMarketData(prev => ({ ...prev, ...newData }));
       }
     } catch (error) {
-      console.error("Fiyat çekme hatası:", error);
+      console.error("[UI] Fiyat çekme hatası:", error);
     } finally {
       setIsRefreshing(false);
       setInitialFetchDone(true);
     }
-  }, []);
+  }, [isRefreshing]);
 
   // Firestore verileri ile market verilerini birleştir
   const holdings = useMemo((): StockHolding[] => {
@@ -106,36 +109,29 @@ export default function PortfolioDashboard() {
         name: s.name || s.symbol,
         quantity: s.quantity,
         averageCost: s.averageCost,
-        currentPrice: market?.price || s.averageCost, // Veri yoksa maliyeti göster ama isLoaded: false olsun
+        currentPrice: market?.price || s.averageCost,
         dailyChange: market?.change || 0,
-        isLoaded: !!market // marketData içinde bu sembol varsa yüklendi demektir
+        isLoaded: !!market
       };
     });
   }, [dbStocks, marketData]);
 
-  // İlk veri geldiğinde veya liste değiştiğinde (yeni eklenen varsa) fiyatları çek
+  // İlk veri geldiğinde fiyatları çek
   useEffect(() => {
-    if (dbStocks && dbStocks.length > 0) {
-      const symbolsToFetch = dbStocks
-        .map(s => s.symbol)
-        .filter(sym => !marketData[sym.toUpperCase()]); // Sadece market verisi olmayanları değil, hepsini çekmek daha sağlıklı olabilir
-      
-      // Eğer hiç market verisi yoksa veya liste boyutu değiştiyse çek
-      if (!initialFetchDone || symbolsToFetch.length > 0) {
+    if (!isStocksLoading && dbStocks && dbStocks.length > 0 && !initialFetchDone && !isRefreshing) {
+      fetchStockPrices(dbStocks.map(s => s.symbol));
+    }
+  }, [dbStocks, isStocksLoading, initialFetchDone, isRefreshing, fetchStockPrices]);
+
+  // Yeni hisse eklendiğinde (marketData'da olmayan sembol varsa) tetikle
+  useEffect(() => {
+    if (dbStocks && dbStocks.length > 0 && initialFetchDone) {
+      const hasMissingMarketData = dbStocks.some(s => !marketData[s.symbol.toUpperCase()]);
+      if (hasMissingMarketData && !isRefreshing) {
         fetchStockPrices(dbStocks.map(s => s.symbol));
       }
     }
-  }, [dbStocks, fetchStockPrices, initialFetchDone, marketData]);
-
-  // Otomatik yenileme (15 dakikada bir)
-  useEffect(() => {
-    if (holdings.length === 0) return;
-    const AUTO_REFRESH_MS = 15 * 60 * 1000;
-    const intervalId = setInterval(() => {
-      fetchStockPrices(holdings.map(h => h.symbol));
-    }, AUTO_REFRESH_MS);
-    return () => clearInterval(intervalId);
-  }, [holdings, fetchStockPrices]);
+  }, [dbStocks, marketData, initialFetchDone, isRefreshing, fetchStockPrices]);
 
   const handleRefreshClick = () => {
     fetchStockPrices(holdings.map(h => h.symbol));
@@ -156,7 +152,6 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    // Yeni eklenen için fetch tetiklenecek (useEffect sayesinde)
   };
 
   const handleDeleteStock = (id: string) => {

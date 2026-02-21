@@ -3,6 +3,15 @@
 
 import yahooFinance from 'yahoo-finance2';
 
+// Global yapılandırma
+try {
+  yahooFinance.setGlobalConfig({
+    queue: { concurrency: 2 },
+  });
+} catch (e) {
+  console.error("Yahoo Finance Config Error:", e);
+}
+
 export interface StockPriceUpdate {
   symbol: string;
   price: number;
@@ -10,50 +19,64 @@ export interface StockPriceUpdate {
 }
 
 /**
- * Yahoo Finance API kullanarak hisse senedi fiyatlarını toplu halde çeker.
- * @param symbols Hisse senedi sembolleri (Örn: ['THYAO', 'SASA'])
+ * Yahoo Finance API kullanarak hisse senedi fiyatlarını çeker ve detaylı log tutar.
  */
 export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceUpdate[]> {
-  if (!symbols || symbols.length === 0) return [];
+  console.log('--- [DEBUG] BIST VERI CEKIMI BASLADI ---');
+  console.log('Talep Edilen Semboller:', symbols);
 
-  // Yahoo Finance kütüphanesinin bazı test/deno hatalarını görmezden gelmek için
-  // iç ayarları bazen gerekebilir ancak serverExternalPackages zaten bunu yönetiyor.
+  if (!symbols || symbols.length === 0) {
+    console.log('[DEBUG] Sembol listesi bos.');
+    return [];
+  }
 
   try {
-    // Tüm sembollerin sonuna .IS ekliyoruz (Borsa İstanbul için) ve tekrarları temizliyoruz
     const uniqueSymbols = Array.from(new Set(symbols.map(s => s.trim().toUpperCase())));
     const formattedSymbols = uniqueSymbols.map(s => s.endsWith('.IS') ? s : `${s}.IS`);
     
-    // Yahoo Finance'dan verileri çekiyoruz
-    // quote fonksiyonu tek sembol için obje, çoklu için dizi döner.
-    const quotes = await yahooFinance.quote(formattedSymbols);
-    const quotesArray = Array.isArray(quotes) ? quotes : [quotes];
+    console.log('[DEBUG] Formatlanmis Semboller:', formattedSymbols);
+    
+    const results: StockPriceUpdate[] = [];
 
-    // Gelen verileri işleyip temiz sembollerle eşleştiriyoruz
-    const results = quotesArray
-      .filter(q => q && q.symbol)
-      .map((quote) => {
-        // BIST sembolünü temizliyoruz (THYAO.IS -> THYAO)
-        const cleanSymbol = quote.symbol.split('.')[0].toUpperCase();
+    // BIST hisseleri için tek tek sorgu yapmak daha güvenli (toplu sorgu bazen engellenebiliyor)
+    for (const sym of formattedSymbols) {
+      try {
+        console.log(`[DEBUG] Sorgulaniyor: ${sym}...`);
+        const quote = await yahooFinance.quote(sym);
         
-        // Fiyat verisi için alternatif alanları kontrol ediyoruz
-        const price = quote.regularMarketPrice || 
-                      quote.regularMarketPreviousClose || 
-                      quote.bid || 
-                      quote.ask || 
-                      0;
-        
-        return {
-          symbol: cleanSymbol,
-          price: price,
-          change: quote.regularMarketChangePercent || 0,
-        };
-      });
+        if (quote) {
+          const cleanSymbol = quote.symbol.split('.')[0].toUpperCase();
+          const price = quote.regularMarketPrice || 
+                        quote.regularMarketPreviousClose || 
+                        quote.bid || 
+                        quote.ask || 
+                        0;
+          
+          const change = quote.regularMarketChangePercent || 0;
 
+          console.log(`[DEBUG] BASARILI (${sym}): Fiyat=${price}, Degisim=%${change.toFixed(2)}`);
+          
+          results.push({
+            symbol: cleanSymbol,
+            price: price,
+            change: change,
+          });
+        } else {
+          console.warn(`[DEBUG] VERI BULUNAMADI: ${sym}`);
+        }
+      } catch (err: any) {
+        console.error(`[DEBUG] HATA (${sym}):`, err.message);
+        if (err.response) {
+          console.error(`[DEBUG] Yanit Durumu: ${err.response.status}`);
+        }
+      }
+    }
+
+    console.log(`[DEBUG] Toplam Basarili Sonuclar: ${results.length}/${formattedSymbols.length}`);
+    console.log('--- [DEBUG] BIST VERI CEKIMI BITTI ---');
     return results;
-  } catch (error) {
-    console.error('Yahoo Finance API Error:', error);
-    // Hata durumunda boş dizi dönüyoruz ki UI takılmasın
+  } catch (error: any) {
+    console.error('[DEBUG] KRITIK HATA:', error.message);
     return [];
   }
 }
