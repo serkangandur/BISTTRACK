@@ -4,8 +4,8 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * CNN Türk Finans üzerinden BIST verilerini çeken esnek scraping API Route.
- * Satır bazlı metin arama ve regex ile fiyat tespiti yöntemini kullanır.
+ * CNN Türk Finans üzerinden BIST verilerini çeken hassas scraping API Route.
+ * Tam sembol eşleşmesi ve sabit fiyat sütunu (3. sütun) yöntemini kullanır.
  */
 
 export async function GET(request: NextRequest) {
@@ -21,8 +21,6 @@ export async function GET(request: NextRequest) {
     .map(s => s.trim().toUpperCase());
 
   try {
-    console.log(`[API/STOCK] CNN Türk kazıma başlatılıyor... URL: https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri`);
-
     const targetUrl = 'https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri';
 
     // Sayfayı indir
@@ -41,56 +39,42 @@ export async function GET(request: NextRequest) {
       const tds = $(element).find('td');
       if (tds.length < 3) return; // Yetersiz sütun varsa atla
 
-      // Satırdaki tüm metni birleştirip hangi hisse olduğunu anlıyoruz
-      const rowText = $(element).text().toUpperCase();
+      // 1. Sütunda tam olarak sembol kodu yer alır (Örn: TERA, THYAO)
+      const symbolInTable = $(tds[0]).text().trim().toUpperCase();
       
       requestedSymbols.forEach(s => {
-        // Satırın içinde sembol (örn: ISMEN) geçiyor mu?
-        // Tam eşleşme sağlamak için ilk sütuna bakmak daha güvenlidir
-        const firstTdText = $(tds[0]).text().trim().toUpperCase();
-        
-        if (firstTdText === s || rowText.includes(s)) {
-          // Bu satırda fiyatı bulmaya çalış
-          let priceFoundForThisSymbol = false;
+        // TAM EŞLEŞME KONTROLÜ
+        if (symbolInTable === s) {
+          // 3. Sütun genellikle "Son Fiyat" bilgisini içerir (td:nth-child(3))
+          const priceCell = $(tds[2]).text().trim();
           
-          tds.each((i, td) => {
-            if (priceFoundForThisSymbol) return;
-            
-            const cellVal = $(td).text().trim();
-            // İçinde rakam ve virgül olan hücre fiyattır (Örn: 1.250,50 veya 41,50)
-            // Noktaları (binlik ayracı) silip kontrol ediyoruz
-            const cleanCheck = cellVal.replace(/\./g, '');
-            if (/^\d+([,]\d+)?$/.test(cleanCheck) && cleanCheck.length > 0) {
-               const price = parseFloat(cleanCheck.replace(',', '.'));
-               
-               // Sadece gerçekçi fiyatları al ve mükerrer eklemeyi engelle
-               if (!isNaN(price) && price > 0 && !updates.find(u => u.symbol === s)) {
-                 updates.push({ 
-                   symbol: s, 
-                   price: price, 
-                   change: 0 // Değişim oranı opsiyonel, ana odak fiyat
-                 });
-                 priceFoundForThisSymbol = true;
-               }
-            }
-          });
+          // Özel debug log (TERA için)
+          if (s === 'TERA') {
+             console.log('[DEBUG] TERA Bulunan Hücre Değeri:', priceCell);
+          }
+
+          // Fiyatı normalleştir (Binlik ayracı noktayı sil, ondalık virgülü noktaya çevir)
+          const cleanPriceStr = priceCell.replace(/\./g, '').replace(',', '.');
+          const price = parseFloat(cleanPriceStr);
+
+          // Geçerli bir sayıysa listeye ekle
+          if (!isNaN(price) && price > 0 && !updates.find(u => u.symbol === s)) {
+            updates.push({ 
+              symbol: s, 
+              price: price, 
+              change: 0 
+            });
+          }
         }
       });
     });
 
-    console.log(`[BAŞARILI] Bulunan hisseler:`, updates.map(u => u.symbol));
+    console.log(`[API/STOCK] Toplam ${updates.length} hisse tam eşleşme ile güncellendi.`);
     
-    // Eğer bazı hisseler bulunamadıysa terminale log bas
-    if (updates.length < requestedSymbols.length) {
-      const foundSymbols = updates.map(u => u.symbol);
-      const missingSymbols = requestedSymbols.filter(s => !foundSymbols.includes(s));
-      console.warn(`[API/STOCK] Bazı semboller tabloda bulunamadı: ${missingSymbols.join(', ')}`);
-    }
-
     return NextResponse.json(updates, { status: 200 });
 
   } catch (error: any) {
-    console.error("KRITIK_HATA:", error.message);
+    console.error("[API/STOCK] KRITIK_HATA:", error.message);
     
     // Uygulamanın çökmemesi için boş liste dön
     return NextResponse.json([], { status: 200 });
