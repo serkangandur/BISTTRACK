@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -77,19 +76,22 @@ export default function PortfolioDashboard() {
     if (symbols.length === 0 || isRefreshing) return;
     
     setIsRefreshing(true);
-    console.log('[UI] Fiyatlar güncelleniyor:', symbols);
+    console.log('[UI-LOG] Fiyatlar çekiliyor:', symbols);
     
     try {
       const updates = await getLiveStockPrices(symbols);
       if (updates && updates.length > 0) {
+        console.log('[UI-LOG] Sunucudan gelen güncel veriler:', updates);
         const newData: Record<string, StockPriceUpdate> = {};
         updates.forEach(u => {
           newData[u.symbol.toUpperCase()] = u;
         });
         setMarketData(prev => ({ ...prev, ...newData }));
+      } else {
+        console.log('[UI-LOG] Sunucudan veri dönmedi.');
       }
     } catch (error) {
-      console.error("[UI] Fiyat çekme hatası:", error);
+      console.error("[UI-LOG] Fiyat çekme hatası:", error);
     } finally {
       setIsRefreshing(false);
       setInitialFetchDone(true);
@@ -109,6 +111,7 @@ export default function PortfolioDashboard() {
         name: s.name || s.symbol,
         quantity: s.quantity,
         averageCost: s.averageCost,
+        // Market verisi yoksa maliyet fiyatını gösteriyoruz ama isLoaded: false kalıyor
         currentPrice: market?.price || s.averageCost,
         dailyChange: market?.change || 0,
         isLoaded: !!market
@@ -123,11 +126,14 @@ export default function PortfolioDashboard() {
     }
   }, [dbStocks, isStocksLoading, initialFetchDone, isRefreshing, fetchStockPrices]);
 
-  // Yeni hisse eklendiğinde (marketData'da olmayan sembol varsa) tetikle
+  // Yeni bir hisse eklendiğinde (henüz market verisi yoksa) tetikle
   useEffect(() => {
-    if (dbStocks && dbStocks.length > 0 && initialFetchDone) {
-      const hasMissingMarketData = dbStocks.some(s => !marketData[s.symbol.toUpperCase()]);
-      if (hasMissingMarketData && !isRefreshing) {
+    if (dbStocks && dbStocks.length > 0 && initialFetchDone && !isRefreshing) {
+      const symbolsToFetch = dbStocks
+        .map(s => s.symbol)
+        .filter(sym => !marketData[sym.toUpperCase()]);
+        
+      if (symbolsToFetch.length > 0) {
         fetchStockPrices(dbStocks.map(s => s.symbol));
       }
     }
