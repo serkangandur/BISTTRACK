@@ -4,11 +4,10 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Veri Motoru v8.0.
+ * Gelişmiş Hibrit Veri Motoru v9.0.
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1 / İlk Tablo Yöntemi)
- * - BTC ve ETH (Kripto): Mynet Finans (Doğrudan ₺ Sayfaları)
- * - Güvenlik: BTC (>100k) ve ETH (>50k) filtreleri ile BIST endeksi (13k) karışıklığı önlenir.
- * - Yedek Mekanizma: Mynet başarısız olursa CNN Türk Kripto tablosundan veri çekilir.
+ * - Kripto (BTC ve ETH): CNN Türk Kripto Tablosu (Kesin ₺ Filtresi)
+ * - Güvenlik: Dolar fiyatlarını ve BIST endeksini (13k) eleyen mantıksal sınırlar (Guardrails).
  */
 
 export async function GET(request: NextRequest) {
@@ -29,21 +28,16 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. PARALEL İSTEKLER (CNN TÜRK & MYNET & CNN KRİPTO YEDEK)
+    // 1. PARALEL İSTEKLER
     const mainRequests = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 10000 }),
-      axios.get('https://finans.cnnturk.com/kripto-paralar', { headers, timeout: 10000 }), // CNN Kripto Yedek
+      axios.get('https://finans.cnnturk.com/kripto-paralar', { headers, timeout: 10000 }), // Kripto Tablosu
     ];
 
-    const cryptoTasks: { symbol: string; url: string }[] = [];
-    if (requestedSymbols.includes('BTC')) cryptoTasks.push({ symbol: 'BTC', url: 'https://finans.mynet.com/bitcoin-try-kripto/' });
-    if (requestedSymbols.includes('ETH')) cryptoTasks.push({ symbol: 'ETH', url: 'https://finans.mynet.com/ethereum-kripto/' });
-
-    const allRequests = [...mainRequests, ...cryptoTasks.map(t => axios.get(t.url, { headers, timeout: 10000 }))];
-    const results = await Promise.allSettled(allRequests);
+    const results = await Promise.allSettled(mainRequests);
 
     // 2. DÖVİZ (CNN - TABELLE 1)
     const dovizResult = results[3];
@@ -128,74 +122,50 @@ export async function GET(request: NextRequest) {
     scrapeEmtia(1, 'ALTIN');
     scrapeEmtia(2, 'GUMUS');
 
-    // 5. KRİPTO (MYNET NOKTA ATIŞI + CNN YEDEK)
+    // 5. KRİPTO (KESİN ₺ FİLTRESİ - CNN TÜRK ODAKLI)
     const cnnKriptoRes = results[4];
-    
-    cryptoTasks.forEach((task, i) => {
-      const resIdx = 5 + i;
-      const res = results[resIdx];
-      let priceFound = false;
+    if (cnnKriptoRes.status === 'fulfilled') {
+      const $ = cheerio.load(cnnKriptoRes.value.data);
+      const cryptoTable = $('table').first();
 
-      // MYNET TARAMA
-      if (res && res.status === 'fulfilled') {
-        const $ = cheerio.load(res.value.data);
+      cryptoTable.find('tr').each((_, el) => {
+        const tds = $(el).find('td');
+        if (tds.length < 2) return;
+
+        const rowName = $(tds[0]).text().trim();
         
-        // Sadece ana fiyat kutusuna odaklan
-        let priceText = $('.dt-price').first().text().trim() || 
-                        $('.last-price').first().text().trim() ||
-                        $('span[class*="price"]').first().text().trim();
-
-        if (priceText) {
-          let price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
-          
-          // BIST Endeksi Filtresi (13.934 civarı yanlış veriyi reddet)
-          const isInvalidBTC = task.symbol === 'BTC' && price < 100000;
-          const isInvalidETH = task.symbol === 'ETH' && price < 50000;
-
-          if (isInvalidBTC || isInvalidETH) {
-            // Yanlış veri gelirse alternatif seçicileri tara
-            $('span, div, p').each((_, el) => {
-              const text = $(el).text().trim();
-              if (text.includes('.') && text.includes(',') && text.length > 5) {
-                const altPrice = parseFloat(text.replace(/\./g, '').replace(',', '.'));
-                if ((task.symbol === 'BTC' && altPrice > 100000) || (task.symbol === 'ETH' && altPrice > 50000)) {
-                   price = altPrice;
-                   priceFound = true;
-                   return false;
-                }
-              }
-            });
-          } else if (!isNaN(price) && price > 0) {
-            priceFound = true;
-          }
-
-          if (priceFound) {
-            updates.push({ symbol: task.symbol, price: Number(price.toFixed(4)), change: 0 });
-            console.log(`[OK] ${task.symbol} Mynet: ${price.toLocaleString('tr-TR')} ₺`);
-          }
+        // KRİTİK FİLTRE 1: Dolar fiyatlarını (USD, USDT, Amerikan Doları) içeren satırları engelle
+        if (rowName.includes('USD') || rowName.includes('USDT') || rowName.includes('Amerikan Doları')) {
+          return;
         }
-      }
 
-      // CNN YEDEK TARAMA (Mynet başarısız olursa)
-      if (!priceFound && cnnKriptoRes.status === 'fulfilled') {
-        const $ = cheerio.load(cnnKriptoRes.value.data);
-        const rowIdx = task.symbol === 'BTC' ? 2 : 6; // 3. ve 7. satırlar (0 tabanlı index)
-        const row = $('table').first().find('tr').eq(rowIdx);
-        
-        if (row.length > 0) {
-          const label = row.find('td').first().text().trim();
-          if (label.includes(task.symbol === 'BTC' ? 'Bitcoin' : 'Ethereum')) {
-            const priceText = row.find('td').eq(1).text().trim();
-            const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(price) && price > 0) {
-              updates.push({ symbol: task.symbol, price: Number(price.toFixed(4)), change: 0 });
-              console.log(`[YEDEK] ${task.symbol} CNN: ${price.toLocaleString('tr-TR')} ₺`);
-              priceFound = true;
+        let targetSymbol = '';
+        let minPrice = 0;
+
+        // KRİTİK FİLTRE 2: Tam Eşleşme Arala (Sadece Türk Lirası bazlı satırlar)
+        if (rowName === 'Bitcoin Türk Lirası') {
+          targetSymbol = 'BTC';
+          minPrice = 2000000; // Guardrail: BTC 2M TL'den büyük olmalı
+        } else if (rowName === 'Ethereum Türk Lirası') {
+          targetSymbol = 'ETH';
+          minPrice = 60000;   // Guardrail: ETH 60K TL'den büyük olmalı (BIST 13k'yı eler)
+        }
+
+        if (targetSymbol && requestedSymbols.includes(targetSymbol)) {
+          const priceText = $(tds[1]).text().trim();
+          const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
+          
+          // MANTIKSAL SINIR (GUARDRAIL) KONTROLÜ
+          if (!isNaN(price) && price > minPrice) {
+            // Zaten eklenmişse mükerrer kayıt yapma
+            if (!updates.some(u => u.symbol === targetSymbol)) {
+              updates.push({ symbol: targetSymbol, price: Number(price.toFixed(4)), change: 0 });
+              console.log(`[KESİN ₺] ${targetSymbol} Bulundu: ${price.toLocaleString('tr-TR')} ₺`);
             }
           }
         }
-      }
-    });
+      });
+    }
 
     const foundSymbols = updates.map(u => u.symbol).join(', ');
     console.log(`[API] Güncellenen Varlıklar (${updates.length}): ${foundSymbols}`);
