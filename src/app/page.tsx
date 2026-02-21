@@ -77,7 +77,7 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // Fiyatları çekme fonksiyonu - Yeni API Route üzerinden
+  // Fiyatları çekme fonksiyonu - Yeni API Route (/api/borsa) üzerinden
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0 || isRefreshing) return;
     
@@ -85,7 +85,8 @@ export default function PortfolioDashboard() {
     const symbolsQuery = symbols.join(',');
     
     try {
-      const response = await fetch(`/api/stock?symbols=${symbolsQuery}`);
+      // Kendi API route'umuza istek atıyoruz
+      const response = await fetch(`/api/borsa?symbols=${symbolsQuery}`);
       
       if (!response.ok) {
         throw new Error(`HTTP Error: ${response.status}`);
@@ -100,14 +101,12 @@ export default function PortfolioDashboard() {
         });
         setMarketData(prev => ({ ...prev, ...newData }));
         console.log(`[CLIENT] ${updates.length} hisse için fiyat güncellendi.`);
-      } else {
-        throw new Error('No data returned from API');
       }
     } catch (error: any) {
       console.error("[CLIENT] Veri çekme hatası:", error);
       toast({
         title: "Bağlantı Sorunu",
-        description: "Piyasa verileri şu an alınamıyor. Mock veriler gösterilmeye devam edebilir.",
+        description: "Piyasa verileri şu an alınamıyor. Lütfen daha sonra tekrar deneyiniz.",
         variant: "destructive",
       });
     } finally {
@@ -129,7 +128,7 @@ export default function PortfolioDashboard() {
         name: s.name || s.symbol,
         quantity: s.quantity,
         averageCost: s.averageCost,
-        // Fallback: Market verisi yoksa maliyet fiyatını gösteriyoruz
+        // Fallback: Market verisi gelene kadar maliyeti gösteriyoruz
         currentPrice: market?.price || s.averageCost,
         dailyChange: market?.change || 0,
         isLoaded: !!market
@@ -154,23 +153,12 @@ export default function PortfolioDashboard() {
     }
   }, [dbStocks, marketData, initialFetchDone, isRefreshing, fetchStockPrices]);
 
-  // Otomatik güncelleme: Her 15 dakikada bir
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (holdings.length > 0 && !isRefreshing) {
-        fetchStockPrices(holdings.map(h => h.symbol));
-      }
-    }, 15 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, [holdings, isRefreshing, fetchStockPrices]);
-
   const handleRefreshClick = () => {
     if (holdings.length > 0) {
       fetchStockPrices(holdings.map(h => h.symbol));
       toast({
         title: "Güncelleniyor",
-        description: "Piyasa verileri sunucu üzerinden tazeleniyor...",
+        description: "Piyasa verileri tazeleniyor...",
       });
     }
   };
@@ -196,7 +184,7 @@ export default function PortfolioDashboard() {
 
   if (isUserLoading || isPortfoliosLoading || isStocksLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-[#101418]">
         <Loader2 className="animate-spin h-12 w-12 text-primary" />
       </div>
     );
