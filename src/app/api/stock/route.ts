@@ -4,10 +4,10 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Veri Motoru v10.0 - "Excel Satır Sayma" & "Kesin ₺ Filtresi".
+ * Gelişmiş Hibrit Veri Motoru v11.0 - "Her Yeri Tara" & "Kesin ₺ Filtresi".
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1 / İlk Tablo Yöntemi)
- * - Kripto (BTC ve ETH): CNN Türk Kripto Tablosu (Nokta Atışı Satır Sayma)
- * - Güvenlik: BTC > 2M ₺ ve ETH > 60K ₺ altındaki tüm verileri (BIST 13k veya Dolar fiyatı) eler.
+ * - Kripto (BTC ve ETH): CNN Türk Tüm Satırları Tarama (Nokta Atışı Metin Eşleşmesi)
+ * - Güvenlik: BTC > 1M ₺ ve ETH > 30K ₺ altındaki tüm verileri (BIST 13k veya Dolar fiyatı) eler.
  */
 
 export async function GET(request: NextRequest) {
@@ -122,54 +122,54 @@ export async function GET(request: NextRequest) {
     scrapeEmtia(1, 'ALTIN');
     scrapeEmtia(2, 'GUMUS');
 
-    // 5. KRİPTO (NOKTA ATIŞI SATIR SAYMA - EXCEL MANTIĞI)
+    // 5. KRİPTO (YENİ HER YERİ TARA MANTIĞI)
     const cnnKriptoRes = results[4];
     if (cnnKriptoRes.status === 'fulfilled') {
       const $ = cheerio.load(cnnKriptoRes.value.data);
-      const cryptoTable = $('table').first();
+      console.log("[TEST] Sayfada Kripto varlıkları aranıyor...");
 
-      const processCryptoRow = (rowIndex: number, expectedLabel: string, targetSymbol: string, minPrice: number) => {
-        if (!requestedSymbols.includes(targetSymbol)) return;
+      $('tr').each((_, row) => {
+        const rowText = $(row).text().trim().toLowerCase();
+        const cells = $(row).find('td');
 
-        const row = cryptoTable.find('tr').eq(rowIndex);
-        const tds = row.find('td');
-        if (tds.length < 2) return;
-
-        const label = $(tds[0]).text().trim();
-        let priceText = "";
-
-        // Doğrudan satır numarasından veya etiket kontrolünden fiyatı al
-        if (label.includes(expectedLabel) && label.includes('Türk Lirası')) {
-          priceText = $(tds[1]).text().trim();
-        } else {
-          // Eğer satır kaymışsa tüm tabloyu tara (B Planı)
-          cryptoTable.find('tr').each((_, el) => {
-            const cells = $(el).find('td');
-            const cellLabel = $(cells[0]).text().trim();
-            if (cellLabel.includes(expectedLabel) && cellLabel.includes('Türk Lirası')) {
-              priceText = $(cells[1]).text().trim();
-              return false;
+        // BTC ARAMA
+        if (requestedSymbols.includes('BTC') && rowText.includes('bitcoin') && rowText.includes('türk lirası')) {
+          console.log("[TEST] 'Bitcoin Türk Lirası' ibaresi aranan satırda bulundu.");
+          cells.each((_, cell) => {
+            const cellText = $(cell).text().trim();
+            if (cellText.includes(',') && !cellText.includes('%')) {
+              const price = parseFloat(cellText.replace(/\./g, '').replace(',', '.'));
+              // Mantıksal Sınır (Guardrail): 1M ₺
+              if (!isNaN(price) && price > 1000000) {
+                if (!updates.some(u => u.symbol === 'BTC')) {
+                  updates.push({ symbol: 'BTC', price: Number(price.toFixed(4)), change: 0 });
+                  console.log(`[BULDUM] BTC Fiyat: ${price.toLocaleString('tr-TR')} ₺`);
+                  return false;
+                }
+              }
             }
           });
         }
 
-        if (priceText) {
-          const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
-          // MANTIKSAL SINIR (GUARDRAIL) KONTROLÜ
-          if (!isNaN(price) && price > minPrice) {
-            if (!updates.some(u => u.symbol === targetSymbol)) {
-              updates.push({ symbol: targetSymbol, price: Number(price.toFixed(4)), change: 0 });
-              console.log(`[OK] ${targetSymbol} Bulundu: ${price.toLocaleString('tr-TR')} ₺`);
+        // ETH ARAMA
+        if (requestedSymbols.includes('ETH') && rowText.includes('ethereum') && rowText.includes('türk lirası')) {
+          console.log("[TEST] 'Ethereum Türk Lirası' ibaresi aranan satırda bulundu.");
+          cells.each((_, cell) => {
+            const cellText = $(cell).text().trim();
+            if (cellText.includes(',') && !cellText.includes('%')) {
+              const price = parseFloat(cellText.replace(/\./g, '').replace(',', '.'));
+              // Mantıksal Sınır (Guardrail): 30K ₺
+              if (!isNaN(price) && price > 30000) {
+                if (!updates.some(u => u.symbol === 'ETH')) {
+                  updates.push({ symbol: 'ETH', price: Number(price.toFixed(4)), change: 0 });
+                  console.log(`[BULDUM] ETH Fiyat: ${price.toLocaleString('tr-TR')} ₺`);
+                  return false;
+                }
+              }
             }
-          }
+          });
         }
-      };
-
-      // BTC (Excel: 3. Satır -> eq(2)) - Guardrail: 2M ₺
-      processCryptoRow(2, 'Bitcoin', 'BTC', 2000000);
-
-      // ETH (Excel: 7. Satır -> eq(6)) - Guardrail: 60K ₺
-      processCryptoRow(6, 'Ethereum', 'ETH', 60000);
+      });
     }
 
     const foundSymbols = updates.map(u => u.symbol).join(', ');
