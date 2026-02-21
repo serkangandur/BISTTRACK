@@ -7,6 +7,7 @@ import * as cheerio from 'cheerio';
  * Gelişmiş Hibrit Scraping API Route v3.0.
  * BIST, Emtia (Altın/Gümüş), Döviz (USD/EUR) ve Kripto (BTC/ETH) verilerini toplu çeker.
  * Kripto paralar için Dolar fiyatını çekip güncel kurla ₺'ye çevirir.
+ * Hassasiyet: Kripto fiyatları için 7 hane destekler.
  */
 
 export async function GET(request: NextRequest) {
@@ -149,7 +150,7 @@ export async function GET(request: NextRequest) {
     scrapeEmtiaTable(1, 'ALTIN', 'Gram');
     scrapeEmtiaTable(2, 'GUMUS', 'Gram');
 
-    // 5. KRİPTO MANTIĞI (₺ Hesaplamalı)
+    // 5. KRİPTO MANTIĞI (₺ Hesaplamalı - 7 Hane Hassasiyet)
     const kriptoResult = results[4];
     if (kriptoResult.status === 'fulfilled') {
       const $ = cheerio.load(kriptoResult.value.data);
@@ -168,20 +169,17 @@ export async function GET(request: NextRequest) {
           if (tds.length >= 2) {
             const label = $(tds[0]).text().trim().toUpperCase();
             if (target.keys.some(k => label.includes(k))) {
-              // Fiyat genellikle 2. veya 3. sütundadır
               let priceText = $(tds[1]).text().trim() || $(tds[2]).text().trim();
               
               if (priceText) {
-                // Kripto fiyatları bazen 65.400,50 bazen 65400.50 formatında gelebilir
-                // Virgül binlik, nokta ondalık olabilir veya tam tersi. CNN Türk genellikle virgül ondalık kullanır.
                 const usdPrice = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
                 
                 if (!isNaN(usdPrice)) {
-                  // Eğer kur varsa ₺'ye çevir, yoksa ham doları bırak (ama hedefimiz ₺)
                   const finalPrice = usdTryRate > 0 ? usdPrice * usdTryRate : usdPrice;
+                  // 7 hane hassasiyeti koruyarak sayıya dönüştür
                   updates.push({ 
                     symbol: target.symbol, 
-                    price: Number(finalPrice.toFixed(4)), 
+                    price: Number(finalPrice.toFixed(7)), 
                     change: 0 
                   });
                   return false;

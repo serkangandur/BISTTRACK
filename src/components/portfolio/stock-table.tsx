@@ -37,9 +37,18 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
       if (symbol.toUpperCase() === "USD") return "$";
       if (symbol.toUpperCase() === "EUR") return "€";
     }
-    // Kripto artık TL bazlı olduğu için simge eklemiyoruz (veya ₺ ekleyebiliriz)
     if (category === "Kripto") return "₺";
     return "";
+  };
+
+  const formatQuantity = (stock: StockHolding) => {
+    if (stock.category === "Kripto") {
+      return stock.quantity.toFixed(7).replace('.', ',');
+    }
+    if (stock.category === "Emtia" || stock.category === "Döviz") {
+      return `${stock.quantity.toFixed(4).replace('.', ',')} ${stock.category === "Emtia" ? "gr" : ""}`;
+    }
+    return stock.quantity.toLocaleString("tr-TR");
   };
 
   return (
@@ -65,7 +74,6 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
             const isUp = pl >= 0;
             
             const isLoading = !stock.isLoaded;
-            const isHighPrecision = ["Emtia", "Döviz", "Kripto"].includes(stock.category);
             const currencySymbol = getCurrencySymbol(stock.symbol, stock.category);
 
             return (
@@ -86,10 +94,7 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                   </div>
                 </TableCell>
                 <TableCell className="font-medium text-muted-foreground">
-                  {isHighPrecision 
-                    ? `${stock.quantity.toFixed(4).replace('.', ',')} ${stock.category === "Emtia" ? "gr" : ""}` 
-                    : stock.quantity.toLocaleString("tr-TR")
-                  }
+                  {formatQuantity(stock)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">₺{stock.averageCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>

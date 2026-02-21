@@ -86,6 +86,12 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     setOpen(false);
   };
 
+  const getQuantityStep = () => {
+    if (isKripto) return "0.0000001";
+    if (isEmtia || isDoviz) return "0.0001";
+    return "1";
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -211,7 +217,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               <Input
                 id="quantity"
                 type="number"
-                step={(isEmtia || isDoviz || isKripto) ? "0.0001" : "1"}
+                step={getQuantityStep()}
                 placeholder="0"
                 className="bg-white/5 border-white/10"
                 value={formData.quantity}
