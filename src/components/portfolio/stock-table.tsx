@@ -1,6 +1,6 @@
-
 "use client";
 
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -12,7 +12,7 @@ import {
 import { StockHolding } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, ArrowUp, ArrowDown } from "lucide-react";
+import { MoreHorizontal, ArrowUp, ArrowDown, Edit2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,13 +20,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EditStockDialog } from "./edit-stock-dialog";
 
 interface StockTableProps {
   holdings: StockHolding[];
   onDelete: (id: string) => void;
+  onUpdate: (id: string, updatedData: Partial<StockHolding>) => void;
 }
 
-export function StockTable({ holdings, onDelete }: StockTableProps) {
+export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
+  const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
+
   return (
     <div className="rounded-xl border border-white/5 bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl">
       <Table>
@@ -49,7 +53,6 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
             const plPercentage = totalCost > 0 ? (pl / totalCost) * 100 : 0;
             const isUp = pl >= 0;
             
-            // isLoaded bayrağına göre yükleme durumunu kontrol et
             const isLoading = !stock.isLoaded;
 
             return (
@@ -105,7 +108,12 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-card border-white/10">
-                      <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer" onClick={() => onDelete(stock.id)}>
+                      <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => setEditingStock(stock)}>
+                        <Edit2 className="w-3.5 h-3.5" />
+                        Düzenle
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer gap-2" onClick={() => onDelete(stock.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
                         Sil
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -116,6 +124,13 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
           })}
         </TableBody>
       </Table>
+
+      <EditStockDialog 
+        stock={editingStock}
+        isOpen={!!editingStock}
+        onClose={() => setEditingStock(null)}
+        onUpdate={onUpdate}
+      />
     </div>
   );
 }

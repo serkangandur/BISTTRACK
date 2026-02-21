@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -7,7 +6,7 @@ import { SummaryCards } from "@/components/portfolio/summary-cards";
 import { StockTable } from "@/components/portfolio/stock-table";
 import { PortfolioCharts } from "@/components/portfolio/portfolio-charts";
 import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
-import { LayoutDashboard, TrendingUp, RefreshCcw, Bell, Loader2 } from "lucide-react";
+import { LayoutDashboard, TrendingUp, RefreshCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -18,6 +17,7 @@ import {
   initiateAnonymousSignIn,
   useAuth,
   addDocumentNonBlocking,
+  updateDocumentNonBlocking,
   deleteDocumentNonBlocking
 } from "@/firebase";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -156,17 +156,37 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    // Yeni hisse eklenince fiyatları hemen çekmeye çalış
+    
     setTimeout(() => {
       const allSymbols = [newStock.symbol, ...holdings.map(h => h.symbol)];
       fetchStockPrices(allSymbols);
-    }, 1000);
+    }, 1500);
+  };
+
+  const handleUpdateStock = (id: string, updatedData: Partial<StockHolding>) => {
+    if (!user || !firestore || !portfolioId) return;
+    
+    const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', id);
+    updateDocumentNonBlocking(docRef, {
+      ...updatedData,
+      updatedAt: serverTimestamp()
+    });
+
+    toast({
+      title: "Başarıyla Güncellendi",
+      description: "Hisse bilgileri güncellendi.",
+    });
   };
 
   const handleDeleteStock = (id: string) => {
     if (!user || !firestore || !portfolioId) return;
     const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', id);
     deleteDocumentNonBlocking(docRef);
+    
+    toast({
+      title: "Hisse Silindi",
+      description: "Hisse portföyünüzden kaldırıldı.",
+    });
   };
 
   if (isUserLoading || isPortfoliosLoading || isStocksLoading) {
@@ -234,7 +254,11 @@ export default function PortfolioDashboard() {
               {holdings.length} Aktif Pozisyon
             </div>
           </div>
-          <StockTable holdings={holdings} onDelete={handleDeleteStock} />
+          <StockTable 
+            holdings={holdings} 
+            onDelete={handleDeleteStock} 
+            onUpdate={handleUpdateStock}
+          />
         </div>
       </main>
 
