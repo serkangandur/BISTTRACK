@@ -32,9 +32,13 @@ interface StockTableProps {
 export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
 
-  const getCurrencySymbol = (symbol: string) => {
-    if (symbol.toUpperCase() === "USD") return "$";
-    if (symbol.toUpperCase() === "EUR") return "€";
+  const getCurrencySymbol = (symbol: string, category: string) => {
+    if (category === "Döviz") {
+      if (symbol.toUpperCase() === "USD") return "$";
+      if (symbol.toUpperCase() === "EUR") return "€";
+    }
+    // Kripto artık TL bazlı olduğu için simge eklemiyoruz (veya ₺ ekleyebiliriz)
+    if (category === "Kripto") return "₺";
     return "";
   };
 
@@ -62,14 +66,14 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
             
             const isLoading = !stock.isLoaded;
             const isHighPrecision = ["Emtia", "Döviz", "Kripto"].includes(stock.category);
-            const dovizSymbol = getCurrencySymbol(stock.symbol);
+            const currencySymbol = getCurrencySymbol(stock.symbol, stock.category);
 
             return (
               <TableRow key={stock.id} className="hover:bg-white/5 border-white/5 transition-colors group">
                 <TableCell className="font-bold py-4">
                   <div className="flex flex-col gap-1">
                     <span className="text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
-                      {dovizSymbol && <span className="text-primary">{dovizSymbol}</span>}
+                      {currencySymbol && <span className="text-primary">{currencySymbol}</span>}
                       {stock.symbol}
                     </span>
                     <div className="flex items-center gap-1.5">
@@ -90,7 +94,7 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                 <TableCell className="text-muted-foreground">₺{stock.averageCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 font-semibold">
-                    {isLoading && ["Büyüme", "Emtia", "Temettü", "Döviz"].includes(stock.category) ? (
+                    {isLoading && ["Büyüme", "Emtia", "Temettü", "Döviz", "Kripto"].includes(stock.category) ? (
                       <span className="text-[10px] text-muted-foreground animate-pulse">Piyasa Bekleniyor...</span>
                     ) : (
                       <>
