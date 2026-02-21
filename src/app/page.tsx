@@ -68,7 +68,6 @@ export default function PortfolioDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeView, setActiveView] = useState<ViewType>("Özet");
   
-  // Fiyat çekme işleminin kaç kez yapıldığını takip etmek için (infinite loop önleyici)
   const lastFetchedCount = useRef(0);
 
   // 1. Anonim Oturum Yönetimi
@@ -116,17 +115,21 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // 6. Fiyat Çekme Fonksiyonu (Scraping API)
+  // DEBUG: Veritabanından ne geliyor?
+  useEffect(() => {
+    if (dbStocks) {
+      console.log("[FIRESTORE] Ham Veri (StockHoldings):", dbStocks);
+    }
+  }, [dbStocks]);
+
+  // 6. Fiyat Çekme Fonksiyonu
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0 || isRefreshing) return;
     
     setIsRefreshing(true);
     try {
-      console.log(`[API] ${symbols.length} sembol için fiyat çekiliyor: ${symbols.join(',')}`);
       const response = await fetch(`/api/stock?symbols=${symbols.join(',')}`);
-      
       if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-      
       const updates: StockPriceUpdate[] = await response.json();
       
       if (updates && Array.isArray(updates)) {
@@ -134,26 +137,18 @@ export default function PortfolioDashboard() {
         updates.forEach(u => { 
           if (u.symbol) newData[u.symbol.toUpperCase()] = u; 
         });
-        
         setMarketData(prev => ({ ...prev, ...newData }));
-        console.log("[API] Fiyatlar başarıyla güncellendi.");
       }
     } catch (error: any) {
       console.error("[API] Fiyat çekme hatası:", error.message);
-      toast({
-        title: "Bağlantı Sorunu",
-        description: "Borsa verileri çekilemedi, lütfen daha sonra tekrar deneyin.",
-        variant: "destructive"
-      });
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, toast]);
+  }, [isRefreshing]);
 
-  // 7. Otomatik Fiyat Güncelleme Tetikleyicisi
+  // 7. Otomatik Fiyat Güncelleme
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
-      // Eğer yeni bir hisse eklendiyse veya sayfa yenilendiyse fiyatları çek
       if (dbStocks.length !== lastFetchedCount.current) {
         const fetchable = dbStocks
           .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü"].includes(s.category))
@@ -167,7 +162,7 @@ export default function PortfolioDashboard() {
     }
   }, [dbStocks, isStocksLoading, fetchStockPrices]);
 
-  // 8. Verileri Birleştir (DB + Market Data)
+  // 8. Verileri Birleştir ve Normalizasyon ile Filtrele
   const holdings = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
     return dbStocks.map(s => {
@@ -184,7 +179,12 @@ export default function PortfolioDashboard() {
 
   const filteredHoldings = useMemo(() => {
     if (activeView === "Özet") return holdings;
-    return holdings.filter(h => h.category === activeView);
+    
+    // Normalizasyon: Küçük harf ve trim yaparak eşleştir
+    const searchCategory = activeView.toLowerCase().trim();
+    return holdings.filter(h => 
+      h.category?.toString().toLowerCase().trim() === searchCategory
+    );
   }, [holdings, activeView]);
 
   const totalAssets = useMemo(() => holdings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0), [holdings]);
@@ -192,7 +192,6 @@ export default function PortfolioDashboard() {
   // 9. İşlem Fonksiyonları
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
     if (!user || !firestore || !portfolioId) return;
-    
     const stocksRef = collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
     addDocumentNonBlocking(stocksRef, {
       ...newStock,
@@ -201,37 +200,35 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    
-    toast({ title: "Varlık Eklendi", description: "Veritabanına kaydedildi ve fiyatlar güncelleniyor." });
+    toast({ title: "Varlık Eklendi" });
   };
 
   const handleUpdateStock = (id: string, updatedData: Partial<StockHolding>) => {
     if (!user || !firestore || !portfolioId) return;
     const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', id);
     updateDocumentNonBlocking(docRef, { ...updatedData, updatedAt: serverTimestamp() });
-    toast({ title: "Güncellendi", description: "Varlık bilgileri başarıyla kaydedildi." });
+    toast({ title: "Güncellendi" });
   };
 
   const handleDeleteStock = (id: string) => {
     if (!user || !firestore || !portfolioId) return;
     const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', id);
     deleteDocumentNonBlocking(docRef);
-    toast({ title: "Varlık Silindi", description: "Varlık portföyünüzden kaldırıldı." });
+    toast({ title: "Varlık Silindi" });
   };
 
-  // Yükleme Ekranı
   if (isUserLoading || isPortfoliosLoading || (isStocksLoading && !dbStocks)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#101418] gap-4">
         <Loader2 className="animate-spin h-12 w-12 text-primary" />
-        <p className="text-sm text-muted-foreground animate-pulse">Portföyünüz Hazırlanıyor...</p>
+        <p className="text-sm text-muted-foreground animate-pulse">Varlıklar Yükleniyor...</p>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-[#101418] text-white flex">
-      {/* Sol Menü (Navigasyon) */}
+      {/* Sol Sidebar */}
       <aside className="w-64 sticky top-0 h-screen border-r border-white/5 bg-background/50 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex shrink-0">
         <div className="flex items-center gap-3 px-2 py-4 mb-2">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
@@ -241,7 +238,7 @@ export default function PortfolioDashboard() {
         </div>
 
         <div className="py-2 px-2">
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Varlıklarım</p>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Navigasyon</p>
           <div className="space-y-1">
             {SIDEBAR_ITEMS.map((item) => {
               const Icon = item.icon;
@@ -259,9 +256,6 @@ export default function PortfolioDashboard() {
                 >
                   <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
                   <span className="text-sm">{item.label}</span>
-                  {isActive && (
-                    <div className="absolute right-0 w-1 h-4 bg-white rounded-full translate-x-1" />
-                  )}
                 </button>
               );
             })}
@@ -273,7 +267,7 @@ export default function PortfolioDashboard() {
           <div className="text-lg font-black truncate">₺{totalAssets.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</div>
           <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1">
             <div className="w-1.5 h-1.5 rounded-full bg-bist-up" />
-            Anlık Portföy Değeri
+            Portföy Anlık Değeri
           </div>
         </div>
       </aside>
@@ -283,26 +277,18 @@ export default function PortfolioDashboard() {
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              {activeView === "Özet" ? (
-                <h2 className="text-lg font-bold">Genel Panel</h2>
-              ) : (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <LayoutDashboard className="w-4 h-4" />
-                  <ChevronRight className="w-4 h-4" />
-                  <span className="text-sm font-semibold text-white">{activeView} Detayları</span>
-                </div>
-              )}
+              <h2 className="text-lg font-bold">{activeView === "Özet" ? "Genel Panel" : `${activeView} Detayları`}</h2>
             </div>
             <div className="flex items-center gap-4">
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="border-white/10 hover:bg-white/5"
+                className="border-white/10"
                 onClick={() => fetchStockPrices(holdings.map(h => h.symbol))} 
                 disabled={isRefreshing}
               >
                 <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-                {isRefreshing ? "Güncelleniyor..." : "Verileri Yenile"}
+                Yenile
               </Button>
             </div>
           </div>
@@ -312,22 +298,16 @@ export default function PortfolioDashboard() {
           {activeView === "Özet" ? (
             <>
               <TargetProgress currentTotal={totalAssets} />
-
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold flex items-center gap-2">
-                  <LayoutDashboard className="w-6 h-6 text-primary" />
-                  Varlık Analizi
-                </h2>
+                <h2 className="text-2xl font-bold flex items-center gap-2">Varlık Analizi</h2>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
-
               <SummaryCards holdings={holdings} />
               <PortfolioCharts holdings={holdings} />
-
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold">Tüm Varlıklar</h3>
-                  <Badge variant="outline" className="border-white/10">{holdings.length} Kalem</Badge>
+                  <Badge variant="outline">{holdings.length} Kalem</Badge>
                 </div>
                 <StockTable holdings={holdings} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               </div>
@@ -336,34 +316,32 @@ export default function PortfolioDashboard() {
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="flex justify-between items-center">
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-bold flex items-center gap-2">
-                    {(() => {
-                      const Icon = SIDEBAR_ITEMS.find(i => i.label === activeView)?.icon || LayoutDashboard;
-                      return <Icon className="w-6 h-6 text-primary" />;
-                    })()}
-                    {activeView} Portföyü
-                  </h2>
-                  <p className="text-sm text-muted-foreground">{activeView} kategorisindeki yatırımlarınız.</p>
+                  <h2 className="text-2xl font-bold">{activeView} Portföyü</h2>
+                  <p className="text-sm text-muted-foreground">{activeView} kategorisindeki varlıklarınız.</p>
                 </div>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-card/50 border border-white/5 p-6 rounded-xl shadow-xl">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">KATEGORİ DEĞERİ</p>
-                  <div className="text-3xl font-black">₺{filteredHoldings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div>
+                <div className="bg-card/50 border border-white/5 p-6 rounded-xl">
+                  <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Kategori Değeri</p>
+                  <div className="text-3xl font-black">₺{filteredHoldings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0).toLocaleString("tr-TR")}</div>
                 </div>
-                <div className="bg-card/50 border border-white/5 p-6 rounded-xl shadow-xl">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">VARLIK ADEDİ</p>
+                <div className="bg-card/50 border border-white/5 p-6 rounded-xl">
+                  <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Varlık Adedi</p>
                   <div className="text-3xl font-black">{filteredHoldings.length}</div>
                 </div>
-                <div className="bg-card/50 border border-white/5 p-6 rounded-xl shadow-xl">
-                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">GENEL PORTFÖY PAYI</p>
+                <div className="bg-card/50 border border-white/5 p-6 rounded-xl">
+                  <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Pay</p>
                   <div className="text-3xl font-black">%{totalAssets > 0 ? ((filteredHoldings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0) / totalAssets) * 100).toFixed(1) : 0}</div>
                 </div>
               </div>
 
               <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Varlık Listesi</h3>
+                  <Badge variant="outline">{filteredHoldings.length} Kalem</Badge>
+                </div>
                 <StockTable holdings={filteredHoldings} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               </div>
             </div>
