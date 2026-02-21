@@ -5,7 +5,8 @@ import * as cheerio from 'cheerio';
 
 /**
  * Gelişmiş Hibrit Scraping API Route.
- * Hem BIST tablolarını hem de Altın/Gümüş sayfalarını Regex ve Tablo tarama yöntemleriyle okur.
+ * Hem BIST tablolarını hem de Altın/Gümüş sayfalarını Tablo odaklı tarama yöntemiyle okur.
+ * Altın ve Gümüş için garantici "Tablo 1" mantığı kullanılır.
  */
 
 export async function GET(request: NextRequest) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. PARALEL İSTEKLER (Süper Hızlı Veri Çekme)
+    // 1. PARALEL İSTEKLER
     const requests = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
@@ -43,12 +44,10 @@ export async function GET(request: NextRequest) {
         const tds = $(element).find('td');
         if (tds.length < 3) return;
 
-        // Sembol Ayıklama (Garantici split mantığı)
         const rawText = $(tds[0]).text().trim().toUpperCase();
-        const symbol = rawText.split(/[\s-]/)[0]; // Sadece ilk kelimeyi al (örn: TERA)
+        const symbol = rawText.split(/[\s-]/)[0];
 
         if (requestedSymbols.includes(symbol)) {
-          // Akıllı Fiyat Seçimi (2. veya 3. sütunu kontrol et)
           let priceText = "";
           const col2 = $(tds[1]).text().trim();
           const col3 = $(tds[2]).text().trim();
@@ -57,7 +56,6 @@ export async function GET(request: NextRequest) {
           else if (col3.includes(',') && !col3.includes('%')) priceText = col3;
 
           if (priceText) {
-            // Veri Temizleme
             const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
             if (!isNaN(price) && price > 0) {
               updates.push({ symbol, price, change: 0 });
@@ -67,45 +65,87 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 3. EMTİA MANTIĞI (Regex Metodu ile Sayfa Metninden Okuma)
-    
-    // Altın Regex İşlemi
+    // 3. ALTIN MANTIĞI (Garantici Tablo Odaklı)
     const goldResult = results[1];
     if (goldResult.status === 'fulfilled' && requestedSymbols.includes('ALTIN')) {
       const $ = cheerio.load(goldResult.value.data);
-      const bodyText = $('body').text();
+      let found = false;
       
-      // "Gram Altın" kelimesinden sonra gelen ilk sayısal fiyatı yakala
-      const goldMatch = bodyText.match(/Gram Altın[\s:]+([\d.]+,[\d]+)/i);
-      if (goldMatch && goldMatch[1]) {
-        const price = parseFloat(goldMatch[1].replace(/\./g, '').replace(',', '.'));
-        if (!isNaN(price)) {
-          updates.push({ symbol: 'ALTIN', price, change: 0 });
-          console.log(`[API] ALTIN Fiyatı Bulundu: ${price}`);
+      // Sayfadaki ilk tabloyu hedef al
+      $('table').first().find('tr').each((_, el) => {
+        const tds = $(el).find('td');
+        if (tds.length >= 3) {
+          const col0 = $(tds[0]).text().trim();
+          // İlk sütunda 'Gram' geçen satırı bul
+          if (col0.toLowerCase().includes('gram')) {
+            const priceText = $(tds[2]).text().trim(); // SATIŞ (TL) sütunu (td[2])
+            if (priceText && priceText.includes(',')) {
+              const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
+              if (!isNaN(price)) {
+                updates.push({ symbol: 'ALTIN', price, change: 0 });
+                console.log(`[API] ALTIN (Tablo): ${price}`);
+                found = true;
+                return false; // Break each
+              }
+            }
+          }
+        }
+      });
+
+      // Regex Fallback (Tablo bulunamazsa)
+      if (!found) {
+        const bodyText = $('body').text();
+        const goldMatch = bodyText.match(/Gram Altın[\s:]+([\d.]+,[\d]+)/i);
+        if (goldMatch && goldMatch[1]) {
+          const price = parseFloat(goldMatch[1].replace(/\./g, '').replace(',', '.'));
+          if (!isNaN(price)) {
+            updates.push({ symbol: 'ALTIN', price, change: 0 });
+          }
         }
       }
     }
 
-    // Gümüş Regex İşlemi
+    // 4. GÜMÜŞ MANTIĞI (Garantici Tablo Odaklı)
     const silverResult = results[2];
     if (silverResult.status === 'fulfilled' && requestedSymbols.includes('GUMUS')) {
       const $ = cheerio.load(silverResult.value.data);
-      const bodyText = $('body').text();
-      
-      // "Gümüş Gram" veya "Gümüş TL" kelimelerinden sonraki fiyatı yakala
-      const silverMatch = bodyText.match(/Gümüş Gram[\s:]+([\d.]+,[\d]+)/i) || 
-                          bodyText.match(/Gram Gümüş[\s:]+([\d.]+,[\d]+)/i);
-      
-      if (silverMatch && silverMatch[1]) {
-        const price = parseFloat(silverMatch[1].replace(/\./g, '').replace(',', '.'));
-        if (!isNaN(price)) {
-          updates.push({ symbol: 'GUMUS', price, change: 0 });
-          console.log(`[API] GUMUS Fiyatı Bulundu: ${price}`);
+      let found = false;
+
+      // Sayfadaki ilk tabloyu hedef al
+      $('table').first().find('tr').each((_, el) => {
+        const tds = $(el).find('td');
+        if (tds.length >= 3) {
+          const col0 = $(tds[0]).text().trim();
+          // İlk sütunda 'Gram' geçen satırı bul
+          if (col0.toLowerCase().includes('gram')) {
+            const priceText = $(tds[2]).text().trim(); // SATIŞ (TL) sütunu (td[2])
+            if (priceText && priceText.includes(',')) {
+              const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
+              if (!isNaN(price)) {
+                updates.push({ symbol: 'GUMUS', price, change: 0 });
+                console.log(`[API] GUMUS (Tablo): ${price}`);
+                found = true;
+                return false; // Break each
+              }
+            }
+          }
+        }
+      });
+
+      // Regex Fallback (Tablo bulunamazsa)
+      if (!found) {
+        const bodyText = $('body').text();
+        const silverMatch = bodyText.match(/Gümüş Gram[\s:]+([\d.]+,[\d]+)/i) || 
+                            bodyText.match(/Gram Gümüş[\s:]+([\d.]+,[\d]+)/i);
+        if (silverMatch && silverMatch[1]) {
+          const price = parseFloat(silverMatch[1].replace(/\./g, '').replace(',', '.'));
+          if (!isNaN(price)) {
+            updates.push({ symbol: 'GUMUS', price, change: 0 });
+          }
         }
       }
     }
 
-    // SONUÇ LOGLAMA
     const foundSymbols = updates.map(u => u.symbol).join(', ');
     console.log(`[API] Güncellenen Varlıklar (${updates.length}): ${foundSymbols}`);
 
@@ -113,7 +153,6 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error("[API] Kritik Hata:", error.message);
-    // Hata olsa bile şimdiye kadar toplanan verileri dön (UI kesilmesin)
     return NextResponse.json(updates, { status: 200 });
   }
 }
