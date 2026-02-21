@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -12,13 +13,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { StockHolding } from "@/lib/types";
+import { StockHolding, AssetCategory } from "@/lib/types";
 
 interface AddStockDialogProps {
   onAdd: (stock: Omit<StockHolding, "id">) => void;
 }
+
+const CATEGORIES: AssetCategory[] = [
+  "Temettü", "Büyüme", "Nakit", "Emtia", "Kripto", "Döviz", "Sigorta"
+];
 
 export function AddStockDialog({ onAdd }: AddStockDialogProps) {
   const [open, setOpen] = useState(false);
@@ -29,6 +35,8 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     name: "",
     quantity: "",
     averageCost: "",
+    category: "Büyüme" as AssetCategory,
+    monthlySalary: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -37,7 +45,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     if (!formData.symbol || !formData.quantity || !formData.averageCost) {
       toast({
         title: "Eksik Bilgi",
-        description: "Lütfen zorunlu alanları (Sembol, Adet, Ortalama Fiyat) doldurunuz.",
+        description: "Lütfen zorunlu alanları doldurunuz.",
         variant: "destructive",
       });
       return;
@@ -51,8 +59,10 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
       name: formData.name || symbolUpper,
       quantity: Number(formData.quantity),
       averageCost: cost,
-      currentPrice: cost, // Başlangıçta maliyeti gösteriyoruz, hemen ardından fetch tetiklenecek
+      currentPrice: cost,
       dailyChange: 0,
+      category: formData.category,
+      monthlySalary: formData.category === "Sigorta" ? Number(formData.monthlySalary) : undefined,
     });
 
     setFormData({
@@ -60,13 +70,10 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
       name: "",
       quantity: "",
       averageCost: "",
+      category: "Büyüme",
+      monthlySalary: "",
     });
     setOpen(false);
-    
-    toast({
-      title: "Hisse Eklendi",
-      description: `${symbolUpper} portföyünüze eklendi. Canlı fiyat birazdan güncellenecektir.`,
-    });
   };
 
   return (
@@ -74,30 +81,50 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
       <DialogTrigger asChild>
         <Button className="bg-primary hover:bg-primary/80 text-primary-foreground gap-2 font-semibold shadow-lg shadow-primary/20">
           <Plus className="w-4 h-4" />
-          Hisse Ekle
+          Varlık Ekle
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px] bg-card border-white/10">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Yeni İşlem Ekle</DialogTitle>
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <Wallet className="w-5 h-5 text-primary" />
+            Yeni Varlık/İşlem Ekle
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label>Varlık Kategorisi</Label>
+            <Select 
+              value={formData.category} 
+              onValueChange={(val) => setFormData({ ...formData, category: val as AssetCategory })}
+            >
+              <SelectTrigger className="bg-white/5 border-white/10">
+                <SelectValue placeholder="Kategori Seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="symbol">Sembol (Örn: THYAO)</Label>
+              <Label htmlFor="symbol">Sembol/Kod</Label>
               <Input
                 id="symbol"
-                placeholder="THYAO"
+                placeholder="Örn: THYAO, BTC, USD"
                 className="bg-white/5 border-white/10"
                 value={formData.symbol}
                 onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Şirket Adı (Opsiyonel)</Label>
+              <Label htmlFor="name">Varlık Adı</Label>
               <Input
                 id="name"
-                placeholder="Türk Hava Yolları"
+                placeholder="Örn: Bitcoin"
                 className="bg-white/5 border-white/10"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -105,40 +132,49 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
             </div>
           </div>
           
-          <div className="space-y-2">
-            <Label htmlFor="quantity">Adet</Label>
-            <Input
-              id="quantity"
-              type="number"
-              placeholder="0"
-              className="bg-white/5 border-white/10"
-              value={formData.quantity}
-              onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Adet/Miktar</Label>
+              <Input
+                id="quantity"
+                type="number"
+                placeholder="0"
+                className="bg-white/5 border-white/10"
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="averageCost">Maliyet/Fiyat</Label>
+              <Input
+                id="averageCost"
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                className="bg-white/5 border-white/10"
+                value={formData.averageCost}
+                onChange={(e) => setFormData({ ...formData, averageCost: e.target.value })}
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="averageCost">Ortalama Fiyat (₺)</Label>
-            <Input
-              id="averageCost"
-              type="number"
-              step="0.01"
-              placeholder="0.00"
-              className="bg-white/5 border-white/10"
-              value={formData.averageCost}
-              onChange={(e) => setFormData({ ...formData, averageCost: e.target.value })}
-            />
-          </div>
-
-          <div className="bg-primary/5 p-3 rounded-lg border border-primary/20 mt-2">
-            <p className="text-[10px] text-primary font-medium uppercase tracking-tight">Bilgi</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Hisse eklendikten sonra canlı fiyat verisi Yahoo Finance'den otomatik olarak çekilerek "Güncel Fiyat" alanına yazılacaktır.
-            </p>
-          </div>
+          {formData.category === "Sigorta" && (
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+              <Label htmlFor="monthlySalary" className="text-accent">Aylık Maaş (Sigorta Hedefi İçin)</Label>
+              <Input
+                id="monthlySalary"
+                type="number"
+                placeholder="0"
+                className="bg-accent/5 border-accent/20 focus:border-accent"
+                value={formData.monthlySalary}
+                onChange={(e) => setFormData({ ...formData, monthlySalary: e.target.value })}
+              />
+              <p className="text-[10px] text-muted-foreground">Maaşınızın 60 katı otomatik olarak hedef belirlenir.</p>
+            </div>
+          )}
 
           <DialogFooter className="pt-4">
-            <Button type="submit" className="w-full font-bold">Kaydet</Button>
+            <Button type="submit" className="w-full font-bold">Portföye Ekle</Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -1,4 +1,13 @@
 
+export type AssetCategory = 
+  | "Temettü" 
+  | "Büyüme" 
+  | "Nakit" 
+  | "Emtia" 
+  | "Kripto" 
+  | "Döviz" 
+  | "Sigorta";
+
 export interface StockHolding {
   id: string;
   symbol: string;
@@ -7,7 +16,9 @@ export interface StockHolding {
   averageCost: number;
   currentPrice: number;
   dailyChange: number;
-  isLoaded?: boolean; // Market verisinin başarıyla çekilip çekilmediğini takip eder
+  category: AssetCategory;
+  monthlySalary?: number; // Sadece "Sigorta" kategorisi için
+  isLoaded?: boolean;
 }
 
 export interface PortfolioSummary {

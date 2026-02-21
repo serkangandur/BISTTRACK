@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -12,7 +13,7 @@ import {
 import { StockHolding } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, ArrowUp, ArrowDown, Edit2, Trash2 } from "lucide-react";
+import { MoreHorizontal, ArrowUp, ArrowDown, Edit2, Trash2, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,12 +37,12 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
       <Table>
         <TableHeader className="bg-white/5">
           <TableRow className="hover:bg-transparent border-white/5">
-            <TableHead className="font-semibold py-4">Sembol</TableHead>
-            <TableHead className="font-semibold">Adet</TableHead>
-            <TableHead className="font-semibold">Ortalama Fiyat</TableHead>
+            <TableHead className="font-semibold py-4">Varlık & Kategori</TableHead>
+            <TableHead className="font-semibold">Miktar</TableHead>
+            <TableHead className="font-semibold">Maliyet</TableHead>
             <TableHead className="font-semibold">Güncel Fiyat</TableHead>
-            <TableHead className="font-semibold">Toplam Tutar</TableHead>
-            <TableHead className="font-semibold">Kâr/Zarar</TableHead>
+            <TableHead className="font-semibold">Toplam Değer</TableHead>
+            <TableHead className="font-semibold">Performans</TableHead>
             <TableHead className="text-right"></TableHead>
           </TableRow>
         </TableHeader>
@@ -58,30 +59,37 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
             return (
               <TableRow key={stock.id} className="hover:bg-white/5 border-white/5 transition-colors group">
                 <TableCell className="font-bold py-4">
-                  <div className="flex flex-col">
-                    <span className="text-foreground group-hover:text-primary transition-colors">{stock.symbol}</span>
-                    <span className="text-[10px] font-normal text-muted-foreground uppercase">{stock.name}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
+                      {stock.symbol}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className="text-[9px] py-0 h-4 border-white/10 bg-white/5">
+                        <Tag className="w-2 h-2 mr-1" />
+                        {stock.category}
+                      </Badge>
+                      <span className="text-[10px] font-normal text-muted-foreground uppercase">{stock.name}</span>
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell className="font-medium text-muted-foreground">{stock.quantity.toLocaleString("tr-TR")}</TableCell>
                 <TableCell className="text-muted-foreground">₺{stock.averageCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 font-semibold">
-                    {isLoading ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground animate-pulse">Yükleniyor...</span>
-                        <span className="text-[10px] text-muted-foreground opacity-50">₺{stock.currentPrice.toFixed(2)}</span>
-                      </div>
+                    {isLoading && stock.category === "Büyüme" ? (
+                      <span className="text-[10px] text-muted-foreground animate-pulse">Piyasa Bekleniyor...</span>
                     ) : (
                       <>
                         ₺{stock.currentPrice.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
-                        <span className={cn(
-                          "text-[10px] flex items-center",
-                          stock.dailyChange >= 0 ? "text-bist-up" : "text-bist-down"
-                        )}>
-                          {stock.dailyChange >= 0 ? <ArrowUp className="w-2 h-2 mr-0.5" /> : <ArrowDown className="w-2 h-2 mr-0.5" />}
-                          %{Math.abs(stock.dailyChange).toFixed(2)}
-                        </span>
+                        {stock.dailyChange !== 0 && (
+                          <span className={cn(
+                            "text-[10px] flex items-center",
+                            stock.dailyChange >= 0 ? "text-bist-up" : "text-bist-down"
+                          )}>
+                            {stock.dailyChange >= 0 ? <ArrowUp className="w-2 h-2 mr-0.5" /> : <ArrowDown className="w-2 h-2 mr-0.5" />}
+                            %{Math.abs(stock.dailyChange).toFixed(2)}
+                          </span>
+                        )}
                       </>
                     )}
                   </div>
@@ -92,12 +100,9 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                     <span className={cn("font-bold text-sm", isUp ? "text-bist-up" : "text-bist-down")}>
                       {isUp ? "+" : ""}₺{pl.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
                     </span>
-                    <Badge variant="outline" className={cn(
-                      "w-fit text-[10px] py-0 px-1.5 border-none bg-opacity-10",
-                      isUp ? "bg-bist-up text-bist-up" : "bg-bist-down text-bist-down"
-                    )}>
+                    <span className={cn("text-[10px] font-medium", isUp ? "text-bist-up/70" : "text-bist-down/70")}>
                       {isUp ? "+" : ""}{plPercentage.toFixed(2)}%
-                    </Badge>
+                    </span>
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
