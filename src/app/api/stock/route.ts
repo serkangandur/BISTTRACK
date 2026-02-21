@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 
 /**
- * Hibrit Veri Motoru v26.0 - "Kripto & BIST Tam İsabet".
- * - Ana Kaynak (Kripto): Binance TR API (JSON - En Güvenilir)
- * - Yedek Kaynak (Kripto): Midas "Nokta Atışı" Scraping
+ * Hibrit Veri Motoru v28.0 - "Kurşun Geçirmez Eşleşme"
+ * - Birincil: Binance TR API (JSON - En Güvenilir)
+ * - İkincil: Midas (Nokta Atışı Scraping)
  * - BIST, Emtia ve Döviz: CNN Türk
  */
 
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   let ethPrice: number | null = null;
 
   try {
-    // 1. KRİPTO: BİNANCE TR API (BİRİNCİ ÖNCELİK)
+    // 1. KRİPTO: BİNANCE TR API (RESMİ VE HIZLI)
     try {
       const [binanceBtc, binanceEth] = await Promise.all([
         fetch('https://api.binance.tr/api/v3/ticker/price?symbol=BTCTRY', { cache: 'no-store' }).then(res => res.json()),
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       if (btcPrice) console.log(`[API] [BINANCE] BTC: ${btcPrice.toLocaleString('tr-TR')} ₺`);
       if (ethPrice) console.log(`[API] [BINANCE] ETH: ${ethPrice.toLocaleString('tr-TR')} ₺`);
     } catch (e) {
-      console.warn("[API] Binance TR API hatası, yedeklere bakılıyor...");
+      console.warn("[API] Binance TR API hatası, Midas'a bakılıyor...");
     }
 
     // 2. KRİPTO YEDEK: MİDAS (Eğer Binance başarısızsa veya rakamlar çok düşükse)
@@ -58,11 +58,17 @@ export async function GET(request: NextRequest) {
           if (res.ok) {
             const html = await res.text();
             const $ = cheerio.load(html);
+            // Midas'ın büyük fiyat hanesini veya currency-price sınıfını yakala
             const pText = $('.currency-price').first().text().trim() || 
                           $('.last-price').first().text().trim() || 
                           $('h1').first().text().trim();
+            
+            // "86.858,07" formatını yakalamak için Regex
             const match = pText.match(/[\d.,]+/);
-            if (match) return parseFloat(match[0].replace(/\./g, '').replace(',', '.'));
+            if (match) {
+              // Türk usulü formatı (binlik ., ondalık ,) standart sayıya çevir
+              return parseFloat(match[0].replace(/\./g, '').replace(',', '.'));
+            }
           }
           return null;
         };
@@ -93,16 +99,17 @@ export async function GET(request: NextRequest) {
     // 4. AKILLI EŞLEŞME MOTORU (MIRRORING)
     for (const req of requestedSymbols) {
       const reqUpper = req.toUpperCase().trim();
+      const reqNormalized = reqUpper.replace(/İ/g, 'I').replace(/ı/g, 'i');
       
-      // BTC EŞLEŞTİRME (Esnek: BTC, Bitcoin, Bitcoin Türk Lirası)
-      if (btcPrice && (reqUpper.includes('BITCOIN') || reqUpper.includes('BİTCOİN') || reqUpper === 'BTC')) {
+      // BTC EŞLEŞTİRME (BITCOIN, BTC, Bitcoin Türk Lirası)
+      if (btcPrice && (reqNormalized.includes('BITCOIN') || reqNormalized.includes('BTC'))) {
         updates.push({ symbol: req, price: Number(btcPrice.toFixed(4)), change: 0 });
         console.log(`[EŞLEŞME] '${req}' -> ${btcPrice} ₺ (BTC)`);
         continue;
       }
 
-      // ETH EŞLEŞTİRME (Esnek: ETH, Ethereum, Etherium, Ethereum Türk Lirası)
-      if (ethPrice && (reqUpper.includes('ETHEREUM') || reqUpper.includes('ETHERİUM') || reqUpper === 'ETH')) {
+      // ETH EŞLEŞTİRME (ETHEREUM, ETH, ETHERIUM, Ethereum Türk Lirası)
+      if (ethPrice && (reqNormalized.includes('ETHEREUM') || reqNormalized.includes('ETH') || reqNormalized.includes('ETHERIUM'))) {
         updates.push({ symbol: req, price: Number(ethPrice.toFixed(4)), change: 0 });
         console.log(`[EŞLEŞME] '${req}' -> ${ethPrice} ₺ (ETH)`);
         continue;
@@ -164,7 +171,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Garanti Ekleme: requestedSymbols içinde olsa da olmasa da BTC/ETH'yi ana sembollerle de ekle
+    // Garanti: İstenenler içinde yoksa bile ana sembolleri ekle
     if (btcPrice && !updates.some(u => u.symbol === 'BTC')) updates.push({ symbol: 'BTC', price: Number(btcPrice.toFixed(4)), change: 0 });
     if (ethPrice && !updates.some(u => u.symbol === 'ETH')) updates.push({ symbol: 'ETH', price: Number(ethPrice.toFixed(4)), change: 0 });
 
