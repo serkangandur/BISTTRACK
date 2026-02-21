@@ -2,10 +2,14 @@
 
 import yahooFinance from 'yahoo-finance2';
 
-// Global yapılandırma: İstek çakışmalarını önlemek için tek tek (concurrency: 1) çekiyoruz
+/**
+ * Yahoo Finance API yapılandırması. 
+ * Bazı ortamlarda Yahoo isteği engelleyebildiği için doğrulama kurallarını esnetiyoruz.
+ */
 try {
   yahooFinance.setGlobalConfig({
-    queue: { concurrency: 1 },
+    queue: { concurrency: 4 }, // Toplu isteklerde daha hızlı sonuç için
+    validation: { logErrors: false }, // Şema hatalarını görmezden gel
   });
 } catch (e) {
   console.error("Yahoo Finance Config Error:", e);
@@ -18,80 +22,51 @@ export interface StockPriceUpdate {
 }
 
 /**
- * Yahoo Finance API kullanarak hisse senedi fiyatlarını çeker ve detaylı log tutar.
+ * Yahoo Finance üzerinden BIST verilerini toplu olarak çeker.
  */
 export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceUpdate[]> {
-  console.log('--- [SERVER-LOG] BIST VERI CEKIMI BASLADI ---');
-  console.log('Talep Edilen Semboller:', symbols);
-
-  if (!symbols || symbols.length === 0) {
-    console.log('[SERVER-LOG] Sembol listesi bos, islem sonlandirildi.');
-    return [];
-  }
+  if (!symbols || symbols.length === 0) return [];
 
   try {
     const uniqueSymbols = Array.from(new Set(symbols.map(s => s.trim().toUpperCase())));
-    // BIST hisseleri için .IS uzantısı şarttır
     const formattedSymbols = uniqueSymbols.map(s => s.endsWith('.IS') ? s : `${s}.IS`);
     
-    console.log('[SERVER-LOG] Sorgulanacak Formatlı Semboller:', formattedSymbols);
+    console.log(`[SERVER] ${formattedSymbols.length} hisse sorgulanıyor:`, formattedSymbols);
+
+    // Toplu sorgu (bulk query) yapıyoruz. 
+    // validateResult: false ile Yahoo'nun bazen eksik gönderdiği alanlar için hata fırlatmasını önlüyoruz.
+    const quotes = await yahooFinance.quote(formattedSymbols, {}, { validateResult: false });
+
+    // Yahoo bazen tek sembol için nesne, çoklu için dizi döner. Bunu normalize edelim.
+    const quoteArray = Array.isArray(quotes) ? quotes : [quotes];
     
-    const results: StockPriceUpdate[] = [];
-
-    // Hataları daha iyi izlemek için döngü ile tek tek sorguluyoruz
-    for (const sym of formattedSymbols) {
-      try {
-        console.log(`[SERVER-LOG] Veri isteniyor: ${sym}...`);
+    const results: StockPriceUpdate[] = quoteArray
+      .filter(q => q !== null && q !== undefined)
+      .map(quote => {
+        const cleanSymbol = quote.symbol.split('.')[0].toUpperCase();
         
-        // quote metodu en hızlı sonuç veren metottur
-        const quote = await yahooFinance.quote(sym);
+        // Fiyat hiyerarşisi: Piyasa fiyatı -> Önceki kapanış -> Alış -> Satış
+        const price = quote.regularMarketPrice || 
+                      quote.regularMarketPreviousClose || 
+                      quote.bid || 
+                      quote.ask || 
+                      0;
         
-        if (quote) {
-          // Gelen ham veriyi logla (fiyatın neden gelmediğini anlamak için çok önemli)
-          console.log(`[SERVER-LOG] ${sym} Ham Veri:`, {
-            regularMarketPrice: quote.regularMarketPrice,
-            regularMarketPreviousClose: quote.regularMarketPreviousClose,
-            bid: quote.bid,
-            ask: quote.ask,
-            symbol: quote.symbol,
-            shortName: quote.shortName
-          });
+        const change = quote.regularMarketChangePercent || 0;
 
-          const cleanSymbol = quote.symbol.split('.')[0].toUpperCase();
-          
-          // Fiyat için sırasıyla mevcut olan en mantıklı alanı seçiyoruz
-          // BIST hisselerinde piyasa kapalıyken regularMarketPrice 0 gelebilir
-          const price = quote.regularMarketPrice || 
-                        quote.regularMarketPreviousClose || 
-                        quote.bid || 
-                        quote.ask || 
-                        0;
-          
-          const change = quote.regularMarketChangePercent || 0;
+        return {
+          symbol: cleanSymbol,
+          price: price,
+          change: change,
+        };
+      })
+      .filter(r => r.price > 0);
 
-          if (price > 0) {
-            console.log(`[SERVER-LOG] BASARILI (${sym}): Fiyat=${price}, Değişim=%${change.toFixed(2)}`);
-            results.push({
-              symbol: cleanSymbol,
-              price: price,
-              change: change,
-            });
-          } else {
-            console.warn(`[SERVER-LOG] UYARI: ${sym} için geçerli bir fiyat bulunamadı (Fiyat: 0).`);
-          }
-        } else {
-          console.error(`[SERVER-LOG] HATA: ${sym} için Yahoo Finance boş (null) yanıt döndü.`);
-        }
-      } catch (err: any) {
-        console.error(`[SERVER-LOG] HATA (${sym}):`, err.message);
-      }
-    }
-
-    console.log(`[SERVER-LOG] Veri Çekimi Tamamlandı. Başarılı Sonuç: ${results.length}/${formattedSymbols.length}`);
-    console.log('--- [SERVER-LOG] BIST VERI CEKIMI BITTI ---');
+    console.log(`[SERVER] ${results.length} hisse için güncel fiyat başarıyla alındı.`);
     return results;
   } catch (error: any) {
-    console.error('[SERVER-LOG] KRITIK HATA:', error.message);
+    console.error('[SERVER] Yahoo Finance Çekim Hatası:', error.message);
+    // Hata durumunda boş dizi dönerek UI'daki toast mekanizmasını tetikliyoruz
     return [];
   }
 }

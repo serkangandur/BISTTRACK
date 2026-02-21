@@ -76,29 +76,27 @@ export default function PortfolioDashboard() {
     if (symbols.length === 0 || isRefreshing) return;
     
     setIsRefreshing(true);
-    console.log('[UI-LOG] Fiyatlar çekiliyor:', symbols);
     
     try {
       const updates = await getLiveStockPrices(symbols);
       if (updates && updates.length > 0) {
-        console.log('[UI-LOG] Sunucudan gelen güncel veriler:', updates);
         const newData: Record<string, StockPriceUpdate> = {};
         updates.forEach(u => {
           newData[u.symbol.toUpperCase()] = u;
         });
         setMarketData(prev => ({ ...prev, ...newData }));
       } else {
-        console.log('[UI-LOG] Sunucudan veri dönmedi.');
+        // Eğer ilk yükleme bittiyse ve hala veri gelmediyse kullanıcıyı uyar
         if (initialFetchDone) {
           toast({
             title: "Veri Alınamadı",
-            description: "Piyasa verileri şu an Yahoo üzerinden çekilemiyor, lütfen birazdan tekrar deneyin.",
+            description: "Piyasa verileri şu an çekilemiyor. Yahoo API kısıtlaması olabilir, lütfen 1 dakika sonra tekrar deneyin.",
             variant: "destructive",
           });
         }
       }
     } catch (error) {
-      console.error("[UI-LOG] Fiyat çekme hatası:", error);
+      console.error("[UI] Veri çekme hatası:", error);
     } finally {
       setIsRefreshing(false);
       setInitialFetchDone(true);
@@ -145,6 +143,17 @@ export default function PortfolioDashboard() {
       }
     }
   }, [dbStocks, marketData, initialFetchDone, isRefreshing, fetchStockPrices]);
+
+  // Otomatik güncelleme: Her 15 dakikada bir (15 * 60 * 1000 ms)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (holdings.length > 0 && !isRefreshing) {
+        fetchStockPrices(holdings.map(h => h.symbol));
+      }
+    }, 15 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [holdings, isRefreshing, fetchStockPrices]);
 
   const handleRefreshClick = () => {
     fetchStockPrices(holdings.map(h => h.symbol));
