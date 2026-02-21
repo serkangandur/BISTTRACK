@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // PARALEL VERİ ÇEKME (Hız ve Dayanıklılık için)
-    const requests = [
+    const requests: any[] = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 12000 }),
     ];
 
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const responses = await Promise.allSettled(requests);
 
-    // 1. BIST HİSSELERİ İŞLEME
+    // 1. BIST HİSSELERİ İŞLEME (Garantici Scraping Mantığı)
     const bistResult = responses[0];
     if (bistResult.status === 'fulfilled') {
       const $ = cheerio.load(bistResult.value.data);
@@ -49,23 +49,22 @@ export async function GET(request: NextRequest) {
         const tds = $(element).find('td');
         if (tds.length < 3) return;
 
+        // İlk sütundan sembolü temizle (Örn: "ISMEN - IS MENKUL")
         const rawSymbolText = $(tds[0]).text().trim().toUpperCase();
         const extractedSymbol = rawSymbolText.split(/[\s-]/)[0];
         
         if (requestedSymbols.includes(extractedSymbol)) {
+          // 2. veya 3. sütunda virgüllü ve yüzdesiz olanı fiyat kabul et
           let priceText = "";
           const col2Text = $(tds[1]).text().trim();
           const col3Text = $(tds[2]).text().trim();
 
-          if (col2Text.includes(',') && !col2Text.includes('%')) {
-            priceText = col2Text;
-          } else if (col3Text.includes(',') && !col3Text.includes('%')) {
-            priceText = col3Text;
-          }
+          if (col2Text.includes(',') && !col2Text.includes('%')) priceText = col2Text;
+          else if (col3Text.includes(',') && !col3Text.includes('%')) priceText = col3Text;
 
           if (priceText) {
             const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(price) && price > 0 && !updates.find(u => u.symbol === extractedSymbol)) {
+            if (!isNaN(price) && price > 0) {
               updates.push({ symbol: extractedSymbol, price: price, change: 0 });
             }
           }
@@ -78,8 +77,9 @@ export async function GET(request: NextRequest) {
       const goldResponse = responses.find(r => r.status === 'fulfilled' && r.value.config.url.includes('/altin')) as any;
       if (goldResponse) {
         const $ = cheerio.load(goldResponse.value.data);
-        // Gram Altın satış fiyatını bulmak için geniş kapsamlı tarama
         let goldPriceText = "";
+        
+        // Gram Altın Satış Fiyatını Bul
         $('.kur-box, .kur-item').each((_, el) => {
           const text = $(el).text();
           if (text.includes('Gram Altın')) {
@@ -100,10 +100,9 @@ export async function GET(request: NextRequest) {
       const silverResponse = responses.find(r => r.status === 'fulfilled' && r.value.config.url.includes('/gumus')) as any;
       if (silverResponse) {
         const $ = cheerio.load(silverResponse.value.data);
-        // Gümüş gram fiyatı genellikle büyük puntolu bir alandadır
+        // Gümüş sayfasındaki ana fiyat değerini ara
         let silverPriceText = $('.last-val, .current-price, .price-value').first().text().trim();
         
-        // Eğer seçicilerle bulunamazsa, virgüllü ilk sayısal yapıyı ara
         if (!silverPriceText || !silverPriceText.includes(',')) {
           $('span, div, p').each((_, el) => {
             const t = $(el).text().trim();
@@ -122,7 +121,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[API/STOCK] ${updates.length} varlık için güncel fiyatlar çekildi.`);
+    console.log(`[API/STOCK] ${updates.length} varlık (BIST + Emtia) için fiyatlar çekildi.`);
     return NextResponse.json(updates, { status: 200 });
 
   } catch (error: any) {

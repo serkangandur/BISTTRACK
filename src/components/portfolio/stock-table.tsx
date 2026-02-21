@@ -55,6 +55,7 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
             const isUp = pl >= 0;
             
             const isLoading = !stock.isLoaded;
+            const isEmtia = stock.category === "Emtia";
 
             return (
               <TableRow key={stock.id} className="hover:bg-white/5 border-white/5 transition-colors group">
@@ -72,11 +73,16 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="font-medium text-muted-foreground">{stock.quantity.toLocaleString("tr-TR")}</TableCell>
+                <TableCell className="font-medium text-muted-foreground">
+                  {isEmtia 
+                    ? `${stock.quantity.toFixed(4).replace('.', ',')} gr` 
+                    : stock.quantity.toLocaleString("tr-TR")
+                  }
+                </TableCell>
                 <TableCell className="text-muted-foreground">₺{stock.averageCost.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 font-semibold">
-                    {isLoading && stock.category === "Büyüme" ? (
+                    {isLoading && ["Büyüme", "Emtia", "Temettü"].includes(stock.category) ? (
                       <span className="text-[10px] text-muted-foreground animate-pulse">Piyasa Bekleniyor...</span>
                     ) : (
                       <>

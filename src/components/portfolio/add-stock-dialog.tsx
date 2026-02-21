@@ -39,6 +39,8 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     monthlySalary: "",
   });
 
+  const isEmtia = formData.category === "Emtia";
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -101,7 +103,15 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
             <Label>Varlık Kategorisi</Label>
             <Select 
               value={formData.category} 
-              onValueChange={(val) => setFormData({ ...formData, category: val as AssetCategory })}
+              onValueChange={(val) => {
+                const cat = val as AssetCategory;
+                setFormData({ 
+                  ...formData, 
+                  category: cat,
+                  symbol: cat === "Emtia" ? "ALTIN" : "", // Varsayılan emtia sembolü
+                  name: cat === "Emtia" ? "Gram Altın" : ""
+                });
+              }}
             >
               <SelectTrigger className="bg-white/5 border-white/10">
                 <SelectValue placeholder="Kategori Seçin" />
@@ -117,13 +127,32 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="symbol">Sembol/Kod</Label>
-              <Input
-                id="symbol"
-                placeholder="Örn: THYAO, BTC, USD"
-                className="bg-white/5 border-white/10"
-                value={formData.symbol}
-                onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
-              />
+              {isEmtia ? (
+                <Select 
+                  value={formData.symbol} 
+                  onValueChange={(val) => setFormData({ 
+                    ...formData, 
+                    symbol: val, 
+                    name: val === "ALTIN" ? "Gram Altın" : "Gram Gümüş" 
+                  })}
+                >
+                  <SelectTrigger className="bg-white/5 border-white/10">
+                    <SelectValue placeholder="Seçiniz" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALTIN">Gram Altın (ALTIN)</SelectItem>
+                    <SelectItem value="GUMUS">Gram Gümüş (GUMUS)</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="symbol"
+                  placeholder="Örn: THYAO, BTC, USD"
+                  className="bg-white/5 border-white/10"
+                  value={formData.symbol}
+                  onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+                />
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="name">Varlık Adı</Label>
@@ -132,6 +161,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                 placeholder="Örn: Bitcoin"
                 className="bg-white/5 border-white/10"
                 value={formData.name}
+                disabled={isEmtia} // Emtia için otomatik isim atanır
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
@@ -143,6 +173,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               <Input
                 id="quantity"
                 type="number"
+                step={isEmtia ? "0.0001" : "1"}
                 placeholder="0"
                 className="bg-white/5 border-white/10"
                 value={formData.quantity}
