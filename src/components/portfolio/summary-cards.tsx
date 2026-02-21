@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, Wallet, ShieldCheck, Coins, Landmark, BarChart3, Receipt, Banknote } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, ShieldCheck, Coins, Landmark, BarChart3, Receipt, Banknote, History } from "lucide-react";
 import { StockHolding, AssetCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -13,6 +13,7 @@ interface SummaryCardsProps {
 
 const CATEGORY_ICONS: Record<AssetCategory, any> = {
   "Temettü": Receipt,
+  "Temettü Sabit": History,
   "Büyüme": BarChart3,
   "Nakit": Banknote,
   "Emtia": Landmark,
@@ -22,7 +23,10 @@ const CATEGORY_ICONS: Record<AssetCategory, any> = {
 };
 
 export function SummaryCards({ holdings }: SummaryCardsProps) {
-  const totalAssets = holdings.reduce((acc, stock) => acc + stock.quantity * stock.currentPrice, 0);
+  // Temettü Sabit hariç toplam
+  const totalAssets = holdings
+    .filter(h => h.category !== "Temettü Sabit")
+    .reduce((acc, stock) => acc + stock.quantity * stock.currentPrice, 0);
   
   const categoryTotals = holdings.reduce((acc, stock) => {
     const val = stock.quantity * stock.currentPrice;
@@ -45,11 +49,16 @@ export function SummaryCards({ holdings }: SummaryCardsProps) {
               <Landmark className="h-5 w-5 text-primary" />
             </div>
             <div className="text-4xl font-black text-white">₺{totalAssets.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground mt-2">Tüm varlıkların güncel piyasa değeri toplamı</p>
+            <p className="text-xs text-muted-foreground mt-2">Tüm varlıkların (Temettü Sabit hariç) toplamı</p>
           </CardContent>
         </Card>
 
         {Object.entries(CATEGORY_ICONS).map(([cat, Icon], idx) => {
+          // Temettü Sabit kartını özet alanında göstermek istemeyebiliriz veya en sonda gösterebiliriz
+          // Ancak user "Ayrı bir tablo ve özet kartları göster" dediği için burada genel kategorileri listeliyoruz.
+          // Temettü Sabit ana portföy toplamına girmediği için burada payı 0 veya hesaplanmamış görünebilir.
+          if (cat === "Temettü Sabit") return null;
+
           const value = categoryTotals[cat as AssetCategory] || 0;
           if (cat === "Sigorta") return (
              <Card key={cat} className="bg-accent/5 border-accent/20 shadow-lg">

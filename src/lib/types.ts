@@ -1,6 +1,7 @@
 
 export type AssetCategory = 
   | "Temettü" 
+  | "Temettü Sabit"
   | "Büyüme" 
   | "Nakit" 
   | "Emtia" 

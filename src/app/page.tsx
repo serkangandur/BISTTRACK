@@ -19,7 +19,8 @@ import {
   Coins, 
   Landmark, 
   Banknote, 
-  ShieldCheck
+  ShieldCheck,
+  History
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +51,7 @@ type ViewType = "Özet" | AssetCategory;
 const SIDEBAR_ITEMS: { label: ViewType; icon: any }[] = [
   { label: "Özet", icon: LayoutDashboard },
   { label: "Temettü", icon: Receipt },
+  { label: "Temettü Sabit", icon: History },
   { label: "Büyüme", icon: BarChart3 },
   { label: "Döviz", icon: Wallet },
   { label: "Kripto", icon: Coins },
@@ -140,7 +142,7 @@ export default function PortfolioDashboard() {
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
       const fetchable = dbStocks
-        .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü"].includes(s.category))
+        .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü", "Temettü Sabit"].includes(s.category))
         .map(s => s.symbol);
       
       if (fetchable.length > 0 && dbStocks.length !== lastFetchedCount.current) {
@@ -166,14 +168,19 @@ export default function PortfolioDashboard() {
     });
   }, [dbStocks, marketData]);
 
-  // Toplam Portföy Değeri
+  // Toplam Portföy Değeri (Temettü Sabit Hariç)
   const totalValue = useMemo(() => {
-    return assets.reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0);
+    return assets
+      .filter(a => a.category !== "Temettü Sabit")
+      .reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0);
   }, [assets]);
 
   // Filtrelenmiş Liste
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet") return assets;
+    if (activeCategory === "Özet") {
+      // Özet görünümünde Temettü Sabit'leri göstermiyoruz
+      return assets.filter(a => a.category !== "Temettü Sabit");
+    }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
   }, [assets, activeCategory]);
 
@@ -205,7 +212,6 @@ export default function PortfolioDashboard() {
     toast({ title: "Varlık Silindi" });
   };
 
-  // Yükleme Durumu
   if (isUserLoading || isPortfoliosLoading || (isStocksLoading && !dbStocks)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#101418] gap-4">
@@ -296,9 +302,9 @@ export default function PortfolioDashboard() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold">Son İşlemler</h3>
-                  <Badge variant="outline">{assets.length} Kalem</Badge>
+                  <Badge variant="outline">{filteredAssets.length} Kalem</Badge>
                 </div>
-                <StockTable holdings={assets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+                <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               </div>
             </>
           ) : (
@@ -307,7 +313,20 @@ export default function PortfolioDashboard() {
                 <h2 className="text-2xl font-bold">{activeCategory} Portföyü</h2>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
+              
+              {activeCategory === "Temettü Sabit" && (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                   <Card className="bg-primary/5 border-primary/20 p-4">
+                     <p className="text-[10px] font-bold text-muted-foreground uppercase">Kategori Toplamı</p>
+                     <div className="text-2xl font-black">
+                       ₺{filteredAssets.reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0).toLocaleString("tr-TR")}
+                     </div>
+                   </Card>
+                </div>
+              )}
+
               <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+              
               {filteredAssets.length === 0 && (
                 <div className="p-12 text-center bg-card/20 rounded-xl border border-dashed border-white/10">
                   <p className="text-muted-foreground">Bu kategoride henüz bir varlık eklenmemiş.</p>

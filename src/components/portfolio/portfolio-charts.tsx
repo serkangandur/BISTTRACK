@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, AreaChart, Area } from "recharts";
@@ -19,7 +20,10 @@ const COLORS = [
 ];
 
 export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
-  const pieData = holdings.map((h) => ({
+  // Temettü Sabit hariç veriler
+  const filteredHoldings = holdings.filter(h => h.category !== "Temettü Sabit");
+
+  const pieData = filteredHoldings.map((h) => ({
     name: h.symbol,
     value: h.quantity * h.currentPrice,
   }));
@@ -109,7 +113,7 @@ export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
             </ResponsiveContainer>
           </div>
           <p className="text-[10px] text-center text-muted-foreground mt-2 italic">
-            Son 30 günlük portföy değeri değişimi
+            Son 30 günlük portföy değeri değişimi (Temettü Sabit hariç)
           </p>
         </CardContent>
       </Card>
