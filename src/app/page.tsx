@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -8,7 +9,6 @@ import { PortfolioCharts } from "@/components/portfolio/portfolio-charts";
 import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
 import { LayoutDashboard, TrendingUp, RefreshCcw, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getLiveStockPrices, StockPriceUpdate } from "@/app/actions/stock-actions";
 import { useToast } from "@/hooks/use-toast";
 import { 
   useUser, 
@@ -21,6 +21,12 @@ import {
   deleteDocumentNonBlocking
 } from "@/firebase";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+
+interface StockPriceUpdate {
+  symbol: string;
+  price: number;
+  change: number;
+}
 
 export default function PortfolioDashboard() {
   const { user, isUserLoading } = useUser();
@@ -71,30 +77,39 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // Fiyatları çekme fonksiyonu
+  // Fiyatları çekme fonksiyonu - Yeni API Route üzerinden
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0 || isRefreshing) return;
     
     setIsRefreshing(true);
+    const symbolsQuery = symbols.join(',');
     
     try {
-      const updates = await getLiveStockPrices(symbols);
-      if (updates && updates.length > 0) {
+      const response = await fetch(`/api/stock?symbols=${symbolsQuery}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP Error: ${response.status}`);
+      }
+
+      const updates: StockPriceUpdate[] = await response.json();
+
+      if (updates && Array.isArray(updates) && updates.length > 0) {
         const newData: Record<string, StockPriceUpdate> = {};
         updates.forEach(u => {
           newData[u.symbol.toUpperCase()] = u;
         });
         setMarketData(prev => ({ ...prev, ...newData }));
+        console.log(`[CLIENT] ${updates.length} hisse için fiyat güncellendi.`);
       } else {
-        // Eğer hiçbir veri gelmediyse kullanıcıyı uyar
-        toast({
-          title: "Veri Alınamadı",
-          description: "Piyasa verileri şu an çekilemiyor. Yahoo API kısıtlaması olabilir, lütfen 1 dakika sonra tekrar deneyin.",
-          variant: "destructive",
-        });
+        throw new Error('No data returned from API');
       }
-    } catch (error) {
-      console.error("[UI] Veri çekme hatası:", error);
+    } catch (error: any) {
+      console.error("[CLIENT] Veri çekme hatası:", error);
+      toast({
+        title: "Bağlantı Sorunu",
+        description: "Piyasa verileri şu an alınamıyor. Mock veriler gösterilmeye devam edebilir.",
+        variant: "destructive",
+      });
     } finally {
       setIsRefreshing(false);
       setInitialFetchDone(true);
@@ -114,7 +129,7 @@ export default function PortfolioDashboard() {
         name: s.name || s.symbol,
         quantity: s.quantity,
         averageCost: s.averageCost,
-        // Market verisi yoksa maliyet fiyatını gösteriyoruz ama isLoaded: false kalıyor
+        // Fallback: Market verisi yoksa maliyet fiyatını gösteriyoruz
         currentPrice: market?.price || s.averageCost,
         dailyChange: market?.change || 0,
         isLoaded: !!market
@@ -155,7 +170,7 @@ export default function PortfolioDashboard() {
       fetchStockPrices(holdings.map(h => h.symbol));
       toast({
         title: "Güncelleniyor",
-        description: "Piyasa verileri Yahoo Finance üzerinden tazeleniyor...",
+        description: "Piyasa verileri sunucu üzerinden tazeleniyor...",
       });
     }
   };
