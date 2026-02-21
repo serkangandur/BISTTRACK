@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -26,6 +27,19 @@ export default function PortfolioDashboard() {
     // Then try to fetch fresh prices automatically on mount
     fetchStockPrices(INITIAL_HOLDINGS);
   }, []);
+
+  // Otomatik yenileme özelliği (15 dakikada bir)
+  useEffect(() => {
+    if (holdings.length === 0) return;
+
+    const AUTO_REFRESH_MS = 15 * 60 * 1000; // 15 dakika
+    
+    const intervalId = setInterval(() => {
+      fetchStockPrices(holdings);
+    }, AUTO_REFRESH_MS);
+
+    return () => clearInterval(intervalId);
+  }, [holdings]);
 
   const fetchStockPrices = async (currentHoldings: StockHolding[]) => {
     if (currentHoldings.length === 0) return;
@@ -162,7 +176,7 @@ export default function PortfolioDashboard() {
       <footer className="mt-20 border-t border-white/5 py-10 bg-card/20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-muted-foreground">
-            © 2024 BISTrack. Veriler Yahoo Finance üzerinden gerçek zamanlı (veya gecikmeli) olarak sağlanmaktadır.
+            © 2024 BISTrack. Veriler Yahoo Finance üzerinden her 15 dakikada bir otomatik olarak güncellenir.
           </p>
         </div>
       </footer>
