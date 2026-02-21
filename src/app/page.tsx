@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { INITIAL_HOLDINGS } from "@/lib/mock-data";
 import { StockHolding } from "@/lib/types";
 import { SummaryCards } from "@/components/portfolio/summary-cards";
 import { StockTable } from "@/components/portfolio/stock-table";
@@ -11,37 +10,100 @@ import { LayoutDashboard, TrendingUp, RefreshCcw, Bell, Loader2 } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { getLiveStockPrices } from "@/app/actions/stock-actions";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  useUser, 
+  useFirestore, 
+  useCollection, 
+  useMemoFirebase, 
+  initiateAnonymousSignIn,
+  useAuth,
+  addDocumentNonBlocking,
+  deleteDocumentNonBlocking
+} from "@/firebase";
+import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export default function PortfolioDashboard() {
-  const [holdings, setHoldings] = useState<StockHolding[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { user, isUserLoading } = useUser();
+  const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
+  
+  const [holdings, setHoldings] = useState<StockHolding[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Anonim giriş yap
   useEffect(() => {
-    // İlk yükleme
-    setHoldings(INITIAL_HOLDINGS);
-    setIsLoading(false);
-    
-    // Verileri çek
-    fetchStockPrices(INITIAL_HOLDINGS);
-  }, []);
+    if (!isUserLoading && !user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
 
-  // Otomatik yenileme özelliği (15 dakikada bir)
+  // Kullanıcının portföylerini getir
+  const portfoliosQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'users', user.uid, 'portfolios');
+  }, [user, firestore]);
+  
+  const { data: portfolios, isLoading: isPortfoliosLoading } = useCollection(portfoliosQuery);
+  
+  // Varsayılan portföy ID'si
+  const portfolioId = portfolios?.[0]?.id || 'default-portfolio';
+
+  // Eğer portföy yoksa oluştur
+  useEffect(() => {
+    if (!isPortfoliosLoading && portfolios && portfolios.length === 0 && user && firestore) {
+      const portfolioRef = doc(firestore, 'users', user.uid, 'portfolios', 'default-portfolio');
+      setDoc(portfolioRef, {
+        id: 'default-portfolio',
+        userId: user.uid,
+        name: 'Ana Portföy',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    }
+  }, [portfolios, isPortfoliosLoading, user, firestore]);
+
+  // Hisseleri getir
+  const stocksQuery = useMemoFirebase(() => {
+    if (!user || !firestore || !portfolioId) return null;
+    return collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
+  }, [user, firestore, portfolioId]);
+
+  const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
+
+  // DB verilerini yerel state ile senkronize et ve fiyatları çek
+  useEffect(() => {
+    if (dbStocks) {
+      const formattedStocks: StockHolding[] = dbStocks.map(s => ({
+        id: s.id,
+        symbol: s.symbol,
+        name: s.name || s.symbol,
+        quantity: s.quantity,
+        averageCost: s.averageCost,
+        currentPrice: s.currentPrice || s.averageCost,
+        dailyChange: s.dailyChange || 0
+      }));
+      setHoldings(formattedStocks);
+      
+      // Sadece yeni veriler geldiğinde fiyatları bir kez çek
+      if (formattedStocks.length > 0) {
+        fetchStockPrices(formattedStocks);
+      }
+    }
+  }, [dbStocks]);
+
+  // Otomatik yenileme (15 dakikada bir)
   useEffect(() => {
     if (holdings.length === 0) return;
-
     const AUTO_REFRESH_MS = 15 * 60 * 1000;
     const intervalId = setInterval(() => {
       fetchStockPrices(holdings);
     }, AUTO_REFRESH_MS);
-
     return () => clearInterval(intervalId);
   }, [holdings]);
 
   const fetchStockPrices = async (currentHoldings: StockHolding[]) => {
     if (currentHoldings.length === 0) return;
-    
     setIsRefreshing(true);
     try {
       const symbols = currentHoldings.map(h => h.symbol);
@@ -49,7 +111,6 @@ export default function PortfolioDashboard() {
       
       if (updates && updates.length > 0) {
         setHoldings(prev => prev.map(holding => {
-          // Sembol eşleşmesini büyük harf duyarlı yapıyoruz
           const update = updates.find(u => u.symbol.toUpperCase() === holding.symbol.toUpperCase());
           if (update && update.price > 0) {
             return {
@@ -63,7 +124,7 @@ export default function PortfolioDashboard() {
         
         toast({
           title: "Fiyatlar Güncellendi",
-          description: "Yahoo Finance üzerinden canlı veriler başarıyla alındı.",
+          description: "Piyasa verileri başarıyla alındı.",
         });
       }
     } catch (error) {
@@ -82,18 +143,25 @@ export default function PortfolioDashboard() {
   };
 
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    const updatedHoldings = [...holdings, { ...newStock, id }];
-    setHoldings(updatedHoldings);
-    // Yeni eklenen hisse dahil tüm listeyi güncelle
-    fetchStockPrices(updatedHoldings);
+    if (!user || !firestore || !portfolioId) return;
+
+    const stocksRef = collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
+    addDocumentNonBlocking(stocksRef, {
+      ...newStock,
+      userId: user.uid,
+      portfolioId: portfolioId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
   };
 
   const handleDeleteStock = (id: string) => {
-    setHoldings(holdings.filter(h => h.id !== id));
+    if (!user || !firestore || !portfolioId) return;
+    const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', id);
+    deleteDocumentNonBlocking(docRef);
   };
 
-  if (isLoading) {
+  if (isUserLoading || isPortfoliosLoading || isStocksLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="animate-spin h-12 w-12 text-primary" />
@@ -103,7 +171,6 @@ export default function PortfolioDashboard() {
 
   return (
     <div className="min-h-screen bg-[#101418] selection:bg-primary/30">
-      {/* Navbar */}
       <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -145,7 +212,7 @@ export default function PortfolioDashboard() {
               <LayoutDashboard className="h-6 w-6 text-primary" />
               Portföy Özeti
             </h2>
-            <p className="text-muted-foreground mt-1">Hoş geldiniz, işte bugünkü finansal durumunuz.</p>
+            <p className="text-muted-foreground mt-1">Hoş geldiniz, verileriniz bulutta güvenle saklanıyor.</p>
           </div>
           <AddStockDialog onAdd={handleAddStock} />
         </div>
@@ -168,7 +235,7 @@ export default function PortfolioDashboard() {
       <footer className="mt-20 border-t border-white/5 py-10 bg-card/20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-muted-foreground">
-            © 2024 BISTrack. Veriler Yahoo Finance üzerinden otomatik olarak güncellenir.
+            © 2024 BISTrack. Verileriniz bulutta kalıcı olarak saklanır.
           </p>
         </div>
       </footer>
