@@ -4,9 +4,9 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Hibrit Veri Motoru v22.0 - "Kurşun Geçirmez Kripto & BIST".
- * - Ana Kaynak (Kripto): Binance TR API (En güvenilir ₺ fiyatı)
- * - Yedek Kaynak (Kripto): Midas Nokta Atışı Scraping (Görseldeki 86k ₺ değerini yakalar)
+ * Hibrit Veri Motoru v23.0 - "Tam İsabet Kripto & BIST".
+ * - Ana Kaynak (Kripto): Binance TR API (Resmi & Kurşun Geçirmez)
+ * - Yedek Kaynak (Kripto): Midas "Nokta Atışı" Scraping (Görseldeki 86k seviyeleri için)
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1)
  */
 
@@ -18,11 +18,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([], { status: 200 });
   }
 
+  // Frontend'den gelen sembolleri orijinal haliyle koru
   const requestedSymbols = symbolsParam
     .split(',')
-    .map(s => s.trim().toUpperCase());
+    .map(s => s.trim());
 
-  console.log(`[API] [GELEN İSTEK] Semboller: ${requestedSymbols.join(', ')}`);
+  console.log(`[API] [GELEN İSTEK] Toplam ${requestedSymbols.length} sembol: ${requestedSymbols.join(', ')}`);
 
   const updates: any[] = [];
   const headers = {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. KRİPTO: BİNANCE TR API (BİRİNCİL KAYNAK)
+    // 1. KRİPTO: BİNANCE TR API (BİRİNCİ ÖNCELİK)
     let btcPrice: number | null = null;
     let ethPrice: number | null = null;
 
@@ -49,121 +50,111 @@ export async function GET(request: NextRequest) {
       console.warn("[API] Binance TR API hatası, Midas yedeğine geçiliyor...");
     }
 
-    // 2. DİĞER VERİLER VE YEDEK KRİPTO (CNN + MİDAS)
+    // 2. YEDEK VE DİĞER VERİLER (CNN + MİDAS)
     const mainRequests = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 8000 }),
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 8000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 8000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 8000 }),
-      // Midas yedeği
       axios.get('https://www.getmidas.com/canli-kripto/bitcoin-fiyati/', { headers, timeout: 8000 }),
       axios.get('https://www.getmidas.com/canli-kripto/ethereum-fiyati/', { headers, timeout: 8000 }),
     ];
 
     const results = await Promise.allSettled(mainRequests);
 
-    // 3. DÖVİZ İŞLEME
-    const dovizResult = results[3];
-    if (dovizResult.status === 'fulfilled' && dovizResult.value) {
-      const $ = cheerio.load(dovizResult.value.data);
-      const firstTable = $('table').first();
-      const targets = [{ s: 'USD', k: 'ABD DOLARI' }, { s: 'EUR', k: 'EURO' }];
-
-      targets.forEach(t => {
-        if (!requestedSymbols.includes(t.s)) return;
-        firstTable.find('tr').each((_, el) => {
-          const tds = $(el).find('td');
-          if (tds.length >= 3 && $(tds[0]).text().trim().toUpperCase() === t.k) {
-            const pText = $(tds[2]).text().trim();
-            const p = parseFloat(pText.replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(p)) updates.push({ symbol: t.s, price: Number(p.toFixed(4)), change: 0 });
-          }
-        });
-      });
-    }
-
-    // 4. BIST HİSSELERİ
-    const bistResult = results[0];
-    if (bistResult.status === 'fulfilled' && bistResult.value) {
-      const $ = cheerio.load(bistResult.value.data);
-      $('tr').each((_, el) => {
-        const tds = $(el).find('td');
-        if (tds.length < 3) return;
-        const symbol = $(tds[0]).text().trim().toUpperCase().split(/[\s-]/)[0];
-        if (requestedSymbols.includes(symbol)) {
-          let pText = $(tds[1]).text().trim();
-          if (pText.includes('%') || !pText.includes(',')) pText = $(tds[2]).text().trim();
-          const p = parseFloat(pText.replace(/\./g, '').replace(',', '.'));
-          if (!isNaN(p) && p > 0) updates.push({ symbol, price: Number(p.toFixed(4)), change: 0 });
-        }
-      });
-    }
-
-    // 5. EMTİA
-    const scrapeEmtia = (idx: number, sym: string) => {
-      const res = results[idx];
-      if (res.status === 'fulfilled' && res.value && requestedSymbols.includes(sym)) {
-        const $ = cheerio.load(res.value.data);
-        $('table').first().find('tr').each((_, el) => {
-          const tds = $(el).find('td');
-          if (tds.length >= 3 && $(tds[0]).text().trim().toLowerCase().includes('gram')) {
-            const pText = $(tds[2]).text().trim();
-            const p = parseFloat(pText.replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(p)) {
-              updates.push({ symbol: sym, price: Number(p.toFixed(4)), change: 0 });
-              return false;
-            }
-          }
-        });
-      }
-    };
-    scrapeEmtia(1, 'ALTIN');
-    scrapeEmtia(2, 'GUMUS');
-
-    // 6. MİDAS SCRAPING (BİNANCE BAŞARISIZSA VEYA EK DOĞRULAMA İÇİN)
-    const processMidasFallback = (idx: number, type: 'BTC' | 'ETH') => {
+    // MİDAS YEDEĞİ İŞLEME (Binance başarısızsa)
+    const processMidas = (idx: number, type: 'BTC' | 'ETH') => {
       const res = results[idx];
       if (res.status === 'fulfilled' && res.value) {
         const $ = cheerio.load(res.value.data);
-        // Midas'ta fiyat genellikle büyük bir currency-price class'ında veya H1'dedir
-        let pText = $('.currency-price').first().text().trim() || 
-                    $('.last-price').first().text().trim() || 
-                    $('h1').first().text().trim();
+        const pText = $('.currency-price').first().text().trim() || 
+                      $('.last-price').first().text().trim() || 
+                      $('h1').first().text().trim();
         
-        // Rakamı ayıkla (Noktalar binlik, virgül ondalık olabilir)
         const match = pText.match(/[\d.,]+/);
         if (match) {
           const rawPrice = match[0];
           const p = parseFloat(rawPrice.replace(/\./g, '').replace(',', '.'));
           if (!isNaN(p) && p > 0) {
             if (type === 'BTC' && (!btcPrice || btcPrice < 100000)) btcPrice = p;
-            if (type === 'ETH' && (!ethPrice || ethPrice < 10000)) ethPrice = p;
-            console.log(`[MİDAS] ${type} Fiyatı Yakalandı: ${p.toLocaleString('tr-TR')} ₺`);
+            if (type === 'ETH' && (!ethPrice || ethPrice < 15000)) ethPrice = p;
+            console.log(`[MİDAS] ${type} Fiyatı: ${p.toLocaleString('tr-TR')} ₺`);
           }
         }
       }
     };
-    processMidasFallback(4, 'BTC');
-    processMidasFallback(5, 'ETH');
+    processMidas(4, 'BTC');
+    processMidas(5, 'ETH');
 
-    // 7. AKILLI EŞLEŞME (SEMBOLLERİ BAĞLA)
+    // 3. AKILLI EŞLEŞME MOTORU (Frontend'den gelen sembolleri tara)
     requestedSymbols.forEach(req => {
       const reqUpper = req.toUpperCase();
       
-      // Bitcoin Eşleşmesi (BTC, BITCOIN, BİTCOİN içeren her şey)
+      // BTC EŞLEŞTİRME (İsimde Bitcoin veya BTC geçiyorsa)
       if (btcPrice && (reqUpper.includes('BITCOIN') || reqUpper.includes('BİTCOİN') || reqUpper === 'BTC')) {
         updates.push({ symbol: req, price: Number(btcPrice.toFixed(4)), change: 0 });
-        console.log(`[EŞLEŞME] '${req}' -> ${btcPrice.toLocaleString('tr-TR')} ₺`);
+        console.log(`[BAŞARI] '${req}' eşleşti: ${btcPrice.toLocaleString('tr-TR')} ₺`);
+        return;
       }
-      
-      // Ethereum Eşleşmesi (ETH, ETHEREUM, ETHERİUM içeren her şey)
+
+      // ETH EŞLEŞTİRME (İsimde Ethereum veya ETH geçiyorsa)
       if (ethPrice && (reqUpper.includes('ETHEREUM') || reqUpper.includes('ETHERİUM') || reqUpper === 'ETH')) {
         updates.push({ symbol: req, price: Number(ethPrice.toFixed(4)), change: 0 });
-        console.log(`[EŞLEŞME] '${req}' -> ${ethPrice.toLocaleString('tr-TR')} ₺`);
+        console.log(`[BAŞARI] '${req}' eşleşti: ${ethPrice.toLocaleString('tr-TR')} ₺`);
+        return;
+      }
+
+      // DÖVİZ İŞLEME (CNN Türk Tabelle 1)
+      const dovizResult = results[3];
+      if (dovizResult.status === 'fulfilled' && (reqUpper === 'USD' || reqUpper === 'EUR')) {
+        const $ = cheerio.load(dovizResult.value.data);
+        const key = reqUpper === 'USD' ? 'ABD DOLARI' : 'EURO';
+        $('table').first().find('tr').each((_, el) => {
+          const tds = $(el).find('td');
+          if (tds.length >= 3 && $(tds[0]).text().trim().toUpperCase() === key) {
+            const p = parseFloat($(tds[2]).text().trim().replace(/\./g, '').replace(',', '.'));
+            if (!isNaN(p)) updates.push({ symbol: req, price: Number(p.toFixed(4)), change: 0 });
+          }
+        });
+        return;
+      }
+
+      // BIST HİSSELERİ (CNN Türk)
+      const bistResult = results[0];
+      if (bistResult.status === 'fulfilled' && bistResult.value) {
+        const $ = cheerio.load(bistResult.value.data);
+        $('tr').each((_, el) => {
+          const tds = $(el).find('td');
+          if (tds.length < 3) return;
+          const symbolInTable = $(tds[0]).text().trim().toUpperCase().split(/[\s-]/)[0];
+          if (symbolInTable === reqUpper) {
+            let pText = $(tds[1]).text().trim();
+            if (pText.includes('%') || !pText.includes(',')) pText = $(tds[2]).text().trim();
+            const p = parseFloat(pText.replace(/\./g, '').replace(',', '.'));
+            if (!isNaN(p)) updates.push({ symbol: req, price: Number(p.toFixed(4)), change: 0 });
+            return false;
+          }
+        });
+      }
+
+      // EMTİA (CNN Türk)
+      if (reqUpper === 'ALTIN' || reqUpper === 'GUMUS') {
+        const emtiaResult = reqUpper === 'ALTIN' ? results[1] : results[2];
+        if (emtiaResult.status === 'fulfilled' && emtiaResult.value) {
+          const $ = cheerio.load(emtiaResult.value.data);
+          $('table').first().find('tr').each((_, el) => {
+            const tds = $(el).find('td');
+            if (tds.length >= 3 && $(tds[0]).text().trim().toLowerCase().includes('gram')) {
+              const p = parseFloat($(tds[2]).text().trim().replace(/\./g, '').replace(',', '.'));
+              if (!isNaN(p)) updates.push({ symbol: req, price: Number(p.toFixed(4)), change: 0 });
+              return false;
+            }
+          });
+        }
       }
     });
 
-    // Zorunlu Gönderim (İstemese bile anahtar kelimelerle ekle)
+    // Zorunlu Çıktı (Frontend'de eksik kalmaması için her zaman gönder)
     if (btcPrice) updates.push({ symbol: 'BTC', price: Number(btcPrice.toFixed(4)), change: 0 });
     if (ethPrice) updates.push({ symbol: 'ETH', price: Number(ethPrice.toFixed(4)), change: 0 });
 
