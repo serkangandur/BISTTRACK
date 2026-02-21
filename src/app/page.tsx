@@ -7,22 +7,73 @@ import { SummaryCards } from "@/components/portfolio/summary-cards";
 import { StockTable } from "@/components/portfolio/stock-table";
 import { PortfolioCharts } from "@/components/portfolio/portfolio-charts";
 import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
-import { LayoutDashboard, TrendingUp, RefreshCcw, Bell } from "lucide-react";
+import { LayoutDashboard, TrendingUp, RefreshCcw, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getLiveStockPrices } from "@/app/actions/stock-actions";
+import { useToast } from "@/hooks/use-toast";
 
 export default function PortfolioDashboard() {
   const [holdings, setHoldings] = useState<StockHolding[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Initial load
+    // Initial load with local data first
     setHoldings(INITIAL_HOLDINGS);
     setIsLoading(false);
+    
+    // Then try to fetch fresh prices automatically on mount
+    fetchStockPrices(INITIAL_HOLDINGS);
   }, []);
+
+  const fetchStockPrices = async (currentHoldings: StockHolding[]) => {
+    if (currentHoldings.length === 0) return;
+    
+    setIsRefreshing(true);
+    try {
+      const symbols = currentHoldings.map(h => h.symbol);
+      const updates = await getLiveStockPrices(symbols);
+      
+      if (updates.length > 0) {
+        setHoldings(prev => prev.map(holding => {
+          const update = updates.find(u => u.symbol === holding.symbol);
+          if (update) {
+            return {
+              ...holding,
+              currentPrice: update.price,
+              dailyChange: update.change
+            };
+          }
+          return holding;
+        }));
+        
+        toast({
+          title: "Fiyatlar Güncellendi",
+          description: "Yahoo Finance üzerinden en güncel BIST verileri çekildi.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Fiyatlar güncellenirken bir sorun oluştu.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleRefreshClick = () => {
+    fetchStockPrices(holdings);
+  };
 
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setHoldings([...holdings, { ...newStock, id }]);
+    const updatedHoldings = [...holdings, { ...newStock, id }];
+    setHoldings(updatedHoldings);
+    // Fetch price for the new stock as well
+    fetchStockPrices(updatedHoldings);
   };
 
   const handleDeleteStock = (id: string) => {
@@ -56,9 +107,18 @@ export default function PortfolioDashboard() {
               <Button variant="ghost" size="icon" className="hover:bg-white/5">
                 <Bell className="h-5 w-5 text-muted-foreground" />
               </Button>
-              <Button variant="outline" className="hidden sm:flex border-white/10 hover:bg-white/5 text-xs font-semibold">
-                <RefreshCcw className="h-3.5 w-3.5 mr-2" />
-                Verileri Yenile
+              <Button 
+                variant="outline" 
+                className="hidden sm:flex border-white/10 hover:bg-white/5 text-xs font-semibold"
+                onClick={handleRefreshClick}
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCcw className="h-3.5 w-3.5 mr-2" />
+                )}
+                {isRefreshing ? "Güncelleniyor..." : "Verileri Yenile"}
               </Button>
             </div>
           </div>
@@ -89,7 +149,8 @@ export default function PortfolioDashboard() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-white">Varlıklarım</h3>
-            <div className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
+            <div className="text-xs text-muted-foreground font-medium uppercase tracking-widest flex items-center gap-2">
+              {isRefreshing && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
               {holdings.length} Aktif Pozisyon
             </div>
           </div>
@@ -101,7 +162,7 @@ export default function PortfolioDashboard() {
       <footer className="mt-20 border-t border-white/5 py-10 bg-card/20">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-muted-foreground">
-            © 2024 BISTrack. Veriler gecikmeli olarak sağlanabilir. Finansal kararlar almadan önce profesyonel yardım alınız.
+            © 2024 BISTrack. Veriler Yahoo Finance üzerinden gerçek zamanlı (veya gecikmeli) olarak sağlanmaktadır.
           </p>
         </div>
       </footer>
