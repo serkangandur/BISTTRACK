@@ -54,7 +54,9 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
     const cost = Number(formData.averageCost);
     const symbolUpper = formData.symbol.toUpperCase().trim();
 
-    onAdd({
+    // Firestore undefined değerleri kabul etmez. 
+    // Bu yüzden isteğe bağlı alanları sadece varsa nesneye ekliyoruz.
+    const stockData: Omit<StockHolding, "id"> = {
       symbol: symbolUpper,
       name: formData.name || symbolUpper,
       quantity: Number(formData.quantity),
@@ -62,8 +64,13 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
       currentPrice: cost,
       dailyChange: 0,
       category: formData.category,
-      monthlySalary: formData.category === "Sigorta" ? Number(formData.monthlySalary) : undefined,
-    });
+    };
+
+    if (formData.category === "Sigorta" && formData.monthlySalary) {
+      stockData.monthlySalary = Number(formData.monthlySalary);
+    }
+
+    onAdd(stockData);
 
     setFormData({
       symbol: "",
