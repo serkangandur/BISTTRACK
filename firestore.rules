@@ -1,0 +1,96 @@
+/**
+ * BISTrack Firestore Security Rules
+ *
+ * Core Philosophy:
+ * This ruleset implements a strict User-Ownership model. Access to any data—whether it be 
+ * a user profile, a portfolio, or specific stock holdings—is strictly bound to the 
+ * authenticated user's unique ID (UID).
+ *
+ * Data Structure:
+ * The data is organized hierarchically under user-specific paths:
+ * /users/{userId}
+ *   └── /portfolios/{portfolioId}
+ *         └── /stockHoldings/{stockHoldingId}
+ *
+ * Key Security Decisions:
+ * 1. Authorization Independence: To ensure performant and reliable security checks, 
+ *    the `userId` is denormalized (copied) into Portfolio and StockHolding documents. 
+ *    This allows rules to verify ownership without performing expensive cross-document lookups.
+ * 2. Structural Segregation: By nesting data under `/users/{userId}`, we ensure that 
+ *    list operations are naturally scoped to the owner, preventing accidental data leakage.
+ * 3. Prototyping Flexibility: These rules focus on "who" can access data (authorization) 
+ *    and maintaining "relational links" (e.g., ensuring a portfolio belongs to the right user). 
+ *    General data types and optional fields are not strictly enforced to allow for rapid UI iteration.
+ * 4. Immutability: Critical relational fields like `userId` and `portfolioId` are 
+ *    enforced as immutable once a document is created.
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+
+    /** @description Checks if the request is made by an authenticated user. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** @description Checks if the authenticated user's UID matches the provided userId. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** @description Checks if the user is the owner and the document already exists (for updates/deletes). */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for the UserProfile entity. Only the owner can manage their own profile.
+     * @path /users/{userId}
+     * @allow (create) User 'abc' creates document '/users/abc' with { id: 'abc' }.
+     * @deny (create) User 'abc' attempts to create document '/users/xyz'.
+     * @principle Restricts access to a user's own data tree and validates path consistency.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+
+      /**
+       * @description Rules for Portfolio documents. Ownership is verified via path and denormalized userId.
+       * @path /users/{userId}/portfolios/{portfolioId}
+       * @allow (list) User 'abc' queries their own portfolios at '/users/abc/portfolios'.
+       * @deny (update) User 'abc' attempts to change the 'userId' field of an existing portfolio.
+       * @principle Enforces document ownership for writes and ensures relational integrity.
+       */
+      match /portfolios/{portfolioId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+        allow delete: if isExistingOwner(userId);
+
+        /**
+         * @description Rules for StockHolding documents. Uses denormalized context for secure, high-performance checks.
+         * @path /users/{userId}/portfolios/{portfolioId}/stockHoldings/{stockHoldingId}
+         * @allow (create) User 'abc' adds a stock to their own portfolio, providing the correct 'portfolioId'.
+         * @deny (create) User 'abc' attempts to add a stock holding to User 'xyz's portfolio path.
+         * @principle Validates relational integrity between documents and parent paths.
+         */
+        match /stockHoldings/{stockHoldingId} {
+          allow get: if isOwner(userId);
+          allow list: if isOwner(userId);
+          allow create: if isOwner(userId) && request.resource.data.portfolioId == portfolioId;
+          allow update: if isExistingOwner(userId) && request.resource.data.portfolioId == resource.data.portfolioId;
+          allow delete: if isExistingOwner(userId);
+        }
+      }
+    }
+  }
+}

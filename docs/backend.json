@@ -1,0 +1,200 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user of the BISTrack application, linking to their portfolio(s) and managing user-specific data.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "The user's chosen display name within the application."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Portfolio": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Portfolio",
+      "type": "object",
+      "description": "Represents a collection of stock holdings managed by a user, providing an overview of their investments.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Portfolio entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile this portfolio belongs to. (Relationship: UserProfile 1:N Portfolio)"
+        },
+        "name": {
+          "type": "string",
+          "description": "A user-defined name for the portfolio (e.g., 'Ana Portföy', 'Uzun Vadeli Yatırımlar')."
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional detailed description for the portfolio."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the portfolio was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the portfolio was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StockHolding": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "StockHolding",
+      "type": "object",
+      "description": "Represents a specific stock and its details held within a user's portfolio, including quantity and average purchase cost.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the StockHolding entity."
+        },
+        "portfolioId": {
+          "type": "string",
+          "description": "Reference to the Portfolio this stock holding belongs to. (Relationship: Portfolio 1:N StockHolding)"
+        },
+        "symbol": {
+          "type": "string",
+          "description": "The Borsa İstanbul (BIST) stock symbol (e.g., THYAO, EREGL, SASA)."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "The total number of shares held for this specific stock."
+        },
+        "averageCost": {
+          "type": "number",
+          "description": "The weighted average cost per share for this stock holding."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency of the stock holding (e.g., 'TRY'). For BIST stocks, this will typically be 'TRY'."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when this stock holding was first added or a transaction impacting it occurred.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when this stock holding was last updated (e.g., due to a new buy/sell transaction changing quantity or average cost).",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "portfolioId",
+        "symbol",
+        "quantity",
+        "averageCost",
+        "currency",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores individual user profiles. Each document in this collection represents a unique user and is directly owned by the user matching the {userId} wildcard. Access is restricted to the owning user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/portfolios/{portfolioId}",
+        "definition": {
+          "entityName": "Portfolio",
+          "schema": {
+            "$ref": "#/backend/entities/Portfolio"
+          },
+          "description": "Stores portfolios created by a specific user. Each portfolio document contains a 'userId' field, which denormalizes ownership for Authorization Independence. Access is restricted to the owning user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns this portfolio, matching `request.auth.uid`."
+            },
+            {
+              "name": "portfolioId",
+              "description": "The unique identifier for a specific portfolio."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/portfolios/{portfolioId}/stockHoldings/{stockHoldingId}",
+        "definition": {
+          "entityName": "StockHolding",
+          "schema": {
+            "$ref": "#/backend/entities/StockHolding"
+          },
+          "description": "Stores individual stock holdings within a specific portfolio. To achieve Authorization Independence, each StockHolding document MUST include the 'userId' of the portfolio's owner. Access is restricted to the owning user.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who owns the parent portfolio, matching `request.auth.uid`."
+            },
+            {
+              "name": "portfolioId",
+              "description": "The unique identifier of the parent portfolio."
+            },
+            {
+              "name": "stockHoldingId",
+              "description": "The unique identifier for a specific stock holding within the portfolio."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure for BISTrack prioritizes security, scalability, and debuggability by strictly adhering to Authorization Independence and Structural Segregation principles. \n\n1.  **Authorization Independence (CRITICAL DENORMALIZATION):** To eliminate complex `get()` calls in security rules and enable atomic operations, authorization context is denormalized directly into relevant documents. For example, a `StockHolding` document, although nested under a `Portfolio`, will explicitly contain the `userId` of its owner. This ensures that any access request to a `StockHolding` can be authorized solely by checking `request.auth.uid == resource.data.userId`, without needing to fetch the parent `Portfolio` document. Similarly, `Portfolio` documents already include `userId`.\n\n2.  **Structural Segregation (Homogeneous Security Posture):** All documents within a given collection path (`/users/{userId}`, `/users/{userId}/portfolios`, `/users/{userId}/portfolios/{portfolioId}/stockHoldings`) share the same security requirements. Access to all entities is strictly tied to the `userId` in the path, ensuring that only the authenticated user can read or modify their own profiles, portfolios, and stock holdings. This simplifies security rules significantly, moving complexity from rule logic to the data structure itself.\n\n3.  **Query Authorization Patterns (QAPs):** The hierarchical path structure, combined with denormalized `userId`, directly supports secure `list` operations. A user can query their own portfolios (`/users/{request.auth.uid}/portfolios`) or stock holdings within a specific portfolio (`/users/{request.auth.uid}/portfolios/{portfolioId}/stockHoldings`). The security rules can then easily verify that `request.auth.uid` matches the `userId` in the path and/or the denormalized `userId` field in the document, ensuring that users can only list their own data and preventing unauthorized data leakage through queries. This structure eliminates the need for rules to act as data filters, upholding the QAP principle.\n\nThis design ensures robust security rules, simplifies debugging, and supports efficient data retrieval for the BISTrack application."
+  }
+}
