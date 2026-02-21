@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -10,7 +9,9 @@ import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
 import { TargetProgress } from "@/components/portfolio/target-progress";
 import { LayoutDashboard, TrendingUp, RefreshCcw, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { 
   useUser, 
   useFirestore, 
