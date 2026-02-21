@@ -19,8 +19,7 @@ import {
   Coins, 
   Landmark, 
   Banknote, 
-  ShieldCheck,
-  ChevronRight
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +65,7 @@ export default function PortfolioDashboard() {
   
   const [marketData, setMarketData] = useState<Record<string, StockPriceUpdate>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeView, setActiveView] = useState<ViewType>("Özet");
+  const [activeCategory, setActiveCategory] = useState<ViewType>("Özet");
   
   const lastFetchedCount = useRef(0);
 
@@ -86,16 +85,14 @@ export default function PortfolioDashboard() {
   
   const { data: portfolios, isLoading: isPortfoliosLoading } = useCollection(portfoliosQuery);
 
-  // 3. Sabit Portföy Belirleme
   const portfolioId = useMemo(() => {
     if (portfolios && portfolios.length > 0) return portfolios[0].id;
     return 'default-portfolio';
   }, [portfolios]);
 
-  // 4. Varsayılan Portföy Oluşturma (Eğer hiç yoksa)
+  // Varsayılan Portföy Oluşturma
   useEffect(() => {
     if (!isPortfoliosLoading && portfolios && portfolios.length === 0 && user && firestore) {
-      console.log("[FIRESTORE] Varsayılan portföy oluşturuluyor...");
       const portfolioRef = doc(firestore, 'users', user.uid, 'portfolios', 'default-portfolio');
       setDoc(portfolioRef, {
         id: 'default-portfolio',
@@ -107,7 +104,7 @@ export default function PortfolioDashboard() {
     }
   }, [portfolios, isPortfoliosLoading, user, firestore]);
 
-  // 5. Varlıkları (StockHoldings) Dinle
+  // 3. Varlıkları (StockHoldings) Dinle
   const stocksQuery = useMemoFirebase(() => {
     if (!user || !firestore || !portfolioId) return null;
     return collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
@@ -115,14 +112,14 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // DEBUG: Veritabanından ne geliyor?
+  // DEBUG: Veri kontrolü
   useEffect(() => {
     if (dbStocks) {
-      console.log("[FIRESTORE] Ham Veri (StockHoldings):", dbStocks);
+      console.log("[DEBUG] Ham Veri (Firestore'dan Gelen):", dbStocks);
     }
   }, [dbStocks]);
 
-  // 6. Fiyat Çekme Fonksiyonu
+  // 4. Fiyat Çekme Fonksiyonu
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0 || isRefreshing) return;
     
@@ -146,50 +143,51 @@ export default function PortfolioDashboard() {
     }
   }, [isRefreshing]);
 
-  // 7. Otomatik Fiyat Güncelleme
+  // 5. Otomatik Fiyat Güncelleme
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
-      if (dbStocks.length !== lastFetchedCount.current) {
-        const fetchable = dbStocks
-          .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü"].includes(s.category))
-          .map(s => s.symbol);
-        
-        if (fetchable.length > 0) {
-          fetchStockPrices(fetchable);
-          lastFetchedCount.current = dbStocks.length;
-        }
+      const fetchable = dbStocks
+        .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü"].includes(s.category))
+        .map(s => s.symbol);
+      
+      if (fetchable.length > 0 && dbStocks.length !== lastFetchedCount.current) {
+        fetchStockPrices(fetchable);
+        lastFetchedCount.current = dbStocks.length;
       }
     }
   }, [dbStocks, isStocksLoading, fetchStockPrices]);
 
-  // 8. Verileri Birleştir ve Normalizasyon ile Filtrele
-  const holdings = useMemo((): StockHolding[] => {
+  // 6. Verileri Birleştir ve Hesapla
+  const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
     return dbStocks.map(s => {
       const symbolUpper = s.symbol.toUpperCase();
       const market = marketData[symbolUpper];
       return {
         ...s,
-        currentPrice: market?.price || s.currentPrice || s.averageCost,
+        currentPrice: market?.price || s.currentPrice || s.averageCost || 0,
         dailyChange: market?.change || 0,
         isLoaded: !!market
       } as StockHolding;
     });
   }, [dbStocks, marketData]);
 
-  const filteredHoldings = useMemo(() => {
-    if (activeView === "Özet") return holdings;
+  // Filtrelenmiş Liste
+  const filteredAssets = useMemo(() => {
+    if (activeCategory === "Özet") return assets;
     
-    // Normalizasyon: Küçük harf ve trim yaparak eşleştir
-    const searchCategory = activeView.toLowerCase().trim();
-    return holdings.filter(h => 
-      h.category?.toString().toLowerCase().trim() === searchCategory
+    const searchCategory = activeCategory.toLowerCase().trim();
+    return assets.filter(a => 
+      a.category?.toString().toLowerCase().trim() === searchCategory
     );
-  }, [holdings, activeView]);
+  }, [assets, activeCategory]);
 
-  const totalAssets = useMemo(() => holdings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0), [holdings]);
+  // Toplam Portföy Değeri (Tüm varlıkların toplamı)
+  const totalValue = useMemo(() => {
+    return assets.reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0);
+  }, [assets]);
 
-  // 9. İşlem Fonksiyonları
+  // 7. İşlem Fonksiyonları
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
     if (!user || !firestore || !portfolioId) return;
     const stocksRef = collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
@@ -217,11 +215,12 @@ export default function PortfolioDashboard() {
     toast({ title: "Varlık Silindi" });
   };
 
-  if (isUserLoading || isPortfoliosLoading || (isStocksLoading && !dbStocks)) {
+  // Yükleme Durumu (Sadece ilk yüklemede göster)
+  if (isUserLoading || (isStocksLoading && !dbStocks)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#101418] gap-4">
         <Loader2 className="animate-spin h-12 w-12 text-primary" />
-        <p className="text-sm text-muted-foreground animate-pulse">Varlıklar Yükleniyor...</p>
+        <p className="text-sm text-muted-foreground animate-pulse">Varlıklar Hazırlanıyor...</p>
       </div>
     );
   }
@@ -242,11 +241,11 @@ export default function PortfolioDashboard() {
           <div className="space-y-1">
             {SIDEBAR_ITEMS.map((item) => {
               const Icon = item.icon;
-              const isActive = activeView === item.label;
+              const isActive = activeCategory === item.label;
               return (
                 <button
                   key={item.label}
-                  onClick={() => setActiveView(item.label)}
+                  onClick={() => setActiveCategory(item.label)}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
                     isActive 
@@ -264,10 +263,10 @@ export default function PortfolioDashboard() {
 
         <div className="mt-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
           <p className="text-[10px] font-bold text-primary uppercase mb-2">Toplam Değer</p>
-          <div className="text-lg font-black truncate">₺{totalAssets.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</div>
+          <div className="text-lg font-black truncate">₺{totalValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</div>
           <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1">
             <div className="w-1.5 h-1.5 rounded-full bg-bist-up" />
-            Portföy Anlık Değeri
+            Canlı Portföy Değeri
           </div>
         </div>
       </aside>
@@ -277,14 +276,14 @@ export default function PortfolioDashboard() {
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold">{activeView === "Özet" ? "Genel Panel" : `${activeView} Detayları`}</h2>
+              <h2 className="text-lg font-bold">{activeCategory === "Özet" ? "Genel Panel" : `${activeCategory} Portföyü`}</h2>
             </div>
             <div className="flex items-center gap-4">
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="border-white/10"
-                onClick={() => fetchStockPrices(holdings.map(h => h.symbol))} 
+                onClick={() => fetchStockPrices(assets.map(h => h.symbol))} 
                 disabled={isRefreshing}
               >
                 <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
@@ -294,30 +293,30 @@ export default function PortfolioDashboard() {
           </div>
         </nav>
 
-        <main className="max-w-7xl w-full mx-auto px-6 py-8 space-y-8">
-          {activeView === "Özet" ? (
+        <main className="max-w-7xl w-full mx-auto px-6 py-8 space-y-8 animate-in fade-in duration-700">
+          {activeCategory === "Özet" ? (
             <>
-              <TargetProgress currentTotal={totalAssets} />
+              <TargetProgress currentTotal={totalValue} />
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold flex items-center gap-2">Varlık Analizi</h2>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
-              <SummaryCards holdings={holdings} />
-              <PortfolioCharts holdings={holdings} />
+              <SummaryCards holdings={assets} />
+              <PortfolioCharts holdings={assets} />
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold">Tüm Varlıklar</h3>
-                  <Badge variant="outline">{holdings.length} Kalem</Badge>
+                  <Badge variant="outline">{assets.length} Kalem</Badge>
                 </div>
-                <StockTable holdings={holdings} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+                <StockTable holdings={assets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               </div>
             </>
           ) : (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
               <div className="flex justify-between items-center">
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-bold">{activeView} Portföyü</h2>
-                  <p className="text-sm text-muted-foreground">{activeView} kategorisindeki varlıklarınız.</p>
+                  <h2 className="text-2xl font-bold">{activeCategory} Kategorisi</h2>
+                  <p className="text-sm text-muted-foreground">{activeCategory} varlıklarınızın detaylı dökümü.</p>
                 </div>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
@@ -325,24 +324,24 @@ export default function PortfolioDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-card/50 border border-white/5 p-6 rounded-xl">
                   <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Kategori Değeri</p>
-                  <div className="text-3xl font-black">₺{filteredHoldings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0).toLocaleString("tr-TR")}</div>
+                  <div className="text-3xl font-black">₺{filteredAssets.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0).toLocaleString("tr-TR")}</div>
                 </div>
                 <div className="bg-card/50 border border-white/5 p-6 rounded-xl">
                   <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Varlık Adedi</p>
-                  <div className="text-3xl font-black">{filteredHoldings.length}</div>
+                  <div className="text-3xl font-black">{filteredAssets.length}</div>
                 </div>
                 <div className="bg-card/50 border border-white/5 p-6 rounded-xl">
-                  <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Pay</p>
-                  <div className="text-3xl font-black">%{totalAssets > 0 ? ((filteredHoldings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0) / totalAssets) * 100).toFixed(1) : 0}</div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase mb-1">Portföy Payı</p>
+                  <div className="text-3xl font-black">%{totalValue > 0 ? ((filteredAssets.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0) / totalValue) * 100).toFixed(1) : 0}</div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold">Varlık Listesi</h3>
-                  <Badge variant="outline">{filteredHoldings.length} Kalem</Badge>
+                  <Badge variant="outline">{filteredAssets.length} Kalem</Badge>
                 </div>
-                <StockTable holdings={filteredHoldings} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+                <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               </div>
             </div>
           )}
