@@ -187,19 +187,65 @@ export default function PortfolioDashboard() {
 
   return (
     <div className="min-h-screen bg-[#101418] text-white flex">
+      {/* Left Sidebar Nav */}
+      <aside className="w-64 sticky top-0 h-screen border-r border-white/5 bg-background/50 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex shrink-0">
+        <div className="flex items-center gap-3 px-2 py-4 mb-2">
+          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
+            <TrendingUp className="text-primary-foreground h-5 w-5" />
+          </div>
+          <h1 className="text-lg font-bold tracking-tighter">VARLIK YÖNETİMİ</h1>
+        </div>
+
+        <div className="py-2 px-2">
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Menü</p>
+          <div className="space-y-1">
+            {SIDEBAR_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeView === item.label;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => setActiveView(item.label)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
+                    isActive 
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-bold" 
+                      : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
+                  <span className="text-sm">{item.label}</span>
+                  {isActive && (
+                    <div className="absolute right-0 w-1 h-4 bg-white rounded-full translate-x-1" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
+          <p className="text-[10px] font-bold text-primary uppercase mb-2">Hızlı Özet</p>
+          <div className="text-lg font-black truncate">₺{totalAssets.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</div>
+          <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-bist-up" />
+            Portföy Değeri
+          </div>
+        </div>
+      </aside>
+
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+          <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-                <TrendingUp className="text-primary-foreground h-6 w-6" />
-              </div>
-              <h1 className="text-xl font-bold tracking-tighter">VARLIK YÖNETİMİ</h1>
-              {activeView !== "Özet" && (
-                <div className="flex items-center gap-2 ml-4 text-muted-foreground">
+              {activeView === "Özet" ? (
+                <h2 className="text-lg font-bold">Panel Özeti</h2>
+              ) : (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <LayoutDashboard className="w-4 h-4" />
                   <ChevronRight className="w-4 h-4" />
-                  <span className="text-sm font-semibold text-white">{activeView}</span>
+                  <span className="text-sm font-semibold text-white">{activeView} Varlıkları</span>
                 </div>
               )}
             </div>
@@ -212,7 +258,7 @@ export default function PortfolioDashboard() {
           </div>
         </nav>
 
-        <main className="max-w-7xl w-full mx-auto px-4 py-8 space-y-8">
+        <main className="max-w-7xl w-full mx-auto px-6 py-8 space-y-8">
           {activeView === "Özet" ? (
             <>
               <TargetProgress currentTotal={totalAssets} />
@@ -220,7 +266,7 @@ export default function PortfolioDashboard() {
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold flex items-center gap-2">
                   <LayoutDashboard className="w-6 h-6 text-primary" />
-                  Portföy Analizi
+                  Genel Analiz
                 </h2>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
@@ -274,46 +320,6 @@ export default function PortfolioDashboard() {
           )}
         </main>
       </div>
-
-      {/* Right Sidebar Nav */}
-      <aside className="w-64 sticky top-0 h-screen border-l border-white/5 bg-background/50 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex">
-        <div className="py-4 px-2">
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Navigasyon</p>
-          <div className="space-y-1">
-            {SIDEBAR_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeView === item.label;
-              return (
-                <button
-                  key={item.label}
-                  onClick={() => setActiveView(item.label)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
-                    isActive 
-                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-bold" 
-                      : "text-muted-foreground hover:bg-white/5 hover:text-white"
-                  )}
-                >
-                  <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
-                  <span className="text-sm">{item.label}</span>
-                  {isActive && (
-                    <div className="absolute left-0 w-1 h-4 bg-white rounded-full -translate-x-1" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="mt-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
-          <p className="text-[10px] font-bold text-primary uppercase mb-2">Hızlı Özet</p>
-          <div className="text-lg font-black truncate">₺{totalAssets.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</div>
-          <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-bist-up" />
-            Canlı Portföy Değeri
-          </div>
-        </div>
-      </aside>
     </div>
   );
 }
