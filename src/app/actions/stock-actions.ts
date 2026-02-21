@@ -3,16 +3,16 @@
 import yahooFinance from 'yahoo-finance2';
 
 /**
- * Yahoo Finance API yapılandırması. 
- * Bazı ortamlarda Yahoo isteği engelleyebildiği için doğrulama kurallarını esnetiyoruz.
+ * Yahoo Finance API yapılandırması.
+ * Hata ayıklama günlüklerini kapatıyoruz ve kuyruk yapısını basitleştiriyoruz.
  */
 try {
   yahooFinance.setGlobalConfig({
-    queue: { concurrency: 4 }, // Toplu isteklerde daha hızlı sonuç için
-    validation: { logErrors: false }, // Şema hatalarını görmezden gel
+    queue: { concurrency: 1 }, // Daha az agresif sorgu
+    validation: { logErrors: false },
   });
 } catch (e) {
-  console.error("Yahoo Finance Config Error:", e);
+  // Config hatası kritik değil
 }
 
 export interface StockPriceUpdate {
@@ -22,30 +22,27 @@ export interface StockPriceUpdate {
 }
 
 /**
- * Yahoo Finance üzerinden BIST verilerini toplu olarak çeker.
+ * Borsa İstanbul verilerini bireysel sorgularla çeker. 
+ * Toplu sorgular bazı ortamlarda engellendiği için tek tek denemek daha güvenlidir.
  */
 export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceUpdate[]> {
   if (!symbols || symbols.length === 0) return [];
 
-  try {
-    const uniqueSymbols = Array.from(new Set(symbols.map(s => s.trim().toUpperCase())));
-    const formattedSymbols = uniqueSymbols.map(s => s.endsWith('.IS') ? s : `${s}.IS`);
-    
-    console.log(`[SERVER] ${formattedSymbols.length} hisse sorgulanıyor:`, formattedSymbols);
+  const uniqueSymbols = Array.from(new Set(symbols.map(s => s.trim().toUpperCase())));
+  const results: StockPriceUpdate[] = [];
 
-    // Toplu sorgu (bulk query) yapıyoruz. 
-    // validateResult: false ile Yahoo'nun bazen eksik gönderdiği alanlar için hata fırlatmasını önlüyoruz.
-    const quotes = await yahooFinance.quote(formattedSymbols, {}, { validateResult: false });
+  console.log(`[SERVER] ${uniqueSymbols.length} hisse için bireysel sorgu başlıyor...`);
 
-    // Yahoo bazen tek sembol için nesne, çoklu için dizi döner. Bunu normalize edelim.
-    const quoteArray = Array.isArray(quotes) ? quotes : [quotes];
+  // Paralel ama kontrollü bir şekilde her hisseyi tek tek sorguluyoruz
+  const fetchPromises = uniqueSymbols.map(async (symbol) => {
+    const formattedSymbol = symbol.endsWith('.IS') ? symbol : `${symbol}.IS`;
     
-    const results: StockPriceUpdate[] = quoteArray
-      .filter(q => q !== null && q !== undefined)
-      .map(quote => {
-        const cleanSymbol = quote.symbol.split('.')[0].toUpperCase();
-        
-        // Fiyat hiyerarşisi: Piyasa fiyatı -> Önceki kapanış -> Alış -> Satış
+    try {
+      // Bireysel sorgu atıyoruz
+      const quote = await yahooFinance.quote(formattedSymbol, {}, { validateResult: false });
+      
+      if (quote) {
+        // Fiyat hiyerarşisi: Piyasa -> Önceki Kapanış -> Alış -> Satış
         const price = quote.regularMarketPrice || 
                       quote.regularMarketPreviousClose || 
                       quote.bid || 
@@ -54,19 +51,28 @@ export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceU
         
         const change = quote.regularMarketChangePercent || 0;
 
-        return {
-          symbol: cleanSymbol,
-          price: price,
-          change: change,
-        };
-      })
-      .filter(r => r.price > 0);
+        if (price > 0) {
+          return {
+            symbol: symbol,
+            price: price,
+            change: change,
+          };
+        }
+      }
+      console.warn(`[SERVER] ${symbol} için geçerli fiyat bulunamadı.`);
+    } catch (error: any) {
+      console.error(`[SERVER] ${symbol} çekilirken hata:`, error.message);
+    }
+    return null;
+  });
 
-    console.log(`[SERVER] ${results.length} hisse için güncel fiyat başarıyla alındı.`);
-    return results;
-  } catch (error: any) {
-    console.error('[SERVER] Yahoo Finance Çekim Hatası:', error.message);
-    // Hata durumunda boş dizi dönerek UI'daki toast mekanizmasını tetikliyoruz
-    return [];
-  }
+  const responses = await Promise.all(fetchPromises);
+  
+  // Boş olmayan sonuçları filtrele
+  responses.forEach(r => {
+    if (r) results.push(r);
+  });
+
+  console.log(`[SERVER] Sorgu tamamlandı. Başarılı: ${results.length}/${uniqueSymbols.length}`);
+  return results;
 }

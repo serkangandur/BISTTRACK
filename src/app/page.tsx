@@ -86,14 +86,12 @@ export default function PortfolioDashboard() {
         });
         setMarketData(prev => ({ ...prev, ...newData }));
       } else {
-        // Eğer ilk yükleme bittiyse ve hala veri gelmediyse kullanıcıyı uyar
-        if (initialFetchDone) {
-          toast({
-            title: "Veri Alınamadı",
-            description: "Piyasa verileri şu an çekilemiyor. Yahoo API kısıtlaması olabilir, lütfen 1 dakika sonra tekrar deneyin.",
-            variant: "destructive",
-          });
-        }
+        // Eğer hiçbir veri gelmediyse kullanıcıyı uyar
+        toast({
+          title: "Veri Alınamadı",
+          description: "Piyasa verileri şu an çekilemiyor. Yahoo API kısıtlaması olabilir, lütfen 1 dakika sonra tekrar deneyin.",
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("[UI] Veri çekme hatası:", error);
@@ -101,7 +99,7 @@ export default function PortfolioDashboard() {
       setIsRefreshing(false);
       setInitialFetchDone(true);
     }
-  }, [isRefreshing, initialFetchDone, toast]);
+  }, [isRefreshing, toast]);
 
   // Firestore verileri ile market verilerini birleştir
   const holdings = useMemo((): StockHolding[] => {
@@ -124,27 +122,24 @@ export default function PortfolioDashboard() {
     });
   }, [dbStocks, marketData]);
 
-  // İlk veri geldiğinde fiyatları çek
+  // Veriler değiştiğinde veya ilk yüklemede fiyatları çek
   useEffect(() => {
-    if (!isStocksLoading && dbStocks && dbStocks.length > 0 && !initialFetchDone && !isRefreshing) {
+    if (!isStocksLoading && dbStocks && dbStocks.length > 0 && !initialFetchDone) {
       fetchStockPrices(dbStocks.map(s => s.symbol));
     }
-  }, [dbStocks, isStocksLoading, initialFetchDone, isRefreshing, fetchStockPrices]);
+  }, [dbStocks, isStocksLoading, initialFetchDone, fetchStockPrices]);
 
-  // Yeni bir hisse eklendiğinde (henüz market verisi yoksa) tetikle
+  // Yeni eklenen hisseler için (eğer listede market verisi olmayan varsa) tetikle
   useEffect(() => {
-    if (dbStocks && dbStocks.length > 0 && initialFetchDone && !isRefreshing) {
-      const symbolsToFetch = dbStocks
-        .map(s => s.symbol)
-        .filter(sym => !marketData[sym.toUpperCase()]);
-        
-      if (symbolsToFetch.length > 0) {
+    if (dbStocks && dbStocks.length > 0 && initialFetchDone) {
+      const missingData = dbStocks.some(s => !marketData[s.symbol.toUpperCase()]);
+      if (missingData && !isRefreshing) {
         fetchStockPrices(dbStocks.map(s => s.symbol));
       }
     }
   }, [dbStocks, marketData, initialFetchDone, isRefreshing, fetchStockPrices]);
 
-  // Otomatik güncelleme: Her 15 dakikada bir (15 * 60 * 1000 ms)
+  // Otomatik güncelleme: Her 15 dakikada bir
   useEffect(() => {
     const interval = setInterval(() => {
       if (holdings.length > 0 && !isRefreshing) {
@@ -156,11 +151,13 @@ export default function PortfolioDashboard() {
   }, [holdings, isRefreshing, fetchStockPrices]);
 
   const handleRefreshClick = () => {
-    fetchStockPrices(holdings.map(h => h.symbol));
-    toast({
-      title: "Güncelleniyor",
-      description: "Piyasa verileri Yahoo Finance üzerinden tazeleniyor...",
-    });
+    if (holdings.length > 0) {
+      fetchStockPrices(holdings.map(h => h.symbol));
+      toast({
+        title: "Güncelleniyor",
+        description: "Piyasa verileri Yahoo Finance üzerinden tazeleniyor...",
+      });
+    }
   };
 
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
