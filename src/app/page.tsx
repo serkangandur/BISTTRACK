@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -34,9 +33,10 @@ import {
   useAuth,
   addDocumentNonBlocking,
   updateDocumentNonBlocking,
-  deleteDocumentNonBlocking
+  deleteDocumentNonBlocking,
+  setDocumentNonBlocking
 } from "@/firebase";
-import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, serverTimestamp } from "firebase/firestore";
 
 interface StockPriceUpdate {
   symbol: string;
@@ -72,7 +72,6 @@ export default function PortfolioDashboard() {
   // 1. Anonim Oturum Yönetimi
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
-      console.log("[AUTH] Anonim oturum başlatılıyor...");
       initiateAnonymousSignIn(auth);
     }
   }, [user, isUserLoading, auth]);
@@ -94,7 +93,7 @@ export default function PortfolioDashboard() {
   useEffect(() => {
     if (!isPortfoliosLoading && portfolios && portfolios.length === 0 && user && firestore) {
       const portfolioRef = doc(firestore, 'users', user.uid, 'portfolios', 'default-portfolio');
-      setDoc(portfolioRef, {
+      setDocumentNonBlocking(portfolioRef, {
         id: 'default-portfolio',
         userId: user.uid,
         name: 'Ana Portföy',
@@ -150,48 +149,32 @@ export default function PortfolioDashboard() {
     }
   }, [dbStocks, isStocksLoading, fetchStockPrices]);
 
-  // 6. Verileri Birleştir ve Hesapla (Hard-coded TEST verisi dahil)
+  // 6. Verileri Birleştir ve Hesapla
   const assets = useMemo((): StockHolding[] => {
-    let result: StockHolding[] = [];
+    if (!dbStocks) return [];
     
-    if (dbStocks && dbStocks.length > 0) {
-      result = dbStocks.map(s => {
-        const symbolUpper = s.symbol.toUpperCase();
-        const market = marketData[symbolUpper];
-        return {
-          ...s,
-          currentPrice: market?.price || s.currentPrice || s.averageCost || 0,
-          dailyChange: market?.change || 0,
-          isLoaded: !!market
-        } as StockHolding;
-      });
-    }
-
-    // ACIL DURUM: Veritabanı boşsa test verisi ekle
-    if (result.length === 0) {
-      result = [{
-        id: 'test-item',
-        symbol: 'TEST',
-        name: 'Sistem Test Verisi',
-        quantity: 1,
-        averageCost: 100,
-        currentPrice: 100,
-        dailyChange: 0,
-        category: 'Büyüme',
-        isLoaded: true
-      }];
-    }
-    
-    return result;
+    return dbStocks.map(s => {
+      const symbolUpper = s.symbol.toUpperCase();
+      const market = marketData[symbolUpper];
+      return {
+        ...s,
+        currentPrice: market?.price || s.currentPrice || s.averageCost || 0,
+        dailyChange: market?.change || 0,
+        isLoaded: !!market
+      } as StockHolding;
+    });
   }, [dbStocks, marketData]);
-
-  // Hata Ayıklama Logu
-  console.log('EKRANA BASILAN VERI:', assets);
 
   // Toplam Portföy Değeri
   const totalValue = useMemo(() => {
     return assets.reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0);
   }, [assets]);
+
+  // Filtrelenmiş Liste
+  const filteredAssets = useMemo(() => {
+    if (activeCategory === "Özet") return assets;
+    return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
+  }, [assets, activeCategory]);
 
   // 7. İşlem Fonksiyonları
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
@@ -222,7 +205,7 @@ export default function PortfolioDashboard() {
   };
 
   // Yükleme Durumu
-  if (isUserLoading || (isStocksLoading && !dbStocks)) {
+  if (isUserLoading || isPortfoliosLoading || (isStocksLoading && !dbStocks)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#101418] gap-4">
         <Loader2 className="animate-spin h-12 w-12 text-primary" />
@@ -282,7 +265,7 @@ export default function PortfolioDashboard() {
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold">Portföy Analizi</h2>
+              <h2 className="text-lg font-bold">{activeCategory === "Özet" ? "Genel Bakış" : activeCategory}</h2>
             </div>
             <div className="flex items-center gap-4">
               <Button 
@@ -293,28 +276,44 @@ export default function PortfolioDashboard() {
                 disabled={isRefreshing}
               >
                 <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-                Yenile
+                Fiyatları Güncelle
               </Button>
             </div>
           </div>
         </nav>
 
         <main className="max-w-7xl w-full mx-auto px-6 py-8 space-y-8 animate-in fade-in duration-700">
-          <TargetProgress currentTotal={totalValue} />
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold flex items-center gap-2">Varlık Analizi</h2>
-            <AddStockDialog onAdd={handleAddStock} />
-          </div>
-          <SummaryCards holdings={assets} />
-          <PortfolioCharts holdings={assets} />
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Varlık Listesi (Tümü)</h3>
-              <Badge variant="outline">{assets.length} Kalem</Badge>
+          {activeCategory === "Özet" ? (
+            <>
+              <TargetProgress currentTotal={totalValue} />
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold flex items-center gap-2">Varlık Analizi</h2>
+                <AddStockDialog onAdd={handleAddStock} />
+              </div>
+              <SummaryCards holdings={assets} />
+              <PortfolioCharts holdings={assets} />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Son İşlemler</h3>
+                  <Badge variant="outline">{assets.length} Kalem</Badge>
+                </div>
+                <StockTable holdings={assets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">{activeCategory} Portföyü</h2>
+                <AddStockDialog onAdd={handleAddStock} />
+              </div>
+              <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+              {filteredAssets.length === 0 && (
+                <div className="p-12 text-center bg-card/20 rounded-xl border border-dashed border-white/10">
+                  <p className="text-muted-foreground">Bu kategoride henüz bir varlık eklenmemiş.</p>
+                </div>
+              )}
             </div>
-            {/* Filtreleme geçici olarak kaldırıldı, ana liste basılıyor */}
-            <StockTable holdings={assets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
-          </div>
+          )}
         </main>
       </div>
     </div>
