@@ -79,18 +79,27 @@ export async function GET(request: NextRequest) {
         const $ = cheerio.load(goldResponse.value.data);
         let goldPriceText = "";
         
-        // Gram Altın Satış Fiyatını Bul
-        $('.kur-box, .kur-item').each((_, el) => {
+        // Gram Altın Satış Fiyatını Bul (Farklı class yapılarını tara)
+        $('.kur-box, .kur-item, .kur-item-row').each((_, el) => {
           const text = $(el).text();
           if (text.includes('Gram Altın')) {
+            // "Satış" rakamını regex ile yakala (2.950,45 gibi yapıları destekler)
             const matches = text.match(/[\d.]+,[\d]+/);
             if (matches) goldPriceText = matches[0];
           }
         });
 
+        // Eğer kur kutularında bulunamazsa sayfadaki ana fiyat divlerini ara
+        if (!goldPriceText) {
+          goldPriceText = $('.last-val, .current-price').first().text().trim();
+        }
+
         if (goldPriceText) {
           const price = parseFloat(goldPriceText.replace(/\./g, '').replace(',', '.'));
-          if (!isNaN(price)) updates.push({ symbol: 'ALTIN', price, change: 0 });
+          if (!isNaN(price)) {
+            updates.push({ symbol: 'ALTIN', price, change: 0 });
+            console.log(`[API/STOCK] ALTIN fiyatı bulundu: ${price}`);
+          }
         }
       }
     }
@@ -116,16 +125,20 @@ export async function GET(request: NextRequest) {
         const matches = silverPriceText.match(/[\d.]+,[\d]+/);
         if (matches) {
           const price = parseFloat(matches[0].replace(/\./g, '').replace(',', '.'));
-          if (!isNaN(price)) updates.push({ symbol: 'GUMUS', price, change: 0 });
+          if (!isNaN(price)) {
+            updates.push({ symbol: 'GUMUS', price, change: 0 });
+            console.log(`[API/STOCK] GUMUS fiyatı bulundu: ${price}`);
+          }
         }
       }
     }
 
-    console.log(`[API/STOCK] ${updates.length} varlık (BIST + Emtia) için fiyatlar çekildi.`);
+    console.log(`[API/STOCK] Toplam ${updates.length} varlık için güncel fiyatlar başarıyla işlendi.`);
     return NextResponse.json(updates, { status: 200 });
 
   } catch (error: any) {
-    console.error("[API/STOCK] GENEL_HATA:", error.message);
+    console.error("[API/STOCK] Kritik Hata:", error.message);
+    // Hata olsa bile şimdiye kadar toplanan verileri dön ki UI bozulmasın
     return NextResponse.json(updates, { status: 200 });
   }
 }
