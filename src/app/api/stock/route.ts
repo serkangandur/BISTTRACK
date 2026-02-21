@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
           const tds = $(el).find('td');
           if (tds.length >= 3) {
             const rowLabel = $(tds[0]).text().trim().toLowerCase();
-            // Eğer hedef kelime (gram, dolar, euro) satırda geçiyorsa
+            // Eğer hedef kelime satırda geçiyorsa (gram, amerikan dolari, euro)
             if (rowLabel.includes(targetKey.toLowerCase())) {
               const priceText = $(tds[2]).text().trim(); // SATIŞ (TL) sütunu (td[2])
               if (priceText && priceText.includes(',')) {
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
           }
         });
 
-        // Regex Fallback
+        // Regex Fallback (Eğer tablo yapısı değişirse)
         if (!found) {
           const bodyText = $('body').text();
           const regex = new RegExp(`${targetKey}[\\s:]+([\\d.]+,[\\d]+)`, 'i');
