@@ -1,10 +1,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import yahooFinance from 'yahoo-finance2';
 
 /**
- * Borsa İstanbul verilerini çeken güvenli API Route.
- * Hataları yakalar ve uygulamanın çökmesini önlemek için her zaman geçerli bir JSON döner.
+ * Borsa İstanbul verilerini çeken güvenli ve detaylı loglamalı API Route.
+ * Yahoo Finance kütüphanesi yerine doğrudan API çağrısı yaparak CORS ve 
+ * bot engellerini aşmak için tarayıcı başlıklarını taklit eder.
  */
 
 export async function GET(request: NextRequest) {
@@ -21,49 +21,61 @@ export async function GET(request: NextRequest) {
     .map(s => s.trim().toUpperCase())
     .map(s => (s.endsWith('.IS') ? s : `${s}.IS`));
 
+  const formattedSymbols = symbols.join(',');
+  // Yahoo Finance v7 Query API Endpoint
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${formattedSymbols}`;
+
   try {
-    console.log(`[API/STOCK] Sorgu başlatıldı: ${symbols.join(', ')}`);
+    console.log(`[API/STOCK] Sorgu başlatılıyor: ${formattedSymbols}`);
 
-    // Her sembol için ayrı sorgu yaparak hataları izole ediyoruz
-    const results = await Promise.all(
-      symbols.map(async (symbol) => {
-        try {
-          // Yahoo Finance API çağrısı
-          const quote = await yahooFinance.quote(symbol, { validateResult: false });
-          
-          if (!quote) {
-            console.warn(`[API/STOCK] ${symbol} için veri bulunamadı.`);
-            return null;
-          }
+    // Yahoo'nun bot korumasını aşmak için gerçek bir tarayıcı başlığı (User-Agent) ekliyoruz
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      next: { revalidate: 0 } // Next.js cache'ini devre dışı bırak
+    });
 
-          // UI ile eşleşmesi için sembolü temizle (.IS kısmını at)
-          const cleanSymbol = symbol.replace('.IS', '');
-          
-          return {
-            symbol: cleanSymbol,
-            price: quote.regularMarketPrice || 
-                   quote.regularMarketPreviousClose || 
-                   quote.bid || 
-                   quote.ask || 
-                   0,
-            change: quote.regularMarketChangePercent || 0,
-          };
-        } catch (e: any) {
-          console.error(`[API/STOCK] ${symbol} çekilirken hata oluştu:`, e.message);
-          return null;
-        }
-      })
-    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`KRITIK_HATA: Yahoo API Yanıtı Olumsuz (HTTP ${response.status}):`, errorText);
+      return NextResponse.json([], { status: 200 });
+    }
 
-    // Başarısız olan (null dönen) kayıtları temizle
-    const filteredResults = results.filter(r => r !== null);
+    const data = await response.json();
+    const result = data?.quoteResponse?.result;
 
-    console.log(`[API/STOCK] Başarılı sonuç sayısı: ${filteredResults.length}`);
-    return NextResponse.json(filteredResults, { status: 200 });
+    if (!result || !Array.isArray(result)) {
+      console.error("KRITIK_HATA: Yahoo API geçersiz veri döndürdü veya yetki sorunu var:", data);
+      return NextResponse.json([], { status: 200 });
+    }
+
+    // Gelen ham veriyi UI formatına dönüştür
+    const updates = result.map((quote: any) => {
+      // .IS uzantısını temizle
+      const cleanSymbol = quote.symbol.replace('.IS', '').toUpperCase();
+      
+      return {
+        symbol: cleanSymbol,
+        // Piyasa kapalıyken veya veri gecikmeliyken en yakın fiyatı al
+        price: quote.regularMarketPrice || 
+               quote.regularMarketPreviousClose || 
+               quote.bid || 
+               quote.ask || 
+               0,
+        change: quote.regularMarketChangePercent || 0,
+      };
+    });
+
+    console.log(`[API/STOCK] ${updates.length} hisse için veri başarıyla işlendi.`);
+    return NextResponse.json(updates, { status: 200 });
 
   } catch (error: any) {
-    // Kritik hata durumunda 500 yerine 200 ve boş liste dönerek UI'ı koru
-    console.error("[API/STOCK] Kritik Sistem Hatası:", error.message);
+    // İstediğiniz kritik hata logu
+    console.error("KRITIK_HATA: Veri çekme sırasında beklenmedik istisna oluştu:", error.message);
     return NextResponse.json([], { status: 200 });
   }
 }

@@ -77,7 +77,7 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // Fiyatları çekme fonksiyonu - Güçlendirilmiş API Route (/api/stock) üzerinden
+  // Fiyatları çekme fonksiyonu
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0 || isRefreshing) return;
     
@@ -85,7 +85,6 @@ export default function PortfolioDashboard() {
     const symbolsQuery = symbols.join(',');
     
     try {
-      // Proxy API route'umuza istek atıyoruz
       const response = await fetch(`/api/stock?symbols=${symbolsQuery}`);
       
       if (!response.ok) {
@@ -103,7 +102,6 @@ export default function PortfolioDashboard() {
       }
     } catch (error: any) {
       console.error("[CLIENT] Veri çekme hatası:", error);
-      // Hata olsa bile kullanıcıya "Bağlantı Sorunu" toast'u gösteriyoruz ama uygulama çökmez
     } finally {
       setIsRefreshing(false);
       setInitialFetchDone(true);
@@ -130,7 +128,7 @@ export default function PortfolioDashboard() {
     });
   }, [dbStocks, marketData]);
 
-  // Veriler değiştiğinde veya ilk yüklemede fiyatları çek
+  // Veriler yüklendiğinde fiyatları çek
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0 && !initialFetchDone) {
       fetchStockPrices(dbStocks.map(s => s.symbol));
@@ -158,8 +156,11 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    // Yeni hisse eklenince verileri hemen tazelemeye çalış
-    setTimeout(() => fetchStockPrices([newStock.symbol, ...holdings.map(h => h.symbol)]), 500);
+    // Yeni hisse eklenince fiyatları hemen çekmeye çalış
+    setTimeout(() => {
+      const allSymbols = [newStock.symbol, ...holdings.map(h => h.symbol)];
+      fetchStockPrices(allSymbols);
+    }, 1000);
   };
 
   const handleDeleteStock = (id: string) => {
@@ -171,7 +172,10 @@ export default function PortfolioDashboard() {
   if (isUserLoading || isPortfoliosLoading || isStocksLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#101418]">
-        <Loader2 className="animate-spin h-12 w-12 text-primary" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin h-12 w-12 text-primary" />
+          <p className="text-muted-foreground animate-pulse text-sm">Verileriniz hazırlanıyor...</p>
+        </div>
       </div>
     );
   }
