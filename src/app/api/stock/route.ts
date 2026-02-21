@@ -4,9 +4,10 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Veri Motoru v15.0 - "Binance TR API Entegrasyonu".
+ * Gelişmiş Hibrit Veri Motoru v16.0 - "Esnek Kripto Senkronizasyonu".
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1 / İlk Tablo Yöntemi)
  * - Kripto (BTC ve ETH): Binance TR Resmi API (Kurşun Geçirmez ve Saf ₺)
+ * - Esneklik: BTC, Bitcoin, ETH, Ethereum gibi farklı sembolleri otomatik eşleştirir.
  */
 
 export async function GET(request: NextRequest) {
@@ -20,6 +21,8 @@ export async function GET(request: NextRequest) {
   const requestedSymbols = symbolsParam
     .split(',')
     .map(s => s.trim().toUpperCase());
+
+  console.log(`[API] [GELEN İSTEK] Semboller: ${requestedSymbols.join(', ')}`);
 
   const updates: any[] = [];
   const headers = {
@@ -122,26 +125,33 @@ export async function GET(request: NextRequest) {
     scrapeEmtia(1, 'ALTIN');
     scrapeEmtia(2, 'GUMUS');
 
-    // 5. KRİPTO (BİNANCE TR RESMİ API)
-    const processBinanceCrypto = (idx: number, symbol: string) => {
-      if (!requestedSymbols.includes(symbol)) return;
-      const res = results[idx];
-      if (res.status === 'fulfilled') {
-        const data = res.value.data;
-        if (data && data.price) {
-          const price = parseFloat(data.price);
-          if (!isNaN(price)) {
-            updates.push({ symbol, price: Number(price.toFixed(4)), change: 0 });
-            console.log(`[API] Binance TR ${symbol}: ${price.toLocaleString('tr-TR')} ₺`);
-          }
-        }
-      } else {
-        console.error(`[API] Binance TR ${symbol} Hatası:`, res.reason.message);
-      }
-    };
+    // 5. KRİPTO (BİNANCE TR RESMİ API - ESNEK EŞLEŞME & ZORUNLU GÖNDERİM)
+    const cryptoConfig = [
+      { id: 'BTC', keywords: ['BTC', 'BITCOIN', 'BİTCOİN'], binanceIdx: 4 },
+      { id: 'ETH', keywords: ['ETH', 'ETHEREUM', 'ETHERİUM'], binanceIdx: 5 },
+    ];
 
-    processBinanceCrypto(4, 'BTC');
-    processBinanceCrypto(5, 'ETH');
+    cryptoConfig.forEach(crypto => {
+      const res = results[crypto.binanceIdx];
+      if (res.status === 'fulfilled' && res.value.data?.price) {
+        const rawPrice = parseFloat(res.value.data.price);
+        if (!isNaN(rawPrice)) {
+          const finalPrice = Number(rawPrice.toFixed(4));
+          
+          // ZORUNLU GÖNDERİM: BTC ve ETH her zaman standart sembolleriyle eklenir
+          updates.push({ symbol: crypto.id, price: finalPrice, change: 0 });
+          
+          // ESNEK EŞLEŞME: Eğer kullanıcı "BITCOIN" gibi bir keyword istediyse onu da ekle
+          requestedSymbols.forEach(req => {
+            if (crypto.keywords.includes(req) && req !== crypto.id) {
+              updates.push({ symbol: req, price: finalPrice, change: 0 });
+            }
+          });
+
+          console.log(`[API] Binance TR ${crypto.id} İşlendi: ${finalPrice.toLocaleString('tr-TR')} ₺`);
+        }
+      }
+    });
 
     const foundSymbols = updates.map(u => u.symbol).join(', ');
     console.log(`[API] Güncellenen Varlıklar (${updates.length}): ${foundSymbols}`);
