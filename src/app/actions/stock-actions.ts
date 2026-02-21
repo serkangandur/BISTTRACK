@@ -47,12 +47,20 @@ export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceU
         const quote = await yahooFinance.quote(sym);
         
         if (quote) {
-          // Gelen ham verideki bazı alanları logla (fiyatın neden 0 gelebileceğini anlamak için)
-          console.log(`[SERVER-LOG] ${sym} Yanıtı Alındı. Alanlar: price=${quote.regularMarketPrice}, prevClose=${quote.regularMarketPreviousClose}, bid=${quote.bid}`);
+          // Gelen ham veriyi logla (fiyatın neden gelmediğini anlamak için çok önemli)
+          console.log(`[SERVER-LOG] ${sym} Ham Veri:`, {
+            regularMarketPrice: quote.regularMarketPrice,
+            regularMarketPreviousClose: quote.regularMarketPreviousClose,
+            bid: quote.bid,
+            ask: quote.ask,
+            symbol: quote.symbol,
+            shortName: quote.shortName
+          });
 
           const cleanSymbol = quote.symbol.split('.')[0].toUpperCase();
           
           // Fiyat için sırasıyla mevcut olan en mantıklı alanı seçiyoruz
+          // BIST hisselerinde piyasa kapalıyken regularMarketPrice 0 gelebilir
           const price = quote.regularMarketPrice || 
                         quote.regularMarketPreviousClose || 
                         quote.bid || 
@@ -76,10 +84,6 @@ export async function getLiveStockPrices(symbols: string[]): Promise<StockPriceU
         }
       } catch (err: any) {
         console.error(`[SERVER-LOG] HATA (${sym}):`, err.message);
-        // Hata detaylarını (varsa) yazdır
-        if (err.response) {
-          console.error(`[SERVER-LOG] HTTP Status: ${err.response.status}`);
-        }
       }
     }
 

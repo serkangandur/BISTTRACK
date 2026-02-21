@@ -89,6 +89,13 @@ export default function PortfolioDashboard() {
         setMarketData(prev => ({ ...prev, ...newData }));
       } else {
         console.log('[UI-LOG] Sunucudan veri dönmedi.');
+        if (initialFetchDone) {
+          toast({
+            title: "Veri Alınamadı",
+            description: "Piyasa verileri şu an Yahoo üzerinden çekilemiyor, lütfen birazdan tekrar deneyin.",
+            variant: "destructive",
+          });
+        }
       }
     } catch (error) {
       console.error("[UI-LOG] Fiyat çekme hatası:", error);
@@ -96,7 +103,7 @@ export default function PortfolioDashboard() {
       setIsRefreshing(false);
       setInitialFetchDone(true);
     }
-  }, [isRefreshing]);
+  }, [isRefreshing, initialFetchDone, toast]);
 
   // Firestore verileri ile market verilerini birleştir
   const holdings = useMemo((): StockHolding[] => {
