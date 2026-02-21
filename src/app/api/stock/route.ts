@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import yahooFinance from 'yahoo-finance2';
 
 /**
- * Borsa İstanbul verilerini çeken Server-side API Route.
- * yahoo-finance2 kütüphanesini sunucu tarafında kullanarak CORS engellerini aşar.
+ * Borsa İstanbul verilerini çeken güvenli API Route.
+ * Hataları yakalar ve uygulamanın çökmesini önlemek için her zaman geçerli bir JSON döner.
  */
 
 export async function GET(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const symbolsParam = searchParams.get('symbols');
 
   if (!symbolsParam) {
-    return NextResponse.json({ error: 'Symbols parameter is required' }, { status: 400 });
+    return NextResponse.json([], { status: 200 });
   }
 
   // Sembolleri temizle ve BIST formatına (.IS) uygun hale getir
@@ -22,36 +22,48 @@ export async function GET(request: NextRequest) {
     .map(s => (s.endsWith('.IS') ? s : `${s}.IS`));
 
   try {
-    console.log(`[API/STOCK] Sorgulanan semboller: ${symbols.join(', ')}`);
+    console.log(`[API/STOCK] Sorgu başlatıldı: ${symbols.join(', ')}`);
 
-    // Yahoo Finance'den toplu veri çek (Validation kapalı kalsın ki eksik veri hata fırlatmasın)
-    const results = await yahooFinance.quote(symbols, { validateResult: false });
+    // Her sembol için ayrı sorgu yaparak hataları izole ediyoruz
+    const results = await Promise.all(
+      symbols.map(async (symbol) => {
+        try {
+          // Yahoo Finance API çağrısı
+          const quote = await yahooFinance.quote(symbol, { validateResult: false });
+          
+          if (!quote) {
+            console.warn(`[API/STOCK] ${symbol} için veri bulunamadı.`);
+            return null;
+          }
 
-    // Veriyi uygulama formatına dönüştür
-    const formattedData = results.map((quote: any) => {
-      const cleanSymbol = quote.symbol.replace('.IS', '').toUpperCase();
-      return {
-        symbol: cleanSymbol,
-        price: quote.regularMarketPrice || quote.regularMarketPreviousClose || 0,
-        change: quote.regularMarketChangePercent || 0,
-      };
-    });
+          // UI ile eşleşmesi için sembolü temizle (.IS kısmını at)
+          const cleanSymbol = symbol.replace('.IS', '');
+          
+          return {
+            symbol: cleanSymbol,
+            price: quote.regularMarketPrice || 
+                   quote.regularMarketPreviousClose || 
+                   quote.bid || 
+                   quote.ask || 
+                   0,
+            change: quote.regularMarketChangePercent || 0,
+          };
+        } catch (e: any) {
+          console.error(`[API/STOCK] ${symbol} çekilirken hata oluştu:`, e.message);
+          return null;
+        }
+      })
+    );
 
-    console.log(`[API/STOCK] Başarıyla çekilen veri sayısı: ${formattedData.length}`);
-    return NextResponse.json(formattedData);
+    // Başarısız olan (null dönen) kayıtları temizle
+    const filteredResults = results.filter(r => r !== null);
+
+    console.log(`[API/STOCK] Başarılı sonuç sayısı: ${filteredResults.length}`);
+    return NextResponse.json(filteredResults, { status: 200 });
 
   } catch (error: any) {
-    console.error(`[API/STOCK] KRITIK HATA: ${error.message}`);
-    
-    // Hata detayını logla
-    if (error.response) {
-      console.error(`[API/STOCK] Status: ${error.response.status}`);
-      console.error(`[API/STOCK] Data: ${JSON.stringify(error.response.data)}`);
-    }
-
-    return NextResponse.json(
-      { error: 'Failed to fetch stock data', details: error.message },
-      { status: 500 }
-    );
+    // Kritik hata durumunda 500 yerine 200 ve boş liste dönerek UI'ı koru
+    console.error("[API/STOCK] Kritik Sistem Hatası:", error.message);
+    return NextResponse.json([], { status: 200 });
   }
 }

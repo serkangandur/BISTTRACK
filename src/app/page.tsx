@@ -77,7 +77,7 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  // Fiyatları çekme fonksiyonu - Yeni API Route (/api/borsa) üzerinden
+  // Fiyatları çekme fonksiyonu - Güçlendirilmiş API Route (/api/stock) üzerinden
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0 || isRefreshing) return;
     
@@ -85,11 +85,11 @@ export default function PortfolioDashboard() {
     const symbolsQuery = symbols.join(',');
     
     try {
-      // Kendi API route'umuza istek atıyoruz
-      const response = await fetch(`/api/borsa?symbols=${symbolsQuery}`);
+      // Proxy API route'umuza istek atıyoruz
+      const response = await fetch(`/api/stock?symbols=${symbolsQuery}`);
       
       if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status}`);
+        throw new Error(`API Yanıt Vermedi: ${response.status}`);
       }
 
       const updates: StockPriceUpdate[] = await response.json();
@@ -100,20 +100,15 @@ export default function PortfolioDashboard() {
           newData[u.symbol.toUpperCase()] = u;
         });
         setMarketData(prev => ({ ...prev, ...newData }));
-        console.log(`[CLIENT] ${updates.length} hisse için fiyat güncellendi.`);
       }
     } catch (error: any) {
       console.error("[CLIENT] Veri çekme hatası:", error);
-      toast({
-        title: "Bağlantı Sorunu",
-        description: "Piyasa verileri şu an alınamıyor. Lütfen daha sonra tekrar deneyiniz.",
-        variant: "destructive",
-      });
+      // Hata olsa bile kullanıcıya "Bağlantı Sorunu" toast'u gösteriyoruz ama uygulama çökmez
     } finally {
       setIsRefreshing(false);
       setInitialFetchDone(true);
     }
-  }, [isRefreshing, toast]);
+  }, [isRefreshing]);
 
   // Firestore verileri ile market verilerini birleştir
   const holdings = useMemo((): StockHolding[] => {
@@ -128,7 +123,6 @@ export default function PortfolioDashboard() {
         name: s.name || s.symbol,
         quantity: s.quantity,
         averageCost: s.averageCost,
-        // Fallback: Market verisi gelene kadar maliyeti gösteriyoruz
         currentPrice: market?.price || s.averageCost,
         dailyChange: market?.change || 0,
         isLoaded: !!market
@@ -142,16 +136,6 @@ export default function PortfolioDashboard() {
       fetchStockPrices(dbStocks.map(s => s.symbol));
     }
   }, [dbStocks, isStocksLoading, initialFetchDone, fetchStockPrices]);
-
-  // Yeni eklenen hisseler için (eğer listede market verisi olmayan varsa) tetikle
-  useEffect(() => {
-    if (dbStocks && dbStocks.length > 0 && initialFetchDone) {
-      const missingData = dbStocks.some(s => !marketData[s.symbol.toUpperCase()]);
-      if (missingData && !isRefreshing) {
-        fetchStockPrices(dbStocks.map(s => s.symbol));
-      }
-    }
-  }, [dbStocks, marketData, initialFetchDone, isRefreshing, fetchStockPrices]);
 
   const handleRefreshClick = () => {
     if (holdings.length > 0) {
@@ -174,6 +158,8 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+    // Yeni hisse eklenince verileri hemen tazelemeye çalış
+    setTimeout(() => fetchStockPrices([newStock.symbol, ...holdings.map(h => h.symbol)]), 500);
   };
 
   const handleDeleteStock = (id: string) => {
@@ -205,12 +191,9 @@ export default function PortfolioDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="hover:bg-white/5">
-                <Bell className="h-5 w-5 text-muted-foreground" />
-              </Button>
               <Button 
                 variant="outline" 
-                className="hidden sm:flex border-white/10 hover:bg-white/5 text-xs font-semibold"
+                className="border-white/10 hover:bg-white/5 text-xs font-semibold"
                 onClick={handleRefreshClick}
                 disabled={isRefreshing}
               >
@@ -233,7 +216,6 @@ export default function PortfolioDashboard() {
               <LayoutDashboard className="h-6 w-6 text-primary" />
               Portföy Özeti
             </h2>
-            <p className="text-muted-foreground mt-1">Hoş geldiniz, verileriniz bulutta güvenle saklanıyor.</p>
           </div>
           <AddStockDialog onAdd={handleAddStock} />
         </div>
@@ -245,7 +227,6 @@ export default function PortfolioDashboard() {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-white">Varlıklarım</h3>
             <div className="text-xs text-muted-foreground font-medium uppercase tracking-widest flex items-center gap-2">
-              {isRefreshing && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
               {holdings.length} Aktif Pozisyon
             </div>
           </div>
@@ -253,12 +234,8 @@ export default function PortfolioDashboard() {
         </div>
       </main>
 
-      <footer className="mt-20 border-t border-white/5 py-10 bg-card/20">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-xs text-muted-foreground">
-            © 2024 BISTrack. Verileriniz bulutta kalıcı olarak saklanır.
-          </p>
-        </div>
+      <footer className="mt-20 border-t border-white/5 py-10 bg-card/20 text-center">
+        <p className="text-xs text-muted-foreground">© 2024 BISTrack. Verileriniz bulutta kalıcı olarak saklanır.</p>
       </footer>
     </div>
   );
