@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 10000 }),
-      axios.get('https://finans.cnnturk.com/kripto-paralar', { headers, timeout: 10000 }), // Kripto Özet
+      axios.get('https://finans.cnnturk.com/kripto-paralar', { headers, timeout: 10000 }), // Kripto Özet Sayfası
     ];
 
     const results = await Promise.allSettled(requests);
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     scrapeEmtiaTable(1, 'ALTIN');
     scrapeEmtiaTable(2, 'GUMUS');
 
-    // 5. KRİPTO MANTIĞI (CNN Türk - Satır Sayma & Fallback)
+    // 5. KRİPTO MANTIĞI (Excel Satır Sayma - Nokta Atışı)
     const kriptoResult = results[4];
     if (kriptoResult.status === 'fulfilled' && (requestedSymbols.includes('BTC') || requestedSymbols.includes('ETH'))) {
       const $ = cheerio.load(kriptoResult.value.data);
@@ -134,14 +134,16 @@ export async function GET(request: NextRequest) {
       const processCryptoRow = (rowIdx: number, symbol: string, expectedName: string) => {
         if (!requestedSymbols.includes(symbol)) return;
         
-        let row = table.find(`tr:nth-child(${rowIdx})`);
-        let label = row.find('td:nth-child(1)').text().trim();
+        let row = table.find('tr').eq(rowIdx); // Direct index access
+        let label = row.find('td').eq(0).text().trim();
         
-        // Fallback: Eğer satır beklenen değilse tara
+        // Güvenlik Filtresi: Eğer satır beklenen değilse veya isim uyuşmuyorsa tara
         if (!label.toLowerCase().includes(expectedName.toLowerCase())) {
           table.find('tr').each((_, el) => {
-            const currentLabel = $(el).find('td:nth-child(1)').text().trim();
-            if (currentLabel.toLowerCase().includes(expectedName.toLowerCase()) && currentLabel.toLowerCase().includes('türk lirası')) {
+            const currentLabel = $(el).find('td').eq(0).text().trim();
+            // Hem coin adını hem de 'Türk Lirası' ibaresini aynı anda barındıran satırı bul
+            if (currentLabel.toLowerCase().includes(expectedName.toLowerCase()) && 
+                currentLabel.toLowerCase().includes('türk lirası')) {
               row = $(el);
               label = currentLabel;
               return false;
@@ -149,20 +151,21 @@ export async function GET(request: NextRequest) {
           });
         }
 
-        const priceText = row.find('td:nth-child(2)').text().trim();
+        const priceText = row.find('td').eq(1).text().trim();
         if (priceText && priceText.includes(',')) {
+          // Binlik noktalarını sil, virgülü noktaya çevir
           const price = parseFloat(priceText.replace(/\./g, '').replace(',', '.'));
           if (!isNaN(price)) {
-            console.log(`[API] ${symbol} CNN Türk Fiyatı (₺): ${price.toLocaleString('tr-TR')}`);
+            console.log(`[OK] ${symbol} Bulundu: ${price.toLocaleString('tr-TR')} ₺`);
             updates.push({ symbol, price: Number(price.toFixed(4)), change: 0 });
           }
         }
       };
 
-      // BTC: Genellikle 3. satır
-      processCryptoRow(3, 'BTC', 'Bitcoin');
-      // ETH: Genellikle 7. satır
-      processCryptoRow(7, 'ETH', 'Ethereum');
+      // BTC: 3. Satır (Index 2)
+      processCryptoRow(2, 'BTC', 'Bitcoin');
+      // ETH: 7. Satır (Index 6)
+      processCryptoRow(6, 'ETH', 'Ethereum');
     }
 
     const foundSymbols = updates.map(u => u.symbol).join(', ');
