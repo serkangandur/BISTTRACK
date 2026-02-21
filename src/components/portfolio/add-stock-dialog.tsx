@@ -41,7 +41,8 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
 
   const isEmtia = formData.category === "Emtia";
   const isDoviz = formData.category === "Döviz";
-  const needsDropdown = isEmtia || isDoviz;
+  const isKripto = formData.category === "Kripto";
+  const needsDropdown = isEmtia || isDoviz || isKripto;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,6 +117,9 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                 } else if (cat === "Döviz") {
                   defaultSymbol = "USD";
                   defaultName = "ABD Doları";
+                } else if (cat === "Kripto") {
+                  defaultSymbol = "BTC";
+                  defaultName = "Bitcoin";
                 }
 
                 setFormData({ 
@@ -149,6 +153,8 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                     if (val === "GUMUS") name = "Gram Gümüş";
                     if (val === "USD") name = "ABD Doları";
                     if (val === "EUR") name = "Euro";
+                    if (val === "BTC") name = "Bitcoin";
+                    if (val === "ETH") name = "Ethereum";
                     setFormData({ ...formData, symbol: val, name });
                   }}
                 >
@@ -168,12 +174,18 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                         <SelectItem value="EUR">Euro (EUR)</SelectItem>
                       </>
                     )}
+                    {isKripto && (
+                      <>
+                        <SelectItem value="BTC">Bitcoin (BTC)</SelectItem>
+                        <SelectItem value="ETH">Ethereum (ETH)</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               ) : (
                 <Input
                   id="symbol"
-                  placeholder="Örn: THYAO, BTC"
+                  placeholder="Örn: THYAO, ISMEN"
                   className="bg-white/5 border-white/10"
                   value={formData.symbol}
                   onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
@@ -199,7 +211,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               <Input
                 id="quantity"
                 type="number"
-                step={(isEmtia || isDoviz) ? "0.0001" : "1"}
+                step={(isEmtia || isDoviz || isKripto) ? "0.0001" : "1"}
                 placeholder="0"
                 className="bg-white/5 border-white/10"
                 value={formData.quantity}
