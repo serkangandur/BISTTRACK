@@ -1,3 +1,4 @@
+
 export interface StockHolding {
   id: string;
   symbol: string;
@@ -6,6 +7,7 @@ export interface StockHolding {
   averageCost: number;
   currentPrice: number;
   dailyChange: number;
+  isLoaded?: boolean; // Market verisinin başarıyla çekilip çekilmediğini takip eder
 }
 
 export interface PortfolioSummary {

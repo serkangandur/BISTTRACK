@@ -49,9 +49,8 @@ export function StockTable({ holdings, onDelete }: StockTableProps) {
             const plPercentage = totalCost > 0 ? (pl / totalCost) * 100 : 0;
             const isUp = pl >= 0;
             
-            // Eğer fiyat maliyetle tam olarak aynıysa ve hiçbir değişim yoksa "yükleniyor" diyebiliriz, 
-            // ama en azından bir değer göstermek daha iyidir.
-            const isLoading = stock.currentPrice === stock.averageCost && stock.dailyChange === 0;
+            // isLoaded bayrağına göre yükleme durumunu kontrol et
+            const isLoading = !stock.isLoaded;
 
             return (
               <TableRow key={stock.id} className="hover:bg-white/5 border-white/5 transition-colors group">

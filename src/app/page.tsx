@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { StockHolding } from "@/lib/types";
 import { SummaryCards } from "@/components/portfolio/summary-cards";
 import { StockTable } from "@/components/portfolio/stock-table";
@@ -9,7 +9,7 @@ import { PortfolioCharts } from "@/components/portfolio/portfolio-charts";
 import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
 import { LayoutDashboard, TrendingUp, RefreshCcw, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getLiveStockPrices } from "@/app/actions/stock-actions";
+import { getLiveStockPrices, StockPriceUpdate } from "@/app/actions/stock-actions";
 import { useToast } from "@/hooks/use-toast";
 import { 
   useUser, 
@@ -29,7 +29,7 @@ export default function PortfolioDashboard() {
   const firestore = useFirestore();
   const { toast } = useToast();
   
-  const [holdings, setHoldings] = useState<StockHolding[]>([]);
+  const [marketData, setMarketData] = useState<Record<string, StockPriceUpdate>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasInitialFetch, setHasInitialFetch] = useState(false);
 
@@ -48,7 +48,6 @@ export default function PortfolioDashboard() {
   
   const { data: portfolios, isLoading: isPortfoliosLoading } = useCollection(portfoliosQuery);
   
-  // Varsayılan portföy ID'si
   const portfolioId = portfolios?.[0]?.id || 'default-portfolio';
 
   // Eğer portföy yoksa oluştur
@@ -65,7 +64,7 @@ export default function PortfolioDashboard() {
     }
   }, [portfolios, isPortfoliosLoading, user, firestore]);
 
-  // Hisseleri getir
+  // Hisseleri Firestore'dan getir
   const stocksQuery = useMemoFirebase(() => {
     if (!user || !firestore || !portfolioId) return null;
     return collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
@@ -73,73 +72,66 @@ export default function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
-  const fetchStockPrices = useCallback(async (currentHoldings: StockHolding[]) => {
-    if (currentHoldings.length === 0) return;
+  // Fiyatları çekme fonksiyonu
+  const fetchStockPrices = useCallback(async (symbols: string[]) => {
+    if (symbols.length === 0) return;
     setIsRefreshing(true);
     try {
-      const symbols = currentHoldings.map(h => h.symbol);
       const updates = await getLiveStockPrices(symbols);
-      
       if (updates && updates.length > 0) {
-        setHoldings(prev => prev.map(holding => {
-          const update = updates.find(u => 
-            u.symbol.toUpperCase() === holding.symbol.toUpperCase() ||
-            u.symbol.split('.')[0].toUpperCase() === holding.symbol.toUpperCase()
-          );
-          if (update && update.price > 0) {
-            return {
-              ...holding,
-              currentPrice: update.price,
-              dailyChange: update.change
-            };
-          }
-          return holding;
-        }));
-        
-        if (!hasInitialFetch) {
-          setHasInitialFetch(true);
-        }
+        const newData: Record<string, StockPriceUpdate> = {};
+        updates.forEach(u => {
+          newData[u.symbol.toUpperCase()] = u;
+        });
+        setMarketData(prev => ({ ...prev, ...newData }));
+        setHasInitialFetch(true);
       }
     } catch (error) {
       console.error("Fiyat çekme hatası:", error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [hasInitialFetch]);
+  }, []);
 
-  // DB verilerini yerel state ile senkronize et
-  useEffect(() => {
-    if (dbStocks) {
-      const formattedStocks: StockHolding[] = dbStocks.map(s => ({
+  // Firestore verileri ile market verilerini birleştir
+  const holdings = useMemo((): StockHolding[] => {
+    if (!dbStocks) return [];
+    return dbStocks.map(s => {
+      const symbolUpper = s.symbol.toUpperCase();
+      const market = marketData[symbolUpper];
+      return {
         id: s.id,
         symbol: s.symbol,
         name: s.name || s.symbol,
         quantity: s.quantity,
         averageCost: s.averageCost,
-        currentPrice: s.currentPrice || s.averageCost,
-        dailyChange: s.dailyChange || 0
-      }));
-      setHoldings(formattedStocks);
-      
-      // Veriler ilk geldiğinde fiyatları çek
-      if (formattedStocks.length > 0 && !isRefreshing && !hasInitialFetch) {
-        fetchStockPrices(formattedStocks);
-      }
+        currentPrice: market?.price || s.averageCost,
+        dailyChange: market?.change || 0,
+        isLoaded: !!market
+      };
+    });
+  }, [dbStocks, marketData]);
+
+  // İlk veri geldiğinde fiyatları çek
+  useEffect(() => {
+    if (dbStocks && dbStocks.length > 0 && !hasInitialFetch && !isRefreshing) {
+      const symbols = dbStocks.map(s => s.symbol);
+      fetchStockPrices(symbols);
     }
-  }, [dbStocks, fetchStockPrices, isRefreshing, hasInitialFetch]);
+  }, [dbStocks, fetchStockPrices, hasInitialFetch, isRefreshing]);
 
   // Otomatik yenileme (15 dakikada bir)
   useEffect(() => {
     if (holdings.length === 0) return;
     const AUTO_REFRESH_MS = 15 * 60 * 1000;
     const intervalId = setInterval(() => {
-      fetchStockPrices(holdings);
+      fetchStockPrices(holdings.map(h => h.symbol));
     }, AUTO_REFRESH_MS);
     return () => clearInterval(intervalId);
   }, [holdings, fetchStockPrices]);
 
   const handleRefreshClick = () => {
-    fetchStockPrices(holdings);
+    fetchStockPrices(holdings.map(h => h.symbol));
     toast({
       title: "Güncelleniyor",
       description: "Piyasa verileri Yahoo Finance üzerinden tazeleniyor...",
@@ -157,7 +149,7 @@ export default function PortfolioDashboard() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    // Yeni hisse eklenince initial fetch flag'ini resetle ki tetiklensin
+    // Yeni eklenen için hemen fiyat çekmeyi tetiklemek için flag'i resetleyelim
     setHasInitialFetch(false);
   };
 
