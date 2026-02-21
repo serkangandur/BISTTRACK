@@ -4,10 +4,10 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 
 /**
- * Gelişmiş Hibrit Veri Motoru v16.0 - "Esnek Kripto Senkronizasyonu".
+ * Hibrit Veri Motoru v18.0 - "Midas Kripto Entegrasyonu & Esnek Eşleşme".
  * - BIST, Emtia ve Döviz: CNN Türk (Tabelle 1 / İlk Tablo Yöntemi)
- * - Kripto (BTC ve ETH): Binance TR Resmi API (Kurşun Geçirmez ve Saf ₺)
- * - Esneklik: BTC, Bitcoin, ETH, Ethereum gibi farklı sembolleri otomatik eşleştirir.
+ * - Kripto (BTC ve ETH): Midas Canlı Kripto (Nokta Atışı Scraping)
+ * - Güvenlik: Esnek sembol eşleşmesi ve zorunlu veri gönderimi.
  */
 
 export async function GET(request: NextRequest) {
@@ -30,14 +30,14 @@ export async function GET(request: NextRequest) {
   };
 
   try {
-    // 1. PARALEL İSTEKLER (CNN Türk Scraping + Binance TR API)
+    // 1. PARALEL İSTEKLER (CNN Türk + Midas)
     const mainRequests = [
       axios.get('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/altin', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, timeout: 10000 }),
       axios.get('https://finans.cnnturk.com/doviz', { headers, timeout: 10000 }),
-      axios.get('https://api.binance.tr/api/v3/ticker/price?symbol=BTCTRY', { timeout: 10000 }),
-      axios.get('https://api.binance.tr/api/v3/ticker/price?symbol=ETHTRY', { timeout: 10000 }),
+      axios.get('https://www.getmidas.com/canli-kripto/bitcoin-fiyati/', { headers, timeout: 10000 }),
+      axios.get('https://www.getmidas.com/canli-kripto/ethereum-fiyati/', { headers, timeout: 10000 }),
     ];
 
     const results = await Promise.allSettled(mainRequests);
@@ -125,36 +125,49 @@ export async function GET(request: NextRequest) {
     scrapeEmtia(1, 'ALTIN');
     scrapeEmtia(2, 'GUMUS');
 
-    // 5. KRİPTO (BİNANCE TR RESMİ API - ESNEK EŞLEŞME & ZORUNLU GÖNDERİM)
+    // 5. KRİPTO (MİDAS - NOKTA ATIŞI SCRAPING & ZORUNLU EKLEME)
     const cryptoConfig = [
-      { id: 'BTC', keywords: ['BTC', 'BITCOIN', 'BİTCOİN'], binanceIdx: 4 },
-      { id: 'ETH', keywords: ['ETH', 'ETHEREUM', 'ETHERİUM'], binanceIdx: 5 },
+      { id: 'BTC', keywords: ['BTC', 'BITCOIN', 'BİTCOİN', 'BİTCOİN TÜRK LİRASI'], midasIdx: 4 },
+      { id: 'ETH', keywords: ['ETH', 'ETHEREUM', 'ETHERİUM', 'ETHEREUM TÜRK LİRASI'], midasIdx: 5 },
     ];
 
     cryptoConfig.forEach(crypto => {
-      const res = results[crypto.binanceIdx];
-      if (res.status === 'fulfilled' && res.value.data?.price) {
-        const rawPrice = parseFloat(res.value.data.price);
-        if (!isNaN(rawPrice)) {
-          const finalPrice = Number(rawPrice.toFixed(4));
-          
-          // ZORUNLU GÖNDERİM: BTC ve ETH her zaman standart sembolleriyle eklenir
-          updates.push({ symbol: crypto.id, price: finalPrice, change: 0 });
-          
-          // ESNEK EŞLEŞME: Eğer kullanıcı "BITCOIN" gibi bir keyword istediyse onu da ekle
-          requestedSymbols.forEach(req => {
-            if (crypto.keywords.includes(req) && req !== crypto.id) {
-              updates.push({ symbol: req, price: finalPrice, change: 0 });
-            }
-          });
+      const res = results[crypto.midasIdx];
+      if (res.status === 'fulfilled') {
+        const $ = cheerio.load(res.value.data);
+        
+        // Midas'ta fiyat genellikle büyük bir başlık veya spesifik bir class içindedir
+        let priceText = $('.currency-price').first().text().trim() || 
+                        $('h1').first().text().trim() || 
+                        $('div[class*="price"]').first().text().trim();
 
-          console.log(`[API] Binance TR ${crypto.id} İşlendi: ${finalPrice.toLocaleString('tr-TR')} ₺`);
+        if (priceText) {
+          // Temizlik: "3.150.450,23 TL" -> "3150450.23"
+          const cleanedPrice = priceText
+            .replace(/[^\d,.]/g, '') // Rakam, nokta ve virgül dışındaki her şeyi sil
+            .replace(/\./g, '')      // Binlik ayırıcı noktaları sil
+            .replace(',', '.');      // Ondalık virgülü noktaya çevir
+
+          const finalPrice = parseFloat(cleanedPrice);
+
+          if (!isNaN(finalPrice) && finalPrice > 0) {
+            const priceRounded = Number(finalPrice.toFixed(4));
+            
+            // ZORUNLU EKLEME: 'BTC' ve 'ETH' olarak her zaman ekle
+            updates.push({ symbol: crypto.id, price: priceRounded, change: 0 });
+
+            // ESNEK EŞLEŞME: Kullanıcı 'BITCOIN' falan dediyse onu da ekle
+            requestedSymbols.forEach(req => {
+              if (crypto.keywords.includes(req) && req !== crypto.id) {
+                updates.push({ symbol: req, price: priceRounded, change: 0 });
+              }
+            });
+
+            console.log(`[MİDAS] ${crypto.id} Fiyatı: ${priceRounded.toLocaleString('tr-TR')} ₺`);
+          }
         }
       }
     });
-
-    const foundSymbols = updates.map(u => u.symbol).join(', ');
-    console.log(`[API] Güncellenen Varlıklar (${updates.length}): ${foundSymbols}`);
 
     return NextResponse.json(updates, { status: 200 });
 
