@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { 
@@ -168,17 +169,17 @@ export default function PortfolioDashboard() {
     });
   }, [dbStocks, marketData]);
 
-  // Toplam Portföy Değeri (Temettü Sabit Hariç)
+  // STRATEJİK İZOLASYON: Toplam Portföy Değeri (Temettü Sabit Hariç)
   const totalValue = useMemo(() => {
     return assets
       .filter(a => a.category !== "Temettü Sabit")
       .reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0);
   }, [assets]);
 
-  // Filtrelenmiş Liste
+  // STRATEJİK İZOLASYON: Filtrelenmiş Liste
   const filteredAssets = useMemo(() => {
     if (activeCategory === "Özet") {
-      // Özet görünümünde Temettü Sabit'leri göstermiyoruz
+      // Özet görünümünde Temettü Sabit'leri göstermiyoruz (İzolasyon Kuralı)
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());

@@ -23,7 +23,7 @@ const CATEGORY_ICONS: Record<AssetCategory, any> = {
 };
 
 export function SummaryCards({ holdings }: SummaryCardsProps) {
-  // Temettü Sabit hariç toplam
+  // STRATEJİK İZOLASYON: Temettü Sabit hariç toplam
   const totalAssets = holdings
     .filter(h => h.category !== "Temettü Sabit")
     .reduce((acc, stock) => acc + stock.quantity * stock.currentPrice, 0);
@@ -54,9 +54,7 @@ export function SummaryCards({ holdings }: SummaryCardsProps) {
         </Card>
 
         {Object.entries(CATEGORY_ICONS).map(([cat, Icon], idx) => {
-          // Temettü Sabit kartını özet alanında göstermek istemeyebiliriz veya en sonda gösterebiliriz
-          // Ancak user "Ayrı bir tablo ve özet kartları göster" dediği için burada genel kategorileri listeliyoruz.
-          // Temettü Sabit ana portföy toplamına girmediği için burada payı 0 veya hesaplanmamış görünebilir.
+          // STRATEJİK İZOLASYON: Temettü Sabit kartını özet alanında göstermiyoruz
           if (cat === "Temettü Sabit") return null;
 
           const value = categoryTotals[cat as AssetCategory] || 0;
