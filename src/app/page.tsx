@@ -1,13 +1,27 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { StockHolding } from "@/lib/types";
+import { StockHolding, AssetCategory } from "@/lib/types";
 import { SummaryCards } from "@/components/portfolio/summary-cards";
 import { StockTable } from "@/components/portfolio/stock-table";
 import { PortfolioCharts } from "@/components/portfolio/portfolio-charts";
 import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
 import { TargetProgress } from "@/components/portfolio/target-progress";
-import { LayoutDashboard, TrendingUp, RefreshCcw, Loader2, ShieldCheck } from "lucide-react";
+import { 
+  LayoutDashboard, 
+  TrendingUp, 
+  RefreshCcw, 
+  Loader2, 
+  Receipt, 
+  BarChart3, 
+  Wallet, 
+  Coins, 
+  Landmark, 
+  Banknote, 
+  ShieldCheck,
+  ChevronRight
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +45,19 @@ interface StockPriceUpdate {
   change: number;
 }
 
+type ViewType = "Özet" | AssetCategory;
+
+const SIDEBAR_ITEMS: { label: ViewType; icon: any }[] = [
+  { label: "Özet", icon: LayoutDashboard },
+  { label: "Temettü", icon: Receipt },
+  { label: "Büyüme", icon: BarChart3 },
+  { label: "Döviz", icon: Wallet },
+  { label: "Kripto", icon: Coins },
+  { label: "Emtia", icon: Landmark },
+  { label: "Nakit", icon: Banknote },
+  { label: "Sigorta", icon: ShieldCheck },
+];
+
 export default function PortfolioDashboard() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
@@ -40,6 +67,7 @@ export default function PortfolioDashboard() {
   const [marketData, setMarketData] = useState<Record<string, StockPriceUpdate>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [initialFetchDone, setInitialFetchDone] = useState(false);
+  const [activeView, setActiveView] = useState<ViewType>("Özet");
 
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
@@ -109,6 +137,11 @@ export default function PortfolioDashboard() {
     });
   }, [dbStocks, marketData]);
 
+  const filteredHoldings = useMemo(() => {
+    if (activeView === "Özet") return holdings;
+    return holdings.filter(h => h.category === activeView);
+  }, [holdings, activeView]);
+
   const totalAssets = useMemo(() => holdings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0), [holdings]);
 
   useEffect(() => {
@@ -153,44 +186,134 @@ export default function PortfolioDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#101418] text-white">
-      <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-              <TrendingUp className="text-primary-foreground h-6 w-6" />
+    <div className="min-h-screen bg-[#101418] text-white flex">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                <TrendingUp className="text-primary-foreground h-6 w-6" />
+              </div>
+              <h1 className="text-xl font-bold tracking-tighter">VARLIK YÖNETİMİ</h1>
+              {activeView !== "Özet" && (
+                <div className="flex items-center gap-2 ml-4 text-muted-foreground">
+                  <ChevronRight className="w-4 h-4" />
+                  <span className="text-sm font-semibold text-white">{activeView}</span>
+                </div>
+              )}
             </div>
-            <h1 className="text-xl font-bold tracking-tighter">VARLIK YÖNETİMİ</h1>
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="sm" onClick={() => fetchStockPrices(holdings.map(h => h.symbol))} disabled={isRefreshing}>
+                <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+                Fiyatları Güncelle
+              </Button>
+            </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => fetchStockPrices(holdings.map(h => h.symbol))} disabled={isRefreshing}>
-            <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-            Fiyatları Güncelle
-          </Button>
-        </div>
-      </nav>
+        </nav>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
-        <TargetProgress currentTotal={totalAssets} />
+        <main className="max-w-7xl w-full mx-auto px-4 py-8 space-y-8">
+          {activeView === "Özet" ? (
+            <>
+              <TargetProgress currentTotal={totalAssets} />
 
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <LayoutDashboard className="w-6 h-6 text-primary" />
-            Portföy Analizi
-          </h2>
-          <AddStockDialog onAdd={handleAddStock} />
-        </div>
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <LayoutDashboard className="w-6 h-6 text-primary" />
+                  Portföy Analizi
+                </h2>
+                <AddStockDialog onAdd={handleAddStock} />
+              </div>
 
-        <SummaryCards holdings={holdings} />
-        <PortfolioCharts holdings={holdings} />
+              <SummaryCards holdings={holdings} />
+              <PortfolioCharts holdings={holdings} />
 
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold">Varlık Detayları</h3>
-            <Badge variant="outline" className="border-white/10">{holdings.length} Kalem Varlık</Badge>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold">Varlık Detayları (Tümü)</h3>
+                  <Badge variant="outline" className="border-white/10">{holdings.length} Kalem Varlık</Badge>
+                </div>
+                <StockTable holdings={holdings} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex justify-between items-center">
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    {(() => {
+                      const Icon = SIDEBAR_ITEMS.find(i => i.label === activeView)?.icon || LayoutDashboard;
+                      return <Icon className="w-6 h-6 text-primary" />;
+                    })()}
+                    {activeView} Varlıkları
+                  </h2>
+                  <p className="text-sm text-muted-foreground">Sadece {activeView} kategorisindeki yatırımlarınızı görüntülüyorsunuz.</p>
+                </div>
+                <AddStockDialog onAdd={handleAddStock} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-card/50 border border-white/5 p-6 rounded-xl shadow-xl">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">KATEGORİ TOPLAMI</p>
+                  <div className="text-3xl font-black">₺{filteredHoldings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}</div>
+                </div>
+                <div className="bg-card/50 border border-white/5 p-6 rounded-xl shadow-xl">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">VARLIK SAYISI</p>
+                  <div className="text-3xl font-black">{filteredHoldings.length}</div>
+                </div>
+                <div className="bg-card/50 border border-white/5 p-6 rounded-xl shadow-xl">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">GENEL PAYI</p>
+                  <div className="text-3xl font-black">%{totalAssets > 0 ? ((filteredHoldings.reduce((acc, h) => acc + h.quantity * h.currentPrice, 0) / totalAssets) * 100).toFixed(1) : 0}</div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <StockTable holdings={filteredHoldings} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Right Sidebar Nav */}
+      <aside className="w-64 sticky top-0 h-screen border-l border-white/5 bg-background/50 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex">
+        <div className="py-4 px-2">
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Navigasyon</p>
+          <div className="space-y-1">
+            {SIDEBAR_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeView === item.label;
+              return (
+                <button
+                  key={item.label}
+                  onClick={() => setActiveView(item.label)}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
+                    isActive 
+                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-bold" 
+                      : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
+                  <span className="text-sm">{item.label}</span>
+                  {isActive && (
+                    <div className="absolute left-0 w-1 h-4 bg-white rounded-full -translate-x-1" />
+                  )}
+                </button>
+              );
+            })}
           </div>
-          <StockTable holdings={holdings} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
         </div>
-      </main>
+
+        <div className="mt-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
+          <p className="text-[10px] font-bold text-primary uppercase mb-2">Hızlı Özet</p>
+          <div className="text-lg font-black truncate">₺{totalAssets.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</div>
+          <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-bist-up" />
+            Canlı Portföy Değeri
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
