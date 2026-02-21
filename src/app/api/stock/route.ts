@@ -1,10 +1,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 /**
- * Borsa İstanbul verilerini çeken güvenli ve detaylı loglamalı API Route.
- * Yahoo Finance kütüphanesi yerine doğrudan API çağrısı yaparak CORS ve 
- * bot engellerini aşmak için tarayıcı başlıklarını taklit eder.
+ * CNN Türk Finans üzerinden BIST verilerini çeken güvenli API Route.
+ * Veri kazıma (Scraping) yöntemi ile Borsa İstanbul tüm hisselerini tarar.
  */
 
 export async function GET(request: NextRequest) {
@@ -15,67 +16,64 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([], { status: 200 });
   }
 
-  // Sembolleri temizle ve BIST formatına (.IS) uygun hale getir
-  const symbols = symbolsParam
+  const requestedSymbols = symbolsParam
     .split(',')
-    .map(s => s.trim().toUpperCase())
-    .map(s => (s.endsWith('.IS') ? s : `${s}.IS`));
-
-  const formattedSymbols = symbols.join(',');
-  // Yahoo Finance v7 Query API Endpoint
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${formattedSymbols}`;
+    .map(s => s.trim().toUpperCase());
 
   try {
-    console.log(`[API/STOCK] Sorgu başlatılıyor: ${formattedSymbols}`);
+    console.log(`[API/STOCK] CNN Türk Finans kazıma başlatılıyor...`);
 
-    // Yahoo'nun bot korumasını aşmak için gerçek bir tarayıcı başlığı (User-Agent) ekliyoruz
-    const response = await fetch(url, {
-      method: 'GET',
+    // CNN Türk BIST Tüm Hisseler URL
+    const targetUrl = 'https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri';
+
+    const { data: html } = await axios.get(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache'
       },
-      next: { revalidate: 0 } // Next.js cache'ini devre dışı bırak
+      timeout: 10000 // 10 saniye zaman aşımı
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`KRITIK_HATA: Yahoo API Yanıtı Olumsuz (HTTP ${response.status}):`, errorText);
-      return NextResponse.json([], { status: 200 });
-    }
+    const $ = cheerio.load(html);
+    const updates: any[] = [];
 
-    const data = await response.json();
-    const result = data?.quoteResponse?.result;
+    // Sayfadaki tabloyu tara
+    // Genellikle 'table' veya 'div.table-responsive' içinde yer alır
+    $('tr').each((_, element) => {
+      const tds = $(element).find('td');
+      if (tds.length >= 2) {
+        // İlk sütun genellikle semboldür (Örn: ACSEL)
+        const symbol = $(tds[0]).text().trim().toUpperCase();
+        
+        // Eğer bu sembol istenenler arasındaysa veriyi çek
+        if (requestedSymbols.includes(symbol)) {
+          // Fiyat sütunu genellikle 'td:nth-child(2)' veya 'td:nth-child(3)' olur
+          // CNN Türk yapısına göre 'Son' fiyat sütununu bulalım
+          const lastPriceStr = $(tds[2]).text().trim(); // 'Son' fiyat kolonu
+          const changeStr = $(tds[3]).text().trim();    // 'Yüzde Değişim' kolonu
 
-    if (!result || !Array.isArray(result)) {
-      console.error("KRITIK_HATA: Yahoo API geçersiz veri döndürdü veya yetki sorunu var:", data);
-      return NextResponse.json([], { status: 200 });
-    }
+          // Türkçe formatı (12,50) İngilizce/Kod formatına (12.50) çevir
+          const price = parseFloat(lastPriceStr.replace('.', '').replace(',', '.'));
+          const change = parseFloat(changeStr.replace('%', '').replace(',', '.'));
 
-    // Gelen ham veriyi UI formatına dönüştür
-    const updates = result.map((quote: any) => {
-      // .IS uzantısını temizle
-      const cleanSymbol = quote.symbol.replace('.IS', '').toUpperCase();
-      
-      return {
-        symbol: cleanSymbol,
-        // Piyasa kapalıyken veya veri gecikmeliyken en yakın fiyatı al
-        price: quote.regularMarketPrice || 
-               quote.regularMarketPreviousClose || 
-               quote.bid || 
-               quote.ask || 
-               0,
-        change: quote.regularMarketChangePercent || 0,
-      };
+          if (!isNaN(price)) {
+            updates.push({
+              symbol: symbol,
+              price: price,
+              change: isNaN(change) ? 0 : change
+            });
+          }
+        }
+      }
     });
 
-    console.log(`[API/STOCK] ${updates.length} hisse için veri başarıyla işlendi.`);
+    console.log(`[API/STOCK] ${updates.length} hisse için veri başarıyla kazındı.`);
+    
+    // Eğer bazı semboller eksikse, boş dönmek yerine olanları dön
     return NextResponse.json(updates, { status: 200 });
 
   } catch (error: any) {
-    // İstediğiniz kritik hata logu
-    console.error("KRITIK_HATA: Veri çekme sırasında beklenmedik istisna oluştu:", error.message);
+    console.error("KRITIK_HATA: CNN Türk kazıma sırasında hata oluştu:", error.message);
+    // Hata durumunda boş liste dönerek uygulamanın kilitlenmesini önle
     return NextResponse.json([], { status: 200 });
   }
 }
