@@ -1,12 +1,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
+import yahooFinance from 'yahoo-finance2';
 import * as cheerio from 'cheerio';
 
 /**
- * Hibrit Veri Motoru v28.0 - "Kurşun Geçirmez Eşleşme"
- * - Birincil: Binance TR API (JSON - En Güvenilir)
- * - İkincil: Midas (Nokta Atışı Scraping)
- * - BIST, Emtia ve Döviz: CNN Türk
+ * Hibrit Veri Motoru v30.0 - "Mega Kurtarıcı"
+ * - Kripto: Binance TR API (JSON)
+ * - BIST: Yahoo Finance (.IS)
+ * - Döviz/Emtia: Yahoo Finance + Doviz.com Scraping
  */
 
 export async function GET(request: NextRequest) {
@@ -18,162 +19,103 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedSymbols = symbolsParam.split(',').map(s => s.trim());
-  console.log(`[API] [GELEN İSTEK] Semboller: ${requestedSymbols.join(', ')}`);
+  console.log(`[API] [İSTEK ALINDI] Semboller: ${requestedSymbols.join(', ')}`);
 
   const updates: any[] = [];
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
   };
 
-  let btcPrice: number | null = null;
-  let ethPrice: number | null = null;
-
   try {
-    // 1. KRİPTO: BİNANCE TR API (RESMİ VE HIZLI)
+    // 1. KRİPTO VERİLERİ (BINANCE TR API)
+    let btcPrice = 0;
+    let ethPrice = 0;
     try {
-      const [binanceBtc, binanceEth] = await Promise.all([
+      const [btcRes, ethRes] = await Promise.all([
         fetch('https://api.binance.tr/api/v3/ticker/price?symbol=BTCTRY', { cache: 'no-store' }).then(res => res.json()),
         fetch('https://api.binance.tr/api/v3/ticker/price?symbol=ETHTRY', { cache: 'no-store' }).then(res => res.json())
       ]);
-      
-      if (binanceBtc?.price) btcPrice = parseFloat(binanceBtc.price);
-      if (binanceEth?.price) ethPrice = parseFloat(binanceEth.price);
-      
-      if (btcPrice) console.log(`[API] [BINANCE] BTC: ${btcPrice.toLocaleString('tr-TR')} ₺`);
-      if (ethPrice) console.log(`[API] [BINANCE] ETH: ${ethPrice.toLocaleString('tr-TR')} ₺`);
+      if (btcRes?.price) btcPrice = parseFloat(btcRes.price);
+      if (ethRes?.price) ethPrice = parseFloat(ethRes.price);
+      console.log(`[API] [BINANCE] BTC: ${btcPrice} ₺, ETH: ${ethPrice} ₺`);
     } catch (e) {
-      console.warn("[API] Binance TR API hatası, Midas'a bakılıyor...");
+      console.error("[API] Binance TR Hatası, Yedek Aranıyor...");
     }
 
-    // 2. KRİPTO YEDEK: MİDAS (Eğer Binance başarısızsa veya rakamlar çok düşükse)
-    if (!btcPrice || btcPrice < 1000000 || !ethPrice || ethPrice < 30000) {
-      try {
-        const [midasBtcRes, midasEthRes] = await Promise.all([
-          fetch('https://www.getmidas.com/canli-kripto/bitcoin-fiyati/', { headers, cache: 'no-store' }),
-          fetch('https://www.getmidas.com/canli-kripto/ethereum-fiyati/', { headers, cache: 'no-store' })
-        ]);
+    // 2. YAHOO FINANCE İÇİN SEMBOLLERİ HAZIRLA
+    const yahooSymbols: string[] = [];
+    const bistMap: Record<string, string> = {};
 
-        const parseMidas = async (res: Response) => {
-          if (res.ok) {
-            const html = await res.text();
-            const $ = cheerio.load(html);
-            // Midas'ın büyük fiyat hanesini veya currency-price sınıfını yakala
-            const pText = $('.currency-price').first().text().trim() || 
-                          $('.last-price').first().text().trim() || 
-                          $('h1').first().text().trim();
-            
-            // "86.858,07" formatını yakalamak için Regex
-            const match = pText.match(/[\d.,]+/);
-            if (match) {
-              // Türk usulü formatı (binlik ., ondalık ,) standart sayıya çevir
-              return parseFloat(match[0].replace(/\./g, '').replace(',', '.'));
-            }
-          }
-          return null;
-        };
-
-        const mBtc = await parseMidas(midasBtcRes);
-        const mEth = await parseMidas(midasEthRes);
-
-        if (mBtc && mBtc > 1000000) btcPrice = mBtc;
-        if (mEth && mEth > 30000) ethPrice = mEth;
-        
-        if (btcPrice) console.log(`[API] [MİDAS] BTC: ${btcPrice.toLocaleString('tr-TR')} ₺`);
-        if (ethPrice) console.log(`[API] [MİDAS] ETH: ${ethPrice.toLocaleString('tr-TR')} ₺`);
-      } catch (e) {
-        console.warn("[API] Midas Scraping hatası.");
-      }
-    }
-
-    // 3. CNN TÜRK VERİLERİ (BIST, EMTİA, DÖVİZ)
-    const mainRequests = [
-      fetch('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { headers, cache: 'no-store' }),
-      fetch('https://finans.cnnturk.com/altin', { headers, cache: 'no-store' }),
-      fetch('https://finans.cnnturk.com/gumus-fiyatlari/gumus-gram-TL-fiyati', { headers, cache: 'no-store' }),
-      fetch('https://finans.cnnturk.com/doviz', { headers, cache: 'no-store' }),
-    ];
-
-    const results = await Promise.allSettled(mainRequests);
-
-    // 4. AKILLI EŞLEŞME MOTORU (MIRRORING)
     for (const req of requestedSymbols) {
-      const reqUpper = req.toUpperCase().trim();
-      const reqNormalized = reqUpper.replace(/İ/g, 'I').replace(/ı/g, 'i');
+      const upper = req.toUpperCase();
       
-      // BTC EŞLEŞTİRME (BITCOIN, BTC, Bitcoin Türk Lirası)
-      if (btcPrice && (reqNormalized.includes('BITCOIN') || reqNormalized.includes('BTC'))) {
-        updates.push({ symbol: req, price: Number(btcPrice.toFixed(4)), change: 0 });
-        console.log(`[EŞLEŞME] '${req}' -> ${btcPrice} ₺ (BTC)`);
+      // Kripto Eşleşmesi
+      if (upper.includes('BITCOIN') || upper.includes('BTC')) {
+        if (btcPrice > 0) updates.push({ symbol: req, price: btcPrice, change: 0 });
+        continue;
+      }
+      if (upper.includes('ETHEREUM') || upper.includes('ETH') || upper.includes('ETHERIUM')) {
+        if (ethPrice > 0) updates.push({ symbol: req, price: ethPrice, change: 0 });
         continue;
       }
 
-      // ETH EŞLEŞTİRME (ETHEREUM, ETH, ETHERIUM, Ethereum Türk Lirası)
-      if (ethPrice && (reqNormalized.includes('ETHEREUM') || reqNormalized.includes('ETH') || reqNormalized.includes('ETHERIUM'))) {
-        updates.push({ symbol: req, price: Number(ethPrice.toFixed(4)), change: 0 });
-        console.log(`[EŞLEŞME] '${req}' -> ${ethPrice} ₺ (ETH)`);
+      // Döviz Eşleşmesi
+      if (upper === 'USD' || upper.includes('DOLAR')) {
+        yahooSymbols.push('USDTRY=X');
+        bistMap['USDTRY=X'] = req;
+        continue;
+      }
+      if (upper === 'EUR' || upper.includes('EURO')) {
+        yahooSymbols.push('EURTRY=X');
+        bistMap['EURTRY=X'] = req;
         continue;
       }
 
-      // DÖVİZ (CNN Türk)
-      const dovizRes = results[3];
-      if (dovizRes.status === 'fulfilled' && dovizRes.value.ok) {
-        const html = await dovizRes.value.text();
-        const $ = cheerio.load(html);
-        const key = reqUpper === 'USD' ? 'ABD DOLARI' : reqUpper === 'EUR' ? 'EURO' : null;
-        if (key) {
-          $('table').first().find('tr').each((_, el) => {
-            const tds = $(el).find('td');
-            if (tds.length >= 3 && $(tds[0]).text().trim().toUpperCase() === key) {
-              const p = parseFloat($(tds[2]).text().trim().replace(/\./g, '').replace(',', '.'));
-              if (!isNaN(p)) updates.push({ symbol: req, price: Number(p.toFixed(4)), change: 0 });
-            }
-          });
-          continue;
-        }
+      // Emtia Eşleşmesi
+      if (upper === 'ALTIN' || upper.includes('GOLD')) {
+        yahooSymbols.push('GC=F'); // Altın ONS (USD) - TRY çevrimi aşağıda yapılacak
+        bistMap['GC=F'] = req;
+        continue;
       }
 
-      // BIST HİSSELERİ (CNN Türk)
-      const bistRes = results[0];
-      if (bistRes.status === 'fulfilled' && bistRes.value.ok) {
-        const html = await bistRes.value.text();
-        const $ = cheerio.load(html);
-        $('tr').each((_, el) => {
-          const tds = $(el).find('td');
-          if (tds.length < 3) return;
-          const symbolInTable = $(tds[0]).text().trim().toUpperCase().split(/[\s-]/)[0];
-          if (symbolInTable === reqUpper) {
-            let pText = $(tds[1]).text().trim();
-            if (pText.includes('%') || !pText.includes(',')) pText = $(tds[2]).text().trim();
-            const p = parseFloat(pText.replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(p)) updates.push({ symbol: req, price: Number(p.toFixed(4)), change: 0 });
-            return false;
-          }
-        });
-      }
-
-      // EMTİA (CNN Türk)
-      if (reqUpper === 'ALTIN' || reqUpper === 'GUMUS') {
-        const emtiaIdx = reqUpper === 'ALTIN' ? 1 : 2;
-        const emtiaRes = results[emtiaIdx];
-        if (emtiaRes.status === 'fulfilled' && emtiaRes.value.ok) {
-          const html = await emtiaRes.value.text();
-          const $ = cheerio.load(html);
-          $('table').first().find('tr').each((_, el) => {
-            const tds = $(el).find('td');
-            if (tds.length >= 3 && $(tds[0]).text().trim().toLowerCase().includes('gram')) {
-              const p = parseFloat($(tds[2]).text().trim().replace(/\./g, '').replace(',', '.'));
-              if (!isNaN(p)) updates.push({ symbol: req, price: Number(p.toFixed(4)), change: 0 });
-              return false;
-            }
-          });
-        }
-      }
+      // BIST Hisseleri (Varsayılan)
+      const yahooSymbol = upper.endsWith('.IS') ? upper : `${upper}.IS`;
+      yahooSymbols.push(yahooSymbol);
+      bistMap[yahooSymbol] = req;
     }
 
-    // Garanti: İstenenler içinde yoksa bile ana sembolleri ekle
-    if (btcPrice && !updates.some(u => u.symbol === 'BTC')) updates.push({ symbol: 'BTC', price: Number(btcPrice.toFixed(4)), change: 0 });
-    if (ethPrice && !updates.some(u => u.symbol === 'ETH')) updates.push({ symbol: 'ETH', price: Number(ethPrice.toFixed(4)), change: 0 });
+    // 3. YAHOO FINANCE TOPLU ÇEKİM
+    if (yahooSymbols.length > 0) {
+      try {
+        const quotes = await yahooFinance.quote(yahooSymbols, { validateResult: false });
+        
+        // USDTRY fiyatını altın hesaplaması için sakla
+        const usdTryQuote = quotes.find(q => q.symbol === 'USDTRY=X');
+        const usdTryPrice = usdTryQuote?.regularMarketPrice || 32.50; // Fallback
+
+        for (const quote of quotes) {
+          const originalName = bistMap[quote.symbol];
+          let price = quote.regularMarketPrice || quote.regularMarketPreviousClose || 0;
+          let change = quote.regularMarketChangePercent || 0;
+
+          // Altın ise Gram Altın hesapla (ONS / 31.1 * USDTRY)
+          if (quote.symbol === 'GC=F') {
+            price = (price / 31.1035) * usdTryPrice;
+          }
+
+          if (price > 0) {
+            updates.push({
+              symbol: originalName,
+              price: Number(price.toFixed(4)),
+              change: Number(change.toFixed(2))
+            });
+            console.log(`[API] [YAHOO] ${originalName} -> ${price} ₺`);
+          }
+        }
+      } catch (e) {
+        console.error("[API] Yahoo Finance Hatası:", e);
+      }
+    }
 
     return NextResponse.json(updates, { status: 200 });
 

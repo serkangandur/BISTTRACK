@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { 
@@ -71,7 +70,7 @@ export default function PortfolioDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState<ViewType>("Özet");
   
-  const lastFetchedCount = useRef(0);
+  const lastUpdateRef = useRef<number>(0);
 
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
@@ -126,6 +125,7 @@ export default function PortfolioDashboard() {
           if (u.symbol) newData[u.symbol.toUpperCase()] = u; 
         });
         setMarketData(prev => ({ ...prev, ...newData }));
+        lastUpdateRef.current = Date.now();
       }
     } catch (error: any) {
       console.error("[API] Fiyat çekme hatası:", error.message);
@@ -134,18 +134,13 @@ export default function PortfolioDashboard() {
     }
   }, [isRefreshing]);
 
+  // Sayfa yüklendiğinde veya stoklar değiştiğinde fiyatları çek
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
-      const fetchable = dbStocks
-        .filter(s => ["Büyüme", "Emtia", "Kripto", "Temettü", "Temettü Sabit", "Döviz"].includes(s.category))
-        .map(s => s.symbol);
-      
-      if (fetchable.length > 0 && dbStocks.length !== lastFetchedCount.current) {
-        fetchStockPrices(fetchable);
-        lastFetchedCount.current = dbStocks.length;
-      }
+      const symbols = dbStocks.map(s => s.symbol);
+      fetchStockPrices(symbols);
     }
-  }, [dbStocks, isStocksLoading, fetchStockPrices]);
+  }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
@@ -302,17 +297,6 @@ export default function PortfolioDashboard() {
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
               
-              {activeCategory === "Temettü Sabit" && (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                   <Card className="bg-primary/5 border-primary/20 p-4">
-                     <p className="text-[10px] font-bold text-muted-foreground uppercase">Kategori Toplamı</p>
-                     <div className="text-2xl font-black">
-                       ₺{filteredAssets.reduce((acc, a) => acc + (a.quantity * a.currentPrice), 0).toLocaleString("tr-TR")}
-                     </div>
-                   </Card>
-                </div>
-              )}
-
               <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               
               {filteredAssets.length === 0 && (
