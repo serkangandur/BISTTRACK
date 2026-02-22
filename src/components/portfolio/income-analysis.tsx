@@ -38,6 +38,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
       }, 0);
 
       const yearly = (totalVal / 100) * 3.5;
+      // Aylık Gelir = Yıllık Gelir / 12
       const monthly = yearly / 12;
       const monthlyUsd = monthly / currencies.usd;
 
