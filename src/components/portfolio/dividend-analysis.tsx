@@ -177,15 +177,32 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
             const isEditing = editingSymbol === symbol;
 
             return (
-              <div key={symbol} className="p-4 bg-card/20 rounded-xl border border-white/5 space-y-3">
+              <div key={symbol} className={cn(
+                "p-4 rounded-xl border space-y-3 transition-all",
+                yieldValue > 0 && portfolioYield > 0 && yieldValue > portfolioYield
+                  ? "bg-green-500/10 border-green-500/30 shadow-lg shadow-green-500/10"
+                  : "bg-card/20 border-white/5"
+              )}>
                 {/* Kart Başlık */}
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-black text-primary">
+                    <div className={cn(
+                      "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black",
+                      yieldValue > 0 && portfolioYield > 0 && yieldValue > portfolioYield
+                        ? "bg-green-500/20 text-green-400"
+                        : "bg-primary/10 text-primary"
+                    )}>
                       {symbol[0]}
                     </div>
                     <div>
-                      <p className="font-bold text-sm">{symbol}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-sm">{symbol}</p>
+                        {yieldValue > 0 && portfolioYield > 0 && yieldValue > portfolioYield && (
+                          <span className="text-[10px] font-black bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">
+                            ▲ YUKARI
+                          </span>
+                        )}
+                      </div>
                       {holding && <p className="text-xs text-muted-foreground">{holding.quantity.toLocaleString('tr-TR')} Adet Mevcut</p>}
                     </div>
                   </div>
