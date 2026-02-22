@@ -19,18 +19,18 @@ const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
 };
 
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
-  // Global Sınır State - Kullanıcı tarafından düzenlenebilir
+  // Global Sınır State
   const [baseLimit, setBaseLimit] = useState(2814000);
 
-  // Kategorilere göre verileri grupla - ANA PARA (Maliyet) BAZLI HESAPLAMA
+  // Kategorilere göre verileri grupla - GÜNCEL PİYASA DEĞERİ BAZLI HESAPLAMA
   const categoryData = useMemo(() => {
-    const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; totalCost: number }[]; limit: number; targetPercent: number }>> = {};
+    const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; currentVal: number }[]; limit: number; targetPercent: number }>> = {};
     
     // Sigorta için özel maaş bazlı hesaplama
     const insuranceHolding = holdings.find(h => h.category === "Sigorta");
     const insuranceLimit = insuranceHolding?.monthlySalary ? insuranceHolding.monthlySalary * 60 : 474003.58;
 
-    // Tüm kategorileri başlat (Döviz dahil)
+    // Tüm kategorileri başlat
     const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Döviz", "Sigorta"];
     
     allCategories.forEach((cat) => {
@@ -49,31 +49,31 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       
       const catData = data[h.category];
       if (catData) {
-        // ✅ ANA PARA HESABI: Miktar * Ortalama Maliyet
-        const costBasis = h.quantity * h.averageCost;
-        catData.total += costBasis;
+        // ✅ PİYASA DEĞERİ HESABI: Miktar * Güncel Fiyat
+        const currentVal = h.quantity * h.currentPrice;
+        catData.total += currentVal;
 
-        // Sembole göre grupla (Aynı hisseden birden fazla işlem varsa topla)
+        // Sembole göre grupla
         const existing = catData.holdings.find(item => item.symbol === h.symbol);
         if (existing) {
-          existing.totalCost += costBasis;
+          existing.currentVal += currentVal;
         } else {
-          catData.holdings.push({ symbol: h.symbol, totalCost: costBasis });
+          catData.holdings.push({ symbol: h.symbol, currentVal });
         }
       }
     });
 
-    // Her kategorideki holdingleri büyüklüğüne göre sırala
+    // Sıralama
     Object.values(data).forEach(d => {
-      d?.holdings.sort((a, b) => b.totalCost - a.totalCost);
+      d?.holdings.sort((a, b) => b.currentVal - a.currentVal);
     });
 
     return data;
   }, [holdings, baseLimit]);
 
-  // Toplam Ana Para Değeri
-  const totalCostBasis = useMemo(() => 
-    holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.averageCost), 0)
+  // Toplam Portföy Değeri
+  const totalMarketValue = useMemo(() => 
+    holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0)
   , [holdings]);
 
   // Kategorilerin toplam limiti
@@ -81,7 +81,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
      return Object.values(categoryData).reduce((acc, d) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
 
-  const deficitSurplus = totalCostBasis - totalLimit;
+  const deficitSurplus = totalMarketValue - totalLimit;
 
   const CategoryBoard = ({ category, label, color }: { category: AssetCategory, label: string, color: string }) => {
     const data = categoryData[category];
@@ -91,10 +91,9 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const actualPercent = data.limit > 0 ? (data.total / data.limit) * 100 : 0;
     const isOver = diff >= 0;
 
-    // 10 satıra tamamla (Görsel tutarlılık için)
     const displayItems = [...data.holdings];
     while (displayItems.length < 10) {
-      displayItems.push({ symbol: "", totalCost: 0 });
+      displayItems.push({ symbol: "", currentVal: 0 });
     }
 
     return (
@@ -159,7 +158,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
                 {h.symbol}
               </div>
               <div className="col-span-3 text-[10px] text-orange-200 text-right font-mono font-medium">
-                {h.symbol ? `₺${h.totalCost.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
+                {h.symbol ? `₺${h.currentVal.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
               </div>
             </div>
           ))}
@@ -207,9 +206,9 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
         </div>
 
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım (Maliyet)</div>
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım (Piyasa)</div>
           <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
-            ₺{totalCostBasis.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+            ₺{totalMarketValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>
