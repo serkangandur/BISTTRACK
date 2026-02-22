@@ -9,7 +9,7 @@ interface IncomeAnalysisProps {
 }
 
 export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
-  // Canlı kur verileri (Sabitlenmiş veya Mock)
+  // Canlı kur verileri (Hesaplamalar için kod içinde tutuluyor)
   const currencies = {
     eur: 51.62,
     usd: 43.82
@@ -66,16 +66,8 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
       
       {/* ÜST BİLGİ BARI */}
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex gap-4">
-          <div className="flex flex-col items-center">
-            <div className="text-[9px] text-muted-foreground border border-white/10 px-4 py-0.5 bg-white/5">EUR/TRY</div>
-            <div className="text-orange-400 font-black border border-orange-400/50 px-4 py-1 mt-1">₺{currencies.eur.toLocaleString("tr-TR")}</div>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="text-[9px] text-muted-foreground border border-white/10 px-4 py-0.5 bg-white/5">DOLLAR/TRY</div>
-            <div className="text-orange-400 font-black border border-orange-400/50 px-4 py-1 mt-1">₺{currencies.usd.toLocaleString("tr-TR")}</div>
-          </div>
-        </div>
+        {/* Kurlar kaldırıldı - Sadece boşluk korundu veya hizalama ayarlandı */}
+        <div className="hidden lg:block w-[200px]" />
 
         <div className="flex-1 flex justify-center">
           <div className="border border-orange-400/50 px-12 py-2 text-xl font-black tracking-[0.3em] text-white bg-orange-400/5">
