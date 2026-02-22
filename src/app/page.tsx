@@ -20,10 +20,14 @@ import {
   Banknote, 
   ShieldCheck,
   History,
-  CloudUpload
+  CloudUpload,
+  PieChart,
+  ArrowRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { 
@@ -46,18 +50,19 @@ interface StockPriceUpdate {
   change: number;
 }
 
-type ViewType = "Özet" | AssetCategory;
+type ViewType = "Özet" | "Ağırlıklar" | AssetCategory;
 
-const SIDEBAR_ITEMS: { label: ViewType; icon: any }[] = [
-  { label: "Özet", icon: LayoutDashboard },
-  { label: "Temettü", icon: Receipt },
-  { label: "Temettü Sabit", icon: History },
-  { label: "Büyüme", icon: BarChart3 },
-  { label: "Döviz", icon: Wallet },
-  { label: "Kripto", icon: Coins },
-  { label: "Emtia", icon: Landmark },
-  { label: "Nakit", icon: Banknote },
-  { label: "Sigorta", icon: ShieldCheck },
+const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" }[] = [
+  { label: "Özet", icon: LayoutDashboard, group: "main" },
+  { label: "Ağırlıklar", icon: PieChart, group: "main" },
+  { label: "Temettü", icon: Receipt, group: "portfolios" },
+  { label: "Temettü Sabit", icon: History, group: "portfolios" },
+  { label: "Büyüme", icon: BarChart3, group: "portfolios" },
+  { label: "Döviz", icon: Wallet, group: "portfolios" },
+  { label: "Kripto", icon: Coins, group: "portfolios" },
+  { label: "Emtia", icon: Landmark, group: "portfolios" },
+  { label: "Nakit", icon: Banknote, group: "portfolios" },
+  { label: "Sigorta", icon: ShieldCheck, group: "portfolios" },
 ];
 
 export default function PortfolioDashboard() {
@@ -138,15 +143,14 @@ export default function PortfolioDashboard() {
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
       const symbols = dbStocks.map(s => s.symbol);
       fetchStockPrices(symbols);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbStocks?.length, isStocksLoading]);
+  }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
@@ -170,7 +174,7 @@ export default function PortfolioDashboard() {
   }, [assets]);
 
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet") {
+    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar") {
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
@@ -269,22 +273,22 @@ export default function PortfolioDashboard() {
           <h1 className="text-lg font-bold tracking-tighter">BISTrack</h1>
         </div>
 
-        <div className="py-2 px-2 flex flex-col gap-5">
-          {/* ÖZET */}
+        <div className="py-2 px-2 flex flex-col gap-5 overflow-y-auto">
+          {/* ÖZET GRUBU */}
           <div>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Özet</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 px-2">Özet</p>
             <div className="space-y-1">
-              {SIDEBAR_ITEMS.filter(i => i.label === "Özet").map(item => (
+              {SIDEBAR_ITEMS.filter(i => i.group === "main").map(item => (
                 <SidebarButton key={item.label} item={item} />
               ))}
             </div>
           </div>
 
-          {/* PORTFÖYLERİM */}
+          {/* PORTFÖYLERİM GRUBU */}
           <div>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Portföylerim</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 px-2">Portföylerim</p>
             <div className="space-y-1">
-              {SIDEBAR_ITEMS.filter(i => i.label !== "Özet").map(item => (
+              {SIDEBAR_ITEMS.filter(i => i.group === "portfolios").map(item => (
                 <SidebarButton key={item.label} item={item} />
               ))}
             </div>
@@ -305,7 +309,7 @@ export default function PortfolioDashboard() {
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold">{activeCategory === "Özet" ? "Genel Bakış" : activeCategory}</h2>
+              <h2 className="text-lg font-bold">{activeCategory}</h2>
             </div>
             <div className="flex items-center gap-2">
               <Button 
@@ -332,7 +336,7 @@ export default function PortfolioDashboard() {
           </div>
         </nav>
 
-        <main className="max-w-7xl w-full mx-auto px-6 py-8 space-y-8 animate-in fade-in duration-700">
+        <main className="max-w-7xl w-full mx-auto px-6 py-8 space-y-8 animate-in fade-in duration-700 overflow-x-hidden">
           {activeCategory === "Özet" ? (
             <>
               <TargetProgress currentTotal={totalValue} />
@@ -350,6 +354,57 @@ export default function PortfolioDashboard() {
                 <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               </div>
             </>
+          ) : activeCategory === "Ağırlıklar" ? (
+            <div className="space-y-8">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold">Varlık Ağırlıkları</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Portföyünüzün çeşitliliğini ve risk dağılımını analiz edin.</p>
+                </div>
+                <Badge className="bg-primary/20 text-primary py-1 px-3">Toplam: ₺{totalValue.toLocaleString("tr-TR")}</Badge>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                 <PortfolioCharts holdings={assets} />
+              </div>
+
+              <Card className="bg-card/30 border-white/5">
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Ağırlık Detayları</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {assets
+                      .filter(a => a.category !== "Temettü Sabit")
+                      .sort((a, b) => (b.quantity * b.currentPrice) - (a.quantity * a.currentPrice))
+                      .map((asset) => {
+                        const value = asset.quantity * asset.currentPrice;
+                        const weight = totalValue > 0 ? (value / totalValue) * 100 : 0;
+                        return (
+                          <div key={asset.id} className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-white/5 rounded-lg border border-white/10">
+                                  <span className="font-bold text-sm">{asset.symbol}</span>
+                                </div>
+                                <div>
+                                  <div className="text-sm font-semibold">{asset.name}</div>
+                                  <div className="text-[10px] text-muted-foreground">{asset.category}</div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold">%{weight.toFixed(2)}</div>
+                                <div className="text-[10px] text-muted-foreground">₺{value.toLocaleString("tr-TR")}</div>
+                              </div>
+                            </div>
+                            <Progress value={weight} className="h-1.5 bg-white/5" />
+                          </div>
+                        );
+                      })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
