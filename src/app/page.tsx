@@ -78,7 +78,14 @@ export function PortfolioDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState<ViewType>("Özet");
   
-  const lastUpdateRef = useRef<number>(0);
+  const isRefreshingRef = useRef(false);
+  const userRef = useRef(user);
+  const firestoreRef = useRef(firestore);
+  const dbStocksRef = useRef<any[]>([]);
+  const portfolioIdRef = useRef('default-portfolio');
+
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { firestoreRef.current = firestore; }, [firestore]);
 
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
@@ -97,6 +104,8 @@ export function PortfolioDashboard() {
     if (portfolios && portfolios.length > 0) return portfolios[0].id;
     return 'default-portfolio';
   }, [portfolios]);
+
+  useEffect(() => { portfolioIdRef.current = portfolioId; }, [portfolioId]);
 
   useEffect(() => {
     if (!isPortfoliosLoading && portfolios && portfolios.length === 0 && user && firestore) {
@@ -118,11 +127,17 @@ export function PortfolioDashboard() {
 
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
+  useEffect(() => { 
+    if (dbStocks) dbStocksRef.current = dbStocks; 
+  }, [dbStocks]);
+
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0) return;
+    if (isRefreshingRef.current) return;
     
-    if (isRefreshing) return;
+    isRefreshingRef.current = true;
     setIsRefreshing(true);
+    
     try {
       const response = await fetch(`/api/stock?symbols=${encodeURIComponent(symbols.join(','))}`);
       if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
@@ -134,15 +149,19 @@ export function PortfolioDashboard() {
           if (u.symbol) newData[u.symbol.toUpperCase()] = u; 
         });
         setMarketData(prev => ({ ...prev, ...newData }));
-        lastUpdateRef.current = Date.now();
 
         // Fiyatları otomatik kaydet
-        if (user && firestore && portfolioId && dbStocks) {
+        const currentUser = userRef.current;
+        const currentFirestore = firestoreRef.current;
+        const currentDbStocks = dbStocksRef.current;
+        const currentPortfolioId = portfolioIdRef.current;
+
+        if (currentUser && currentFirestore && currentPortfolioId && currentDbStocks) {
           updates.forEach(u => {
             if (u.price > 0) {
-              const matchingStock = dbStocks.find(s => s.symbol.toUpperCase() === u.symbol.toUpperCase());
+              const matchingStock = currentDbStocks.find((s: any) => s.symbol.toUpperCase() === u.symbol.toUpperCase());
               if (matchingStock) {
-                const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', matchingStock.id);
+                const docRef = doc(currentFirestore, 'users', currentUser.uid, 'portfolios', currentPortfolioId, 'stockHoldings', matchingStock.id);
                 updateDocumentNonBlocking(docRef, { 
                   currentPrice: u.price,
                   dailyChange: u.change,
@@ -161,30 +180,29 @@ export function PortfolioDashboard() {
         variant: "destructive"
       });
     } finally {
+      isRefreshingRef.current = false;
       setIsRefreshing(false);
     }
-  }, [user, firestore, portfolioId, dbStocks, toast, isRefreshing]);
+  }, [toast]);
 
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
-      const symbols = dbStocks.map(s => s.symbol);
-      fetchStockPrices(symbols);
+      fetchStockPrices(dbStocks.map((s: any) => s.symbol));
     }
-  }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
+  }, [dbStocks?.length, isStocksLoading]);
 
   // Her 15 dakikada bir otomatik güncelle
   useEffect(() => {
-    if (!dbStocks || dbStocks.length === 0) return;
     const interval = setInterval(() => {
-      fetchStockPrices(dbStocks.map(s => s.symbol));
+      const symbols = dbStocksRef.current.map((s: any) => s.symbol);
+      if (symbols.length > 0) fetchStockPrices(symbols);
     }, 15 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [dbStocks, fetchStockPrices]);
+  }, [fetchStockPrices]);
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
-    
-    return dbStocks.map(s => {
+    return dbStocks.map((s: any) => {
       const symbolUpper = s.symbol.toUpperCase();
       const market = marketData[symbolUpper];
       return {
@@ -276,7 +294,6 @@ export function PortfolioDashboard() {
         </div>
 
         <div className="py-2 px-2 flex flex-col gap-5 overflow-y-auto">
-          {/* ÖZET GRUBU */}
           <div>
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 px-2">Özet</p>
             <div className="space-y-1">
@@ -285,8 +302,6 @@ export function PortfolioDashboard() {
               ))}
             </div>
           </div>
-
-          {/* PORTFÖYLERİM GRUBU */}
           <div>
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 px-2">Portföylerim</p>
             <div className="space-y-1">
@@ -295,8 +310,6 @@ export function PortfolioDashboard() {
               ))}
             </div>
           </div>
-
-          {/* ANALİZ GRUBU */}
           <div>
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 px-2">Analiz</p>
             <div className="space-y-1">
@@ -320,21 +333,17 @@ export function PortfolioDashboard() {
       <div className="flex-1 flex flex-col min-w-0">
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-bold">{activeCategory}</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="border-white/10"
-                onClick={() => fetchStockPrices(assets.map(h => h.symbol))} 
-                disabled={isRefreshing}
-              >
-                <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
-                Fiyatları Güncelle
-              </Button>
-            </div>
+            <h2 className="text-lg font-bold">{activeCategory}</h2>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="border-white/10"
+              onClick={() => fetchStockPrices(assets.map(h => h.symbol))} 
+              disabled={isRefreshing}
+            >
+              <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
+              Fiyatları Güncelle
+            </Button>
           </div>
         </nav>
 
@@ -343,7 +352,7 @@ export function PortfolioDashboard() {
             <>
               <TargetProgress currentTotal={totalValue} />
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold flex items-center gap-2">Varlık Analizi</h2>
+                <h2 className="text-2xl font-bold">Varlık Analizi</h2>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
               <SummaryCards holdings={assets} />
@@ -359,18 +368,16 @@ export function PortfolioDashboard() {
           ) : activeCategory === "Ağırlıklar" ? (
             <WeightAnalysis holdings={assets} />
           ) : activeCategory === "Gelirler" ? (
-             <IncomeAnalysis holdings={assets} />
+            <IncomeAnalysis holdings={assets} />
           ) : activeCategory === "Temettü Analizi" ? (
-             <DividendAnalysis holdings={assets} />
+            <DividendAnalysis holdings={assets} />
           ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">{activeCategory} Portföyü</h2>
                 <AddStockDialog onAdd={handleAddStock} />
               </div>
-              
               <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
-              
               {filteredAssets.length === 0 && (
                 <div className="p-12 text-center bg-card/20 rounded-xl border border-dashed border-white/10">
                   <p className="text-muted-foreground">Bu kategoride henüz bir varlık eklenmemiş.</p>

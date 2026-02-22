@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { StockHolding } from '@/lib/types';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { DividendProjection } from './dividend-projection';
 
 interface DividendRecord {
   id: string;
@@ -137,7 +138,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
   }, [searchNet, searchSymbol, holdings]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-12">
       {/* Başlık */}
       <div className="flex justify-between items-center">
         <div>
@@ -165,8 +166,8 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
       </div>
 
       {/* Hisse Kartları */}
-      <div>
-        <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">Temettü İzleme Paneli</h3>
+      <div className="space-y-4">
+        <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Temettü İzleme Paneli</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {TEMETTU_SYMBOLS.map(symbol => {
             const div = dividendMap[symbol];
@@ -416,6 +417,9 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
           </div>
         )}
       </div>
+
+      {/* 10 Yıllık Projeksiyon */}
+      <DividendProjection holdings={holdings} dividendMap={dividendMap} />
     </div>
   );
 }
