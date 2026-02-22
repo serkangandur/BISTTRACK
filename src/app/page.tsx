@@ -140,7 +140,6 @@ export default function PortfolioDashboard() {
     }
   }, []);
 
-  // Sayfa yüklendiğinde veya stoklar değiştiğinde fiyatları çek
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
       const symbols = dbStocks.map(s => s.symbol);
@@ -177,7 +176,6 @@ export default function PortfolioDashboard() {
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
   }, [assets, activeCategory]);
 
-  // Canlı fiyatları DB'ye kalıcı olarak kaydeder
   const handleSyncPrices = useCallback(() => {
     if (!user || !firestore || !portfolioId || assets.length === 0) return;
     
@@ -241,6 +239,26 @@ export default function PortfolioDashboard() {
     );
   }
 
+  const SidebarButton = ({ item }: { item: typeof SIDEBAR_ITEMS[0] }) => {
+    const Icon = item.icon;
+    const isActive = activeCategory === item.label;
+    return (
+      <button
+        key={item.label}
+        onClick={() => setActiveCategory(item.label)}
+        className={cn(
+          "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
+          isActive 
+            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-bold" 
+            : "text-muted-foreground hover:bg-white/5 hover:text-white"
+        )}
+      >
+        <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
+        <span className="text-sm">{item.label}</span>
+      </button>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#101418] text-white flex">
       <aside className="w-64 sticky top-0 h-screen border-r border-white/5 bg-background/50 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex shrink-0">
@@ -251,28 +269,25 @@ export default function PortfolioDashboard() {
           <h1 className="text-lg font-bold tracking-tighter">BISTrack</h1>
         </div>
 
-        <div className="py-2 px-2">
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Navigasyon</p>
-          <div className="space-y-1">
-            {SIDEBAR_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeCategory === item.label;
-              return (
-                <button
-                  key={item.label}
-                  onClick={() => setActiveCategory(item.label)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
-                    isActive 
-                      ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-bold" 
-                      : "text-muted-foreground hover:bg-white/5 hover:text-white"
-                  )}
-                >
-                  <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
-                  <span className="text-sm">{item.label}</span>
-                </button>
-              );
-            })}
+        <div className="py-2 px-2 flex flex-col gap-5">
+          {/* ÖZET */}
+          <div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Özet</p>
+            <div className="space-y-1">
+              {SIDEBAR_ITEMS.filter(i => i.label === "Özet").map(item => (
+                <SidebarButton key={item.label} item={item} />
+              ))}
+            </div>
+          </div>
+
+          {/* PORTFÖYLERİM */}
+          <div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Portföylerim</p>
+            <div className="space-y-1">
+              {SIDEBAR_ITEMS.filter(i => i.label !== "Özet").map(item => (
+                <SidebarButton key={item.label} item={item} />
+              ))}
+            </div>
           </div>
         </div>
 
