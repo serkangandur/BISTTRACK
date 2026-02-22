@@ -86,12 +86,21 @@ export async function GET(request: NextRequest) {
   const needsAltinGumus = requestedSymbols.includes('GA') || requestedSymbols.includes('GG');
   const needsDoviz = requestedSymbols.some(s => ['USD', 'EUR'].includes(s));
   const needsKripto = requestedSymbols.some(s => Object.keys(CRYPTO_COINGECKO_IDS).includes(s));
-  // TEFAS fon kodları: 2-4 harf/rakam, büyük harf (TP2, YAC, TTE vb.)
-  const TEFAS_REGEX = /^[A-Z0-9]{2,5}$/;
-  const NON_TEFAS = ['USD', 'EUR', 'GA', 'GG', ...Object.keys(CRYPTO_COINGECKO_IDS)];
-  const tefasSemboller = requestedSymbols.filter(s => TEFAS_REGEX.test(s) && !NON_TEFAS.includes(s));
+
+  // ✅ YENİ AYRIŞTIRMA MANTIĞI
+  const NON_BIST = ['USD', 'EUR', 'GA', 'GG', ...Object.keys(CRYPTO_COINGECKO_IDS)];
+  
+  // TEFAS fon kodları mutlaka rakam içerir (TP2, GO6, TTE1 vb.) veya 2 karakter (YA, TA)
+  const TEFAS_REGEX = /^[A-Z]{1,3}[0-9]+$|^[A-Z0-9]{2}$/;
+  const tefasSemboller = requestedSymbols.filter(s => TEFAS_REGEX.test(s) && !NON_BIST.includes(s));
   const needsTefas = tefasSemboller.length > 0;
-  const needsBist = requestedSymbols.some(s => !NON_TEFAS.includes(s) && !tefasSemboller.includes(s));
+
+  // BİST: rakam içermeyen 3-5 harf semboller (THYAO, SASA, TUPRS vb.)
+  const needsBist = requestedSymbols.some(s => 
+    !NON_BIST.includes(s) && 
+    !tefasSemboller.includes(s) && 
+    /^[A-Z]{3,5}$/.test(s)
+  );
 
   // Sonucu orijinal sembolle push et
   const pushUpdate = (normalizedSymbol: string, price: number, change: number) => {
@@ -125,7 +134,6 @@ export async function GET(request: NextRequest) {
             try {
               const html = await fetch(`https://www.tefas.gov.tr/FonAnaliz.aspx?FonKod=${fonKodu}`, { headers: fetchHeaders, cache: 'no-store' }).then(r => r.text());
               const $t = cheerio.load(html);
-              // "Son Fiyat (TL)" li elementini bul
               let fiyat = 0;
               let degisim = 0;
               $t('li').each((_, el) => {
@@ -139,7 +147,6 @@ export async function GET(request: NextRequest) {
                   if (match) degisim = parseFloat(match[1].replace(',', '.')) || 0;
                 }
               });
-              // Fallback: sayfadaki ilk büyük sayı
               if (fiyat === 0) {
                 const fullText = $t('body').text();
                 const match = fullText.match(/Son Fiyat[^0-9]*([0-9]+,[0-9]+)/);
@@ -156,8 +163,6 @@ export async function GET(request: NextRequest) {
     // --- 1. GRAM ALTIN & GRAM GÜMÜŞ ---
     if (altinHTML) {
       const $a = cheerio.load(altinHTML);
-
-      // GRAM ALTIN — href tabanlı (en güvenilir)
       if (requestedSymbols.includes('GA')) {
         $a('a[href*="gram-altin-fiyati"]')
           .not('a[href*="ceyrek"]')
@@ -178,8 +183,6 @@ export async function GET(request: NextRequest) {
             }
           });
       }
-
-      // GRAM GÜMÜŞ — href tabanlı
       if (requestedSymbols.includes('GG')) {
         $a('a[href*="gumus-gram-TL-fiyati"]').each((_, el) => {
           const parent = $a(el).closest('tr');
@@ -192,37 +195,6 @@ export async function GET(request: NextRequest) {
               pushUpdate('GG', alis, degisim);
               return false;
             }
-          }
-        });
-      }
-
-      // Fallback: tablo text araması
-      if (!updates.find(u => normalizeSymbol(u.symbol) === 'GA') && requestedSymbols.includes('GA')) {
-        $a('table tr').each((_, el) => {
-          const tds = $a(el).find('td');
-          if (tds.length < 2) return;
-          const label = $a(tds[0]).text().trim().toUpperCase()
-            .replace(/İ/g,'I').replace(/Ş/g,'S').replace(/Ğ/g,'G')
-            .replace(/Ü/g,'U').replace(/Ö/g,'O').replace(/Ç/g,'C');
-          const alis = parseNum($a(tds[1]).text().trim());
-          if (label === 'GRAM ALTIN' && !isNaN(alis) && alis > 1000) {
-            pushUpdate('GA', alis, 0);
-            return false;
-          }
-        });
-      }
-
-      if (!updates.find(u => normalizeSymbol(u.symbol) === 'GG') && requestedSymbols.includes('GG')) {
-        $a('table tr').each((_, el) => {
-          const tds = $a(el).find('td');
-          if (tds.length < 2) return;
-          const label = $a(tds[0]).text().trim().toUpperCase()
-            .replace(/İ/g,'I').replace(/Ş/g,'S').replace(/Ğ/g,'G')
-            .replace(/Ü/g,'U').replace(/Ö/g,'O').replace(/Ç/g,'C');
-          const alis = parseNum($a(tds[1]).text().trim());
-          if (label.includes('GUMUS') && label.includes('GRAM') && !isNaN(alis) && alis > 50 && alis < 2000) {
-            pushUpdate('GG', alis, 0);
-            return false;
           }
         });
       }
@@ -247,7 +219,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // --- 4. KRİPTO (CoinGecko API - TRY) ---
+    // --- 4. KRİPTO ---
     if (kripto) {
       Object.entries(CRYPTO_COINGECKO_IDS).forEach(([symbol, geckoId]) => {
         if (requestedSymbols.includes(symbol) && kripto[geckoId]) {
@@ -277,7 +249,7 @@ export async function GET(request: NextRequest) {
         if (tds.length >= 2) {
           const s = $b(tds[0]).text().trim().split(/\s+/)[0].toUpperCase();
           const normalized = normalizeSymbol(s);
-          if (requestedSymbols.includes(normalized) && !['USD', 'EUR', 'GA', 'GG'].includes(normalized)) {
+          if (requestedSymbols.includes(normalized) && !NON_BIST.includes(normalized) && !tefasSemboller.includes(normalized)) {
             const val = parseNum($b(tds[1]).text().trim());
             if (!isNaN(val) && val > 0) {
               pushUpdate(normalized, val, 0);
