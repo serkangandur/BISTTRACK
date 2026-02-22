@@ -42,6 +42,8 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
   const usdRate = parseFloat(manualInputs[TEMETTU_SYMBOLS[0]]?.usdRate || '32') || 32;
   const [growthRate, setGrowthRate] = useState('30');
   const GROWTH_RATE = parseFloat(growthRate) / 100 || 0.30;
+  const [priceGrowth, setPriceGrowth] = useState('30');
+  const PRICE_GROWTH = parseFloat(priceGrowth) / 100 || 0.30;
 
   // Her hisse için 10 yıllık projeksiyon hesapla
   const projections = useMemo(() => {
@@ -53,7 +55,6 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       const baseHBT = div?.netDividendPerShare || 0;
       const lot2025 = parseFloat(input?.lot2025 || '0') || 0;
       const liveLot = holding?.quantity || 0;
-      const livePrice = holding?.currentPrice || 0;
 
       const years = Array.from({ length: YEARS }, (_, i) => {
         const year = START_YEAR + i;
@@ -66,7 +67,9 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
 
         return {
           year,
-          fiyat: year === START_YEAR ? parseFloat(input?.price2025 || '0') : livePrice,
+          fiyat: year === START_YEAR 
+            ? parseFloat(input?.price2025 || '0') 
+            : parseFloat(input?.price2025 || '0') * Math.pow(1 + PRICE_GROWTH, i),
           lot,
           lotEklem: year > START_YEAR ? lotEklem : null,
           hbt,
@@ -78,7 +81,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
 
       return { sym, years };
     });
-  }, [dividendMap, holdings, manualInputs, usdRate, GROWTH_RATE]);
+  }, [dividendMap, holdings, manualInputs, usdRate, priceGrowth, growthRate]);
 
   // Yıl bazlı toplam
   const yearTotals = useMemo(() => {
@@ -104,7 +107,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       {/* Ayarlar */}
       <div className="p-4 bg-card/20 rounded-xl border border-white/5">
         <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">2025 Başlangıç Değerleri & Ayarlar</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
           <div>
             <label className="text-xs text-muted-foreground">USD/TL Kuru</label>
             <input
@@ -121,6 +124,16 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={growthRate}
               onChange={e => setGrowthRate(e.target.value)}
+              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              placeholder="30"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Fiyat Performansı (%)</label>
+            <input
+              type="number"
+              value={priceGrowth}
+              onChange={e => setPriceGrowth(e.target.value)}
               className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
               placeholder="30"
             />
