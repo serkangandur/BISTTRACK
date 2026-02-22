@@ -10,68 +10,74 @@ export async function GET(request: NextRequest) {
 
   const requestedSymbols = symbolsParam.split(',').map(s => s.trim().toUpperCase());
   const updates: any[] = [];
-  
-  // Excel benzeri temiz başlıklar
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': '*/*',
-    'Connection': 'keep-alive'
-  };
-
-  const urls = [
-    'https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri',
-    'https://finans.cnnturk.com/doviz'
-  ];
+  const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' };
 
   try {
-    for (const url of urls) {
-      // Url sonuna ?t= ekleyerek cache'i patlatıyoruz (Excel'in yaptığı gibi)
-      const res = await fetch(`${url}?t=${Date.now()}`, { headers, cache: 'no-store' });
-      if (!res.ok) continue;
-
-      const html = await res.text();
-      const $ = cheerio.load(html);
+    // --- 1. DÖVİZ TARAMA (30-100 TL BANDI FİLTRESİ) ---
+    const dovizRes = await fetch(`https://finans.cnnturk.com/doviz?t=${Date.now()}`, { headers, cache: 'no-store' });
+    if (dovizRes.ok) {
+      const $ = cheerio.load(await dovizRes.text());
+      const mapping: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
 
       $('tr').each((_, el) => {
-        const text = $(el).text().toUpperCase();
-        const tds = $(el).find('td');
-        
-        if (tds.length >= 2) {
-          requestedSymbols.forEach(s => {
-            // Satırın içinde sembol geçiyor mu? (Örn: PAGYO veya ABD DOLARI)
-            const isMatch = text.includes(s) || 
-                          (s === 'USD' && text.includes('ABD DOLARI')) || 
-                          (s === 'EUR' && text.includes('EURO'));
+        const label = $(el).find('td').first().text().trim().toUpperCase();
+        const matchedKey = Object.keys(mapping).find(k => label.includes(k));
 
-            if (isMatch) {
-              // Satırdaki tüm sayıları bul ve fiyat olabilecek olanı seç
-              tds.each((i, td) => {
-                // Sütun 0 genellikle isimdir, fiyata 1. sütundan itibaren bakıyoruz
-                if (i === 0) return true; 
-
-                const rawVal = $(td).text().trim();
-                const val = rawVal.replace(/\./g, '').replace(',', '.');
-                const num = parseFloat(val);
-
-                // 0.1 ile 10.000.000 arasındaki mantıklı ilk sayıyı al
-                if (!isNaN(num) && num > 0.1) {
-                  // Aynı sembolü mükerrer eklememek için kontrol
-                  if (!updates.find(u => u.symbol === s)) {
-                    updates.push({ symbol: s, price: Number(num.toFixed(4)), change: 0 });
-                    console.log(`[EXCEL-SIM] ${s} Yakalandı: ${num}`);
-                  }
-                  return false; // Satır taramasını bitir
+        if (matchedKey) {
+          const sym = mapping[matchedKey];
+          if (requestedSymbols.includes(sym)) {
+            let foundPrice = 0;
+            const rowValues: number[] = [];
+            
+            // Satırdaki tüm hücreleri tara
+            $(el).find('td').each((i, td) => {
+              const valRaw = $(td).text().trim().replace(/\./g, '').replace(',', '.');
+              const valNum = parseFloat(valRaw);
+              
+              if (!isNaN(valNum)) {
+                rowValues.push(valNum);
+                // Gerçek Kur Filtresi: 30 ile 100 bandında olmalı (Değişim oranları genellikle < 5 olur)
+                if (valNum > 30 && valNum < 100 && foundPrice === 0) {
+                  foundPrice = valNum;
                 }
-              });
+              }
+            });
+
+            console.log(`[SCAN] ${label} satırında bulunan sayılar: ${rowValues.join(', ')}`);
+
+            if (foundPrice > 0) {
+              updates.push({ symbol: sym, price: Number(foundPrice.toFixed(4)), change: 0 });
+              console.log(`[DÖVİZ GÜVENLİ] ${sym} Yakalandı: ${foundPrice} ₺`);
             }
-          });
+          }
         }
       });
     }
-  } catch (e: any) {
-    console.log("Hata:", e.message);
+
+    // --- 2. BIST TARAMA (HİSSELER) ---
+    const bistRes = await fetch(`https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri?t=${Date.now()}`, { headers, cache: 'no-store' });
+    if (bistRes.ok) {
+      const $ = cheerio.load(await bistRes.text());
+      $('tr').each((_, el) => {
+        const tds = $(el).find('td');
+        if (tds.length >= 2) {
+          const rawName = $(tds[0]).text().trim().toUpperCase();
+          const sym = rawName.split(/\s+/)[0]; 
+          
+          if (requestedSymbols.includes(sym)) {
+            const rawPrice = $(tds[1]).text().trim().replace(/\./g, '').replace(',', '.');
+            const price = parseFloat(rawPrice);
+            if (!isNaN(price) && price > 0) {
+              updates.push({ symbol: sym, price: Number(price.toFixed(4)), change: 0 });
+              console.log(`[BIST] ${sym} Bulundu: ${price} ₺`);
+            }
+          }
+        }
+      });
+    }
+  } catch (e: any) { 
+    console.log("[API HATA]:", e.message); 
   }
 
-  console.log(`[API SONUÇ] ${updates.length} veri yakalandı.`);
   return NextResponse.json(updates);
 }
