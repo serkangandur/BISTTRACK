@@ -21,7 +21,7 @@ const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
 const BASE_LIMIT = 2814000;
 
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
-  // Kategorilere göre verileri grupla
+  // Kategorilere göre verileri grupla - ANA PARA (Maliyet) BAZLI HESAPLAMA
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: StockHolding[]; limit: number; targetPercent: number }>> = {};
     
@@ -50,7 +50,8 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
     holdings.forEach(h => {
       if (data[h.category]) {
-        data[h.category]!.total += h.quantity * h.currentPrice;
+        // ✅ ANA PARA HESABI: Miktar * Ortalama Maliyet
+        data[h.category]!.total += h.quantity * h.averageCost;
         data[h.category]!.holdings.push(h);
       }
     });
@@ -58,15 +59,16 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     return data;
   }, [holdings]);
 
-  const totalValue = useMemo(() => 
-    holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0)
+  // Toplam Ana Para Değeri
+  const totalCostBasis = useMemo(() => 
+    holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.averageCost), 0)
   , [holdings]);
 
   const totalLimit = useMemo(() => {
      return Object.values(categoryData).reduce((acc, d) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
 
-  const deficitSurplus = totalValue - totalLimit;
+  const deficitSurplus = totalCostBasis - totalLimit;
 
   const CategoryBoard = ({ category, label, color }: { category: AssetCategory, label: string, color: string }) => {
     const data = categoryData[category];
@@ -144,7 +146,8 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
                 {h.symbol}
               </div>
               <div className="col-span-3 text-[10px] text-orange-200 text-right font-mono font-medium">
-                {h.symbol ? `₺${(h.quantity * h.currentPrice).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
+                {/* ✅ ANA PARA HESABI: Lot * Ortalama Maliyet */}
+                {h.symbol ? `₺${(h.quantity * h.averageCost).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
               </div>
             </div>
           ))}
@@ -183,11 +186,11 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Global Toplam */}
+        {/* Global Toplam (Ana Para Bazlı) */}
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Toplam</div>
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım</div>
           <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
-            ₺{totalValue.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+            ₺{totalCostBasis.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
           </div>
         </div>
       </div>
