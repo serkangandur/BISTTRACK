@@ -15,11 +15,6 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
     usd: 43.82
   };
 
-  const indices = {
-    bist100: "+0,94%",
-    bist30: "+1,39%"
-  };
-
   // Hedef Aylık Gelir (Dolar Bazlı)
   const [targetMonthlyIncome, setTargetMonthlyIncome] = useState(4000);
 
@@ -65,25 +60,9 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
     <div className="bg-black text-white p-8 space-y-12 font-mono uppercase tracking-tight select-none min-h-screen">
       
       {/* ÜST BİLGİ BARI */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        {/* Kurlar kaldırıldı - Sadece boşluk korundu veya hizalama ayarlandı */}
-        <div className="hidden lg:block w-[200px]" />
-
-        <div className="flex-1 flex justify-center">
-          <div className="border border-orange-400/50 px-12 py-2 text-xl font-black tracking-[0.3em] text-white bg-orange-400/5">
-            NAKİT GELİRLER (%3.5 HESABI)
-          </div>
-        </div>
-
-        <div className="flex gap-4">
-           <div className="flex flex-col items-center">
-            <div className="text-[9px] text-muted-foreground border border-white/10 px-4 py-0.5 bg-white/5">BIST 100</div>
-            <div className="text-emerald-400 font-black border border-emerald-400/30 bg-emerald-400/5 px-4 py-1 mt-1">{indices.bist100}</div>
-          </div>
-          <div className="flex flex-col items-center">
-            <div className="text-[9px] text-muted-foreground border border-white/10 px-4 py-0.5 bg-white/5">BIST 30</div>
-            <div className="text-emerald-400 font-black border border-emerald-400/30 bg-emerald-400/5 px-4 py-1 mt-1">{indices.bist30}</div>
-          </div>
+      <div className="flex flex-wrap items-center justify-center gap-4">
+        <div className="border border-orange-400/50 px-12 py-2 text-xl font-black tracking-[0.3em] text-white bg-orange-400/5">
+          NAKİT GELİRLER (%3.5 HESABI)
         </div>
       </div>
 
