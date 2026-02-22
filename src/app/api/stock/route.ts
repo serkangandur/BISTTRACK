@@ -9,11 +9,17 @@ interface StockPriceUpdate {
   change: number;
 }
 
-const parseNum = (t: string) => parseFloat(t.replace(/\./g, '').replace(',', '.'));
+const parseNum = (t: string) => {
+  if (!t) return NaN;
+  return parseFloat(t.replace(/\./g, '').replace(',', '.').trim());
+};
 
-const headers = { 
+const fetchHeaders = { 
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Cache-Control': 'no-cache'
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'tr-TR,tr;q=0.9',
+  'Cache-Control': 'no-cache',
+  'Pragma': 'no-cache',
 };
 
 export async function GET(request: NextRequest) {
@@ -29,47 +35,83 @@ export async function GET(request: NextRequest) {
   const needsBist = requestedSymbols.some(s => !['USD', 'EUR', 'GA', 'GG'].includes(s));
 
   try {
-    // Paralel fetch — sadece gerekli kaynakları çek
-    const [dovizHTML, bistHTML, altinGumusData] = await Promise.all([
+    const ts = Date.now();
+
+    const [altinHTML, dovizHTML, bistHTML] = await Promise.all([
+      needsAltinGumus
+        ? fetch(`https://finans.cnnturk.com/altin?v=${ts}`, { headers: fetchHeaders, cache: 'no-store' }).then(r => r.text())
+        : Promise.resolve(''),
       needsDoviz
-        ? fetch(`https://finans.cnnturk.com/doviz?v=${Date.now()}`, { headers, cache: 'no-store' }).then(r => r.text())
+        ? fetch(`https://finans.cnnturk.com/doviz?v=${ts}`, { headers: fetchHeaders, cache: 'no-store' }).then(r => r.text())
         : Promise.resolve(''),
       needsBist
-        ? fetch(`https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri?v=${Date.now()}`, { headers, cache: 'no-store' }).then(r => r.text())
+        ? fetch(`https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri?v=${ts}`, { headers: fetchHeaders, cache: 'no-store' }).then(r => r.text())
         : Promise.resolve(''),
-      // ✅ CNN Türk yerine GenelPara API — JSON, hızlı, güvenilir
-      needsAltinGumus
-        ? fetch('https://api.genelpara.com/json/?list=altin&sembol=GA,GAG', { cache: 'no-store' }).then(r => r.json())
-        : Promise.resolve(null)
     ]);
 
-    // --- 1. ALTIN & GÜMÜŞ (GenelPara API) ---
-    if (altinGumusData) {
-      // GA = Gram Altın
-      if (requestedSymbols.includes('GA') && altinGumusData.GA) {
-        const price = parseFloat(altinGumusData.GA.alis || altinGumusData.GA.satis || '0');
-        if (price > 0) {
-          updates.push({ 
-            symbol: 'GA', 
-            price, 
-            change: parseFloat(altinGumusData.GA.degisim || altinGumusData.GA.kapanis || '0') 
-          });
+    // --- 1. GRAM ALTIN & GRAM GÜMÜŞ ---
+    if (altinHTML) {
+      const $a = cheerio.load(altinHTML);
+
+      // Tüm tabloları tara
+      $a('table tr').each((_, el) => {
+        const tds = $a(el).find('td');
+        if (tds.length < 2) return;
+
+        const labelText = $a(tds[0]).text().trim().toUpperCase();
+        const alisText  = $a(tds[1]).text().trim();
+        const alis      = parseNum(alisText);
+
+        // Gram Altın
+        if (requestedSymbols.includes('GA') && labelText.includes('GRAM ALTIN') && !labelText.includes('0.')) {
+          if (!isNaN(alis) && alis > 1000) {
+            const degisimText = tds.length >= 4 ? $a(tds[3]).text().trim() : '0';
+            const degisim = parseFloat(degisimText.replace('%', '').replace(',', '.').trim()) || 0;
+            updates.push({ symbol: 'GA', price: alis, change: degisim });
+          }
         }
+
+        // Gram Gümüş (TL)
+        if (requestedSymbols.includes('GG') && (labelText.includes('GÜMÜŞ GRAM') || labelText.includes('GÜMÜş GRAM')) && labelText.includes('TL')) {
+          if (!isNaN(alis) && alis > 50) {
+            const degisimText = tds.length >= 4 ? $a(tds[3]).text().trim() : '0';
+            const degisim = parseFloat(degisimText.replace('%', '').replace(',', '.').trim()) || 0;
+            updates.push({ symbol: 'GG', price: alis, change: degisim });
+          }
+        }
+      });
+
+      // Bulunamadıysa — link href ile bul (fallback)
+      if (!updates.find(u => u.symbol === 'GA') && requestedSymbols.includes('GA')) {
+        $a('a[href*="gram-altin"]').each((_, el) => {
+          const parent = $a(el).closest('tr');
+          const tds = parent.find('td');
+          if (tds.length >= 2) {
+            const alis = parseNum($a(tds[1]).text().trim());
+            if (!isNaN(alis) && alis > 1000) {
+              updates.push({ symbol: 'GA', price: alis, change: 0 });
+              return false;
+            }
+          }
+        });
       }
-      // GG = Gram Gümüş (GenelPara'da GAG olarak geçer)
-      if (requestedSymbols.includes('GG') && altinGumusData.GAG) {
-        const price = parseFloat(altinGumusData.GAG.alis || altinGumusData.GAG.satis || '0');
-        if (price > 0) {
-          updates.push({ 
-            symbol: 'GG', 
-            price, 
-            change: parseFloat(altinGumusData.GAG.degisim || altinGumusData.GAG.kapanis || '0') 
-          });
-        }
+
+      if (!updates.find(u => u.symbol === 'GG') && requestedSymbols.includes('GG')) {
+        $a('a[href*="gumus-gram-TL"]').each((_, el) => {
+          const parent = $a(el).closest('tr');
+          const tds = parent.find('td');
+          if (tds.length >= 2) {
+            const alis = parseNum($a(tds[1]).text().trim());
+            if (!isNaN(alis) && alis > 50) {
+              updates.push({ symbol: 'GG', price: alis, change: 0 });
+              return false;
+            }
+          }
+        });
       }
     }
 
-    // --- 2. DÖVİZ (CNN Türk - Cheerio) ---
+    // --- 2. DÖVİZ ---
     if (dovizHTML) {
       const $d = cheerio.load(dovizHTML);
       const dMap: Record<string, string> = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
@@ -79,7 +121,6 @@ export async function GET(request: NextRequest) {
         if (key && requestedSymbols.includes(dMap[key])) {
           $d(el).find('td').each((_, td) => {
             const val = parseNum($d(td).text().trim());
-            // Akıllı Filtre: 30-100 bandı gerçek kurdur
             if (val > 30 && val < 100) {
               updates.push({ symbol: dMap[key], price: val, change: 0 });
               return false;
@@ -89,7 +130,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // --- 3. BİST HİSSELERİ (CNN Türk - Cheerio) ---
+    // --- 3. BİST HİSSELERİ ---
     if (bistHTML) {
       const $b = cheerio.load(bistHTML);
       $b('tr').each((_, el) => {
