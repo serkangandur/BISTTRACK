@@ -44,6 +44,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
   const GROWTH_RATE = parseFloat(growthRate) / 100 || 0.30;
   const [priceGrowth, setPriceGrowth] = useState('30');
   const PRICE_GROWTH = parseFloat(priceGrowth) / 100 || 0.30;
+  const [monthlyUSD, setMonthlyUSD] = useState('2000');
 
   // Her hisse için 10 yıllık projeksiyon hesapla
   const projections = useMemo(() => {
@@ -60,23 +61,33 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       const years = Array.from({ length: YEARS }, (_, i) => {
         const year = START_YEAR + i;
         const hbt = baseHBT * Math.pow(1 + GROWTH_RATE, i);
-        const lot = year === START_YEAR ? lot2025 : liveLot;
-        const lotEklem = year > START_YEAR ? lot - lot2025 : 0;
-        const hbtYukselmesi = year > START_YEAR ? hbt - baseHBT * Math.pow(1 + GROWTH_RATE, i - 1) : 0;
+        
+        const fiyat = year === START_YEAR 
+          ? parseFloat(input?.price2025 || '0') 
+          : year === 2026
+            ? livePrice
+            : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1);
+
+        const monthlyTL = parseFloat(monthlyUSD || '2000') * usdRate;
+        const perStockTL = monthlyTL / TEMETTU_SYMBOLS.length;
+        const addedLotPerYear = year > START_YEAR && fiyat > 0 
+          ? Math.floor((perStockTL * 12) / fiyat) 
+          : 0;
+
+        const lot = year === START_YEAR ? lot2025 : liveLot + addedLotPerYear * (i);
+        const lotEklem = year > START_YEAR ? addedLotPerYear : null;
+        
+        const hbtYukselmesi = year > START_YEAR ? hbt - baseHBT * Math.pow(1 + GROWTH_RATE, i - 1) : null;
         const temNet = lot * hbt;
         const temNetDL = temNet / usdRate;
 
         return {
           year,
-          fiyat: year === START_YEAR 
-            ? parseFloat(input?.price2025 || '0') 
-            : year === 2026
-              ? livePrice
-              : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1),
+          fiyat,
           lot,
-          lotEklem: year > START_YEAR ? lotEklem : null,
+          lotEklem,
           hbt,
-          hbtYukselmesi: year > START_YEAR ? hbtYukselmesi : null,
+          hbtYukselmesi,
           temNet,
           temNetDL,
         };
@@ -84,7 +95,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
 
       return { sym, years };
     });
-  }, [dividendMap, holdings, manualInputs, usdRate, priceGrowth, growthRate]);
+  }, [dividendMap, holdings, manualInputs, usdRate, priceGrowth, growthRate, monthlyUSD]);
 
   // Yıl bazlı toplam
   const yearTotals = useMemo(() => {
@@ -110,7 +121,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       {/* Ayarlar */}
       <div className="p-4 bg-card/20 rounded-xl border border-white/5">
         <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">2025 Başlangıç Değerleri & Ayarlar</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <div>
             <label className="text-xs text-muted-foreground">USD/TL Kuru</label>
             <input
@@ -139,6 +150,16 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               onChange={e => setPriceGrowth(e.target.value)}
               className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
               placeholder="30"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Aylık Ekleme (USD)</label>
+            <input
+              type="number"
+              value={monthlyUSD}
+              onChange={e => setMonthlyUSD(e.target.value)}
+              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              placeholder="2000"
             />
           </div>
         </div>
