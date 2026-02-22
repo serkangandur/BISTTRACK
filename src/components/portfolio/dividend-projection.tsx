@@ -11,7 +11,6 @@ interface DividendProjectionProps {
 }
 
 const TEMETTU_SYMBOLS = ['ISMEN', 'LOGO', 'CLEBI', 'ANHYT', 'TUPRS', 'PAGYO'];
-const GROWTH_RATE = 0.30; // %30 büyüme
 const YEARS = 10;
 const START_YEAR = 2025;
 
@@ -40,8 +39,9 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
     setManualInputs(prev => ({ ...prev, [sym]: { ...prev[sym], [field]: value } }));
   };
 
-  // USD kuru - tek bir değer yeterli
   const usdRate = parseFloat(manualInputs[TEMETTU_SYMBOLS[0]]?.usdRate || '32') || 32;
+  const [growthRate, setGrowthRate] = useState('30');
+  const GROWTH_RATE = parseFloat(growthRate) / 100 || 0.30;
 
   // Her hisse için 10 yıllık projeksiyon hesapla
   const projections = useMemo(() => {
@@ -59,7 +59,6 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
         const year = START_YEAR + i;
         const hbt = baseHBT * Math.pow(1 + GROWTH_RATE, i);
         const lot = year === START_YEAR ? lot2025 : liveLot;
-        const prevLot = year === START_YEAR ? 0 : lot2025;
         const lotEklem = year > START_YEAR ? lot - lot2025 : 0;
         const hbtYukselmesi = year > START_YEAR ? hbt - baseHBT * Math.pow(1 + GROWTH_RATE, i - 1) : 0;
         const temNet = lot * hbt;
@@ -79,7 +78,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
 
       return { sym, years };
     });
-  }, [dividendMap, holdings, manualInputs, usdRate]);
+  }, [dividendMap, holdings, manualInputs, usdRate, GROWTH_RATE]);
 
   // Yıl bazlı toplam
   const yearTotals = useMemo(() => {
@@ -97,14 +96,14 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
         <div>
           <h2 className="text-2xl font-bold">10 Yıllık Temettü Projeksiyonu</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Yıllık %30 büyüme oranı ile hesaplanmış projeksiyon
+            Yıllık büyüme oranı ile hesaplanmış projeksiyon
           </p>
         </div>
       </div>
 
       {/* Ayarlar */}
       <div className="p-4 bg-card/20 rounded-xl border border-white/5">
-        <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">2025 Başlangıç Değerleri & USD Kuru</p>
+        <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">2025 Başlangıç Değerleri & Ayarlar</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="text-xs text-muted-foreground">USD/TL Kuru</label>
@@ -114,6 +113,16 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               onChange={e => TEMETTU_SYMBOLS.forEach(sym => updateInput(sym, 'usdRate', e.target.value))}
               className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
               placeholder="32"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Yıllık Büyüme Oranı (%)</label>
+            <input
+              type="number"
+              value={growthRate}
+              onChange={e => setGrowthRate(e.target.value)}
+              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              placeholder="30"
             />
           </div>
         </div>
