@@ -124,6 +124,19 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "DividendRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DividendRecord",
+      "type": "object",
+      "description": "User-specific dividend data for a stock.",
+      "properties": {
+        "symbol": { "type": "string" },
+        "netDividendPerShare": { "type": "number" },
+        "year": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["symbol", "netDividendPerShare", "year"]
     }
   },
   "auth": {
@@ -141,12 +154,26 @@
           "schema": {
             "$ref": "#/backend/entities/UserProfile"
           },
-          "description": "Stores individual user profiles. Each document in this collection represents a unique user and is directly owned by the user matching the {userId} wildcard. Access is restricted to the owning user.",
+          "description": "Stores individual user profiles.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user, matching `request.auth.uid`."
+              "description": "The unique identifier of the user."
             }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/dividends/{symbol}",
+        "definition": {
+          "entityName": "DividendRecord",
+          "schema": {
+            "$ref": "#/backend/entities/DividendRecord"
+          },
+          "description": "User-specific dividend tracking data.",
+          "params": [
+            { "name": "userId", "description": "Owner ID" },
+            { "name": "symbol", "description": "Stock symbol" }
           ]
         }
       },
@@ -157,11 +184,11 @@
           "schema": {
             "$ref": "#/backend/entities/Portfolio"
           },
-          "description": "Stores portfolios created by a specific user. Each portfolio document contains a 'userId' field, which denormalizes ownership for Authorization Independence. Access is restricted to the owning user.",
+          "description": "Stores portfolios created by a specific user.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user who owns this portfolio, matching `request.auth.uid`."
+              "description": "The unique identifier of the user."
             },
             {
               "name": "portfolioId",
@@ -177,11 +204,11 @@
           "schema": {
             "$ref": "#/backend/entities/StockHolding"
           },
-          "description": "Stores individual stock holdings within a specific portfolio. To achieve Authorization Independence, each StockHolding document MUST include the 'userId' of the portfolio's owner. Access is restricted to the owning user.",
+          "description": "Stores individual stock holdings within a specific portfolio.",
           "params": [
             {
               "name": "userId",
-              "description": "The unique identifier of the user who owns the parent portfolio, matching `request.auth.uid`."
+              "description": "The unique identifier of the user."
             },
             {
               "name": "portfolioId",
@@ -189,12 +216,12 @@
             },
             {
               "name": "stockHoldingId",
-              "description": "The unique identifier for a specific stock holding within the portfolio."
+              "description": "The unique identifier for a specific stock holding."
             }
           ]
         }
       }
     ],
-    "reasoning": "The recommended Firestore structure for BISTrack prioritizes security, scalability, and debuggability by strictly adhering to Authorization Independence and Structural Segregation principles. \n\n1.  **Authorization Independence (CRITICAL DENORMALIZATION):** To eliminate complex `get()` calls in security rules and enable atomic operations, authorization context is denormalized directly into relevant documents. For example, a `StockHolding` document, although nested under a `Portfolio`, will explicitly contain the `userId` of its owner. This ensures that any access request to a `StockHolding` can be authorized solely by checking `request.auth.uid == resource.data.userId`, without needing to fetch the parent `Portfolio` document. Similarly, `Portfolio` documents already include `userId`.\n\n2.  **Structural Segregation (Homogeneous Security Posture):** All documents within a given collection path (`/users/{userId}`, `/users/{userId}/portfolios`, `/users/{userId}/portfolios/{portfolioId}/stockHoldings`) share the same security requirements. Access to all entities is strictly tied to the `userId` in the path, ensuring that only the authenticated user can read or modify their own profiles, portfolios, and stock holdings. This simplifies security rules significantly, moving complexity from rule logic to the data structure itself.\n\n3.  **Query Authorization Patterns (QAPs):** The hierarchical path structure, combined with denormalized `userId`, directly supports secure `list` operations. A user can query their own portfolios (`/users/{request.auth.uid}/portfolios`) or stock holdings within a specific portfolio (`/users/{request.auth.uid}/portfolios/{portfolioId}/stockHoldings`). The security rules can then easily verify that `request.auth.uid` matches the `userId` in the path and/or the denormalized `userId` field in the document, ensuring that users can only list their own data and preventing unauthorized data leakage through queries. This structure eliminates the need for rules to act as data filters, upholding the QAP principle.\n\nThis design ensures robust security rules, simplifies debugging, and supports efficient data retrieval for the BISTrack application."
+    "reasoning": "The Firestore structure supports hierarchical data for portfolios and user-specific customizations like dividend tracking, ensuring security via Authorization Independence."
   }
 }

@@ -1,342 +1,394 @@
+"use client";
 
-'use client';
-
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  Minus, 
-  Search, 
-  RefreshCcw, 
-  Loader2, 
-  AlertCircle, 
-  CheckCircle2, 
-  Info,
-  Calendar,
-  Percent,
-  Receipt
+  TrendingUp, TrendingDown, Minus, Search, RefreshCcw, 
+  Loader2, AlertCircle, CheckCircle2, Info, Pencil, Save, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { StockHolding } from '@/lib/types';
+import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-interface DividendData {
+interface DividendRecord {
+  id: string;
   symbol: string;
   netDividendPerShare: number;
-  dividendYield: number;
-  paymentDate: string;
   year: number;
+  updatedAt?: any;
 }
 
 interface DividendAnalysisProps {
   holdings: StockHolding[];
 }
 
-// Analiz edilecek varsayılan temettü hisseleri
-const DEFAULT_WATCHLIST = ['LOGO', 'TUPRS', 'CLEBI', 'ISMEN', 'PAGYO', 'ANHYT'];
+const TEMETTU_SYMBOLS = ['LOGO', 'TUPRS', 'CLEBI', 'ISMEN', 'PAGYO', 'ANHYT'];
+
+// Varsayılan bilinen temettü verileri (başlangıç için)
+const DEFAULT_DIVIDENDS: Record<string, { net: number; year: number }> = {
+  'TUPRS': { net: 12.92, year: 2025 },
+};
 
 export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
-  const [dividendData, setDividendData] = useState<DividendData[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useUser();
+  const firestore = useFirestore();
+  const [editingSymbol, setEditingSymbol] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ net: string; year: string }>({ net: '', year: '' });
+  const [isSaving, setIsSaving] = useState(false);
   const [searchSymbol, setSearchSymbol] = useState('');
-  const [searchResult, setSearchResult] = useState<DividendData | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [searchNet, setSearchNet] = useState('');
+  const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
 
-  // Portföydeki temettü hisselerini (kategoriye göre) filtrele
-  const temettuHoldings = useMemo(() => {
-    return holdings.filter(h => h.category === 'Temettü');
-  }, [holdings]);
+  // Firebase'den temettü verilerini çek
+  const dividendsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, 'users', user.uid, 'dividends');
+  }, [user, firestore]);
 
-  // Portföy bazlı ağırlıklı ortalama temettü verimi hesabı
-  const portfolioYield = useMemo(() => {
-    if (temettuHoldings.length === 0) return 0;
+  const { data: dbDividends, isLoading } = useCollection(dividendsQuery);
+
+  // Temettü verilerini map'e çevir
+  const dividendMap = useMemo(() => {
+    const map: Record<string, DividendRecord> = {};
     
+    // Önce default değerleri koy
+    TEMETTU_SYMBOLS.forEach(sym => {
+      const def = DEFAULT_DIVIDENDS[sym];
+      if (def) {
+        map[sym] = { id: sym, symbol: sym, netDividendPerShare: def.net, year: def.year };
+      }
+    });
+    
+    // Sonra Firebase verilerini üstüne yaz
+    if (dbDividends) {
+      dbDividends.forEach((d: any) => {
+        map[d.symbol] = { id: d.id, symbol: d.symbol, netDividendPerShare: d.netDividendPerShare, year: d.year };
+      });
+    }
+    
+    return map;
+  }, [dbDividends]);
+
+  // Temettü verimini hesapla: Net Temettü ÷ Canlı Fiyat × 100
+  const calculateYield = (symbol: string): number => {
+    const div = dividendMap[symbol];
+    if (!div || div.netDividendPerShare === 0) return 0;
+    const holding = holdings.find(h => h.symbol.toUpperCase() === symbol);
+    if (!holding || holding.currentPrice === 0) return 0;
+    return (div.netDividendPerShare / holding.currentPrice) * 100;
+  };
+
+  // Portföy ağırlıklı ortalama verimi
+  const portfolioYield = useMemo(() => {
+    const temettuHoldings = holdings.filter(h => h.category === 'Temettü');
+    if (temettuHoldings.length === 0) return 0;
     const totalValue = temettuHoldings.reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0);
     if (totalValue === 0) return 0;
-    
-    // Verileri çekilen hisselerin verimlerini ağırlıklandır
-    const weightedYield = temettuHoldings.reduce((acc, h) => {
+    return temettuHoldings.reduce((acc, h) => {
       const weight = (h.quantity * h.currentPrice) / totalValue;
-      const div = dividendData.find(d => d.symbol === h.symbol.toUpperCase());
-      // Eğer veri yoksa muhafazakar bir yaklaşım için 0 alıyoruz
-      return acc + (weight * (div?.dividendYield || 0));
+      return acc + (weight * calculateYield(h.symbol.toUpperCase()));
     }, 0);
-    
-    return weightedYield;
-  }, [temettuHoldings, dividendData]);
+  }, [holdings, dividendMap]);
 
-  const fetchDividends = async () => {
-    setIsLoading(true);
-    setError(null);
+  // Firebase'e kaydet
+  const saveDividend = async (symbol: string, net: number, year: number) => {
+    if (!user || !firestore) return;
+    setIsSaving(true);
     try {
-      // Hem izleme listesini hem portföydeki sembolleri çek
-      const uniqueSymbols = Array.from(new Set([
-        ...DEFAULT_WATCHLIST,
-        ...temettuHoldings.map(h => h.symbol.toUpperCase())
-      ]));
-      
-      const res = await fetch(`/api/dividend?symbols=${uniqueSymbols.join(',')}`);
-      if (!res.ok) throw new Error('Temettü verileri çekilemedi');
-      const data: DividendData[] = await res.json();
-      setDividendData(data);
-    } catch (err: any) {
-      setError('Veriler güncellenirken bir ağ hatası oluştu.');
+      const ref = doc(firestore, 'users', user.uid, 'dividends', symbol);
+      await setDoc(ref, { symbol, netDividendPerShare: net, year, updatedAt: serverTimestamp() }, { merge: true });
+      setEditingSymbol(null);
+    } catch (err) {
+      console.error('Kaydetme hatası:', err);
     } finally {
-      setIsLoading(false);
+      setIsSaving(false);
     }
   };
 
-  useEffect(() => {
-    fetchDividends();
-  }, [temettuHoldings.length]);
-
-  const handleSearch = async () => {
-    if (!searchSymbol.trim()) return;
-    setIsSearching(true);
-    setSearchResult(null);
-    try {
-      const res = await fetch(`/api/dividend?symbols=${searchSymbol.toUpperCase()}`);
-      if (!res.ok) throw new Error('Hisse bulunamadı');
-      const data: DividendData[] = await res.json();
-      if (data.length > 0) setSearchResult(data[0]);
-    } catch {
-      setError("Hisse kodu geçerli değil veya veri bulunamadı.");
-    } finally {
-      setIsSearching(false);
-    }
+  const startEdit = (symbol: string) => {
+    const div = dividendMap[symbol];
+    setEditValues({ 
+      net: div?.netDividendPerShare?.toString() || '', 
+      year: div?.year?.toString() || new Date().getFullYear().toString() 
+    });
+    setEditingSymbol(symbol);
   };
 
   const getRecommendation = (yieldValue: number) => {
-    if (portfolioYield === 0) return { type: 'neutral', label: 'Veri Yok', color: 'text-muted-foreground', icon: Minus };
+    if (portfolioYield === 0 || yieldValue === 0) return null;
     const diff = yieldValue - portfolioYield;
-    if (diff > 0.5) return { type: 'buy', label: 'Verim Artırıcı', color: 'text-bist-up', icon: TrendingUp };
-    if (diff < -0.5) return { type: 'skip', label: 'Verim Düşürücü', color: 'text-bist-down', icon: TrendingDown };
+    if (diff > 0.5) return { type: 'buy', label: 'Ekleme Değerlendir', color: 'text-green-400', icon: TrendingUp };
+    if (diff < -0.5) return { type: 'skip', label: 'Ekleme Önerilmez', color: 'text-red-400', icon: TrendingDown };
     return { type: 'neutral', label: 'Benzer Verim', color: 'text-yellow-400', icon: Minus };
   };
 
-  return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Üst Özet */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="bg-primary/5 border-primary/20 shadow-2xl relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Percent className="w-24 h-24 rotate-12" />
-          </div>
-          <CardContent className="p-6">
-            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Portföy Temettü Verimi</p>
-            {isLoading ? (
-              <div className="flex items-center gap-2 mt-2">
-                <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
-                <span className="text-lg font-bold text-muted-foreground">Analiz ediliyor...</span>
-              </div>
-            ) : (
-              <h3 className="text-4xl font-black text-white">%{portfolioYield.toFixed(2)}</h3>
-            )}
-            <div className="flex items-center gap-1.5 mt-2">
-               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-               <p className="text-[10px] text-muted-foreground font-bold">Ağırlıklı Ortalama (Piyasa Değeri Bazlı)</p>
-            </div>
-          </CardContent>
-        </Card>
+  // Arama sonucu için anlık hesaplama
+  const searchYield = useMemo(() => {
+    const net = parseFloat(searchNet.replace(',', '.'));
+    if (!net || !searchSymbol) return 0;
+    // Arama yapılan hisse portföyde varsa canlı fiyatı kullan
+    const holding = holdings.find(h => h.symbol.toUpperCase() === searchSymbol.toUpperCase());
+    if (holding && holding.currentPrice > 0) return (net / holding.currentPrice) * 100;
+    return 0;
+  }, [searchNet, searchSymbol, holdings]);
 
-        <Card className="lg:col-span-2 bg-card/40 border-white/5 shadow-2xl flex items-center p-6 gap-4">
-          <div className="p-3 rounded-full bg-white/5 border border-white/10 shrink-0">
-            <Info className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <div className="space-y-1">
-            <h4 className="text-sm font-bold">Stratejik Karar Destek Sistemi</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Mevcut portföy veriminiz kıyas noktasıdır. Yeni bir hisse eklemeden önce bu verimin üzerinde olup olmadığını kontrol ederek pasif gelir hedeflerinizi optimize edebilirsiniz.
-            </p>
-          </div>
-        </Card>
+  return (
+    <div className="space-y-6">
+      {/* Başlık */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Temettü Analizi</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Mevcut portföy verimin ile yeni hisseleri kıyasla
+          </p>
+        </div>
       </div>
 
-      {/* İzleme Listesi ve Mevcut Hisseler */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-black text-muted-foreground uppercase tracking-widest">Temettü İzleme Paneli</h3>
-          <Button variant="ghost" size="sm" className="h-8 text-xs hover:bg-white/5" onClick={fetchDividends} disabled={isLoading}>
-            <RefreshCcw className={cn("h-3 w-3 mr-2", isLoading && "animate-spin")} />
-            Verileri Tazele
-          </Button>
+      {/* Portföy Verimi */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="p-5 bg-primary/10 rounded-xl border border-primary/20">
+          <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Portföy Temettü Verimi</p>
+          <p className="text-3xl font-black text-primary">%{portfolioYield.toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Ağırlıklı Ortalama (Piyasa Değeri Bazlı)</p>
         </div>
+        <div className="md:col-span-2 p-5 bg-card/20 rounded-xl border border-white/5 flex items-center gap-3">
+          <Info className="h-5 w-5 text-muted-foreground shrink-0" />
+          <p className="text-sm text-muted-foreground">
+            Temettü verimi = Hisse Başı Net Temettü ÷ Canlı Fiyat × 100. 
+            Her hisse için son temettü bilgisini <span className="text-white font-medium">kalem ikonuna</span> tıklayarak güncelleyebilirsin.
+          </p>
+        </div>
+      </div>
 
-        {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2 text-destructive text-xs font-bold">
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {DEFAULT_WATCHLIST.map(symbol => {
-            const div = dividendData.find(d => d.symbol === symbol);
-            const holding = temettuHoldings.find(h => h.symbol.toUpperCase() === symbol);
-            const rec = div ? getRecommendation(div.dividendYield) : null;
-            const isBetter = div && div.dividendYield >= portfolioYield;
+      {/* Hisse Kartları */}
+      <div>
+        <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">Temettü İzleme Paneli</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {TEMETTU_SYMBOLS.map(symbol => {
+            const div = dividendMap[symbol];
+            const holding = holdings.find(h => h.symbol.toUpperCase() === symbol);
+            const yieldValue = calculateYield(symbol);
+            const isEditing = editingSymbol === symbol;
 
             return (
-              <Card key={symbol} className="bg-card/40 border-white/5 hover:border-white/10 transition-all group shadow-lg">
-                <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
+              <div key={symbol} className="p-4 bg-card/20 rounded-xl border border-white/5 space-y-3">
+                {/* Kart Başlık */}
+                <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-black text-primary">
                       {symbol[0]}
                     </div>
                     <div>
-                      <p className="text-sm font-black">{symbol}</p>
-                      {holding && <p className="text-[10px] text-muted-foreground">{holding.quantity.toLocaleString()} Adet Mevcut</p>}
+                      <p className="font-bold text-sm">{symbol}</p>
+                      {holding && <p className="text-xs text-muted-foreground">{holding.quantity.toLocaleString('tr-TR')} Adet Mevcut</p>}
                     </div>
                   </div>
-                  {div && <Badge variant="secondary" className="text-[9px] font-bold py-0 h-4">{div.year} Verisi</Badge>}
-                </CardHeader>
-                <CardContent className="p-4 pt-2 space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-muted-foreground font-medium">Net Temettü</span>
-                      <span className="font-bold">₺{div?.netDividendPerShare.toFixed(3) || "---"}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-muted-foreground font-medium">Temettü Verimi</span>
-                      <span className={cn("font-black", isBetter ? "text-bist-up" : "text-bist-down")}>
-                        %{div?.dividendYield.toFixed(2) || "---"}
-                      </span>
-                    </div>
-                    {div?.paymentDate && (
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-muted-foreground font-medium flex items-center gap-1">
-                          <Calendar className="w-3 h-3" /> Ödeme Tarihi
-                        </span>
-                        <span className="text-muted-foreground">{div.paymentDate}</span>
-                      </div>
-                    )}
-                  </div>
+                  <button onClick={() => isEditing ? setEditingSymbol(null) : startEdit(symbol)}
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-muted-foreground hover:text-white">
+                    {isEditing ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
 
-                  {div && (
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-[9px] font-black uppercase text-muted-foreground">
-                        <span>Verim Kıyaslama</span>
-                        <span className={cn(rec?.color)}>{rec?.label}</span>
-                      </div>
-                      <Progress 
-                        value={Math.min((div.dividendYield / Math.max(portfolioYield * 1.5, 10)) * 100, 100)} 
-                        className="h-1 bg-white/5" 
+                {/* Düzenleme Modu */}
+                {isEditing ? (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Hisse Başı Net Temettü (₺)</label>
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={editValues.net}
+                        onChange={e => setEditValues(v => ({ ...v, net: e.target.value }))}
+                        className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary/50"
+                        placeholder="örn: 4.4737"
+                        autoFocus
                       />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Yıl</label>
+                      <input
+                        type="number"
+                        value={editValues.year}
+                        onChange={e => setEditValues(v => ({ ...v, year: e.target.value }))}
+                        className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary/50"
+                        placeholder="2025"
+                      />
+                    </div>
+                    <Button size="sm" className="w-full" disabled={isSaving || !editValues.net}
+                      onClick={() => saveDividend(symbol, parseFloat(editValues.net.replace(',', '.')), parseInt(editValues.year))}>
+                      {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+                      Kaydet
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Net Temettü</span>
+                        <span className="text-sm font-bold">
+                          {div ? `₺${div.netDividendPerShare.toFixed(4)}` : '₺---'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Temettü Verimi</span>
+                        <span className={cn("text-sm font-bold", yieldValue > 0 ? "text-green-400" : "text-muted-foreground")}>
+                          {yieldValue > 0 ? `%${yieldValue.toFixed(2)}` : '%---'}
+                        </span>
+                      </div>
+                      {holding && holding.currentPrice > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Canlı Fiyat</span>
+                          <span className="text-xs">₺{holding.currentPrice.toLocaleString('tr-TR', { maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      {div && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Veri Yılı</span>
+                          <Badge variant="outline" className="text-xs h-4">{div.year}</Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Verim Bar */}
+                    {yieldValue > 0 && portfolioYield > 0 && (
+                      <div className="space-y-1">
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full transition-all",
+                              yieldValue >= portfolioYield ? "bg-green-400" : "bg-orange-400"
+                            )}
+                            style={{ width: `${Math.min((yieldValue / (portfolioYield * 2)) * 100, 100)}%` }}
+                          />
+                        </div>
+                        <p className={cn("text-xs", yieldValue >= portfolioYield ? "text-green-400" : "text-orange-400")}>
+                          {yieldValue >= portfolioYield ? '▲ Ortalamanın üstünde' : '▼ Ortalamanın altında'}
+                        </p>
+                      </div>
+                    )}
+
+                    {!div && (
+                      <button onClick={() => startEdit(symbol)}
+                        className="w-full text-xs text-primary/70 hover:text-primary border border-dashed border-primary/20 hover:border-primary/40 rounded-lg py-2 transition-colors">
+                        + Temettü verisi ekle
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             );
           })}
         </div>
       </div>
 
-      {/* Karşılaştırma Arama Kutusu */}
-      <Card className="bg-card/30 border-white/5 border-dashed shadow-2xl overflow-hidden">
-        <CardHeader className="p-6 pb-2">
-          <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-            <Search className="w-4 h-4" /> Yeni Hisse Karşılaştır
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 space-y-6">
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={searchSymbol}
-              onChange={e => setSearchSymbol(e.target.value.toUpperCase())}
-              onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              placeholder="Hisse kodu girin... (Örn: AKBNK, FROTO)"
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50 transition-colors"
-            />
-            <Button onClick={handleSearch} disabled={isSearching || !searchSymbol} className="font-bold gap-2">
-              {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              Analiz Et
-            </Button>
-          </div>
+      {/* Yeni Hisse Karşılaştır */}
+      <div className="p-5 bg-card/20 rounded-xl border border-white/5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Yeni Hisse Karşılaştır</h3>
+        </div>
 
-          {searchResult && (
-            <div className="bg-white/5 rounded-xl border border-white/10 p-6 space-y-6 animate-in zoom-in-95 duration-300">
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <Receipt className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-black">{searchResult.symbol}</h4>
-                    <p className="text-xs text-muted-foreground">{searchResult.year} Mali Yılı Tahmini</p>
-                  </div>
-                </div>
-                {(() => {
-                  const rec = getRecommendation(searchResult.dividendYield);
-                  return (
-                    <div className={cn("px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-2", 
-                      rec.type === 'buy' ? "bg-bist-up/10 text-bist-up" : "bg-bist-down/10 text-bist-down"
-                    )}>
-                      <rec.icon className="w-3.5 h-3.5" />
-                      {rec.label}
-                    </div>
-                  );
-                })()}
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input
+            type="text"
+            value={searchSymbol}
+            onChange={e => setSearchSymbol(e.target.value.toUpperCase())}
+            placeholder="Hisse kodu (Örn: AKBNK, FROTO)"
+            className="bg-background/50 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+          />
+          <input
+            type="number"
+            step="0.0001"
+            value={searchNet}
+            onChange={e => setSearchNet(e.target.value)}
+            placeholder="Hisse başı net temettü (₺)"
+            className="bg-background/50 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+          />
+          <input
+            type="number"
+            value={searchYear}
+            onChange={e => setSearchYear(e.target.value)}
+            placeholder="Yıl"
+            className="bg-background/50 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+          />
+        </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div className="space-y-1">
-                  <p className="text-[10px] text-muted-foreground font-black uppercase">Net Temettü</p>
-                  <p className="text-2xl font-black">₺{searchResult.netDividendPerShare.toFixed(3)}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] text-muted-foreground font-black uppercase">Temettü Verimi</p>
-                  <p className="text-2xl font-black text-bist-up">%{searchResult.dividendYield.toFixed(2)}</p>
-                </div>
-                <div className="space-y-1 col-span-2 md:col-span-1">
-                   <p className="text-[10px] text-muted-foreground font-black uppercase">Verim Farkı</p>
-                   <p className={cn("text-2xl font-black", (searchResult.dividendYield - portfolioYield) >= 0 ? "text-bist-up" : "text-bist-down")}>
-                     {(searchResult.dividendYield - portfolioYield) >= 0 ? "+" : ""}{(searchResult.dividendYield - portfolioYield).toFixed(2)}%
-                   </p>
-                </div>
+        {/* Karşılaştırma Sonucu */}
+        {searchSymbol && searchNet && parseFloat(searchNet) > 0 && (
+          <div className="p-4 bg-background/30 rounded-xl border border-white/10 space-y-4">
+            <div className="flex justify-between items-start flex-wrap gap-2">
+              <div>
+                <p className="font-bold text-lg">{searchSymbol}</p>
+                <p className="text-xs text-muted-foreground">{searchYear} verisi</p>
               </div>
-
-              {/* Grafiksel Kıyaslama */}
-              <div className="space-y-4 pt-4 border-t border-white/5">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground">
-                    <span>Mevcut Portföy Verimin</span>
-                    <span>%{portfolioYield.toFixed(2)}</span>
+              {(() => {
+                const rec = getRecommendation(searchYield);
+                if (!rec || searchYield === 0) return null;
+                return (
+                  <div className={cn("flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg border", 
+                    rec.type === 'buy' ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                    rec.type === 'skip' ? "bg-red-500/10 border-red-500/20 text-red-400" :
+                    "bg-yellow-500/10 border-yellow-500/20 text-yellow-400"
+                  )}>
+                    <rec.icon className="h-4 w-4" />
+                    {rec.label}
                   </div>
-                  <Progress value={(portfolioYield / Math.max(searchResult.dividendYield, portfolioYield)) * 100} className="h-2 bg-white/5" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[10px] font-bold uppercase text-primary">
-                    <span>{searchResult.symbol} Potansiyel Verimi</span>
-                    <span>%{searchResult.dividendYield.toFixed(2)}</span>
-                  </div>
-                  <Progress 
-                    value={(searchResult.dividendYield / Math.max(searchResult.dividendYield, portfolioYield)) * 100} 
-                    className="h-2 bg-primary/20 [&>div]:bg-primary" 
-                  />
-                </div>
-              </div>
-
-              {/* Analiz Metni */}
-              <div className={cn(
-                "p-4 rounded-lg flex gap-3 items-start",
-                searchResult.dividendYield >= portfolioYield ? "bg-bist-up/5 border border-bist-up/10" : "bg-bist-down/5 border border-bist-down/10"
-              )}>
-                {searchResult.dividendYield >= portfolioYield ? <CheckCircle2 className="w-5 h-5 text-bist-up shrink-0" /> : <AlertCircle className="w-5 h-5 text-bist-down shrink-0" />}
-                <p className="text-sm leading-relaxed">
-                  {searchResult.dividendYield >= portfolioYield 
-                    ? `${searchResult.symbol} eklemek, portföyünüzün toplam temettü verimini yukarı çekecektir. Pasif gelir stratejiniz için verimli bir hamle olabilir.`
-                    : `${searchResult.symbol} verimi portföy ortalamanızın altında. Bu hisseyi eklemek toplam temettü verimliliğinizi azaltacaktır.`}
-                </p>
-              </div>
+                );
+              })()}
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Hisse Başı Net</p>
+                <p className="text-xl font-black">₺{parseFloat(searchNet).toFixed(4)}</p>
+              </div>
+              {searchYield > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Tahmini Verim</p>
+                  <p className="text-xl font-black text-green-400">%{searchYield.toFixed(2)}</p>
+                </div>
+              )}
+              {portfolioYield > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Portföyüm</p>
+                  <p className="text-xl font-black text-primary">%{portfolioYield.toFixed(2)}</p>
+                </div>
+              )}
+            </div>
+
+            {searchYield === 0 && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Info className="h-3.5 w-3.5" />
+                Bu hisse portföyünde olmadığı için canlı fiyat yok — tahmini verim hesaplanamıyor. Hisseyi ekledikten sonra verim otomatik hesaplanır.
+              </p>
+            )}
+
+            {/* Karar */}
+            {portfolioYield > 0 && searchYield > 0 && (() => {
+              const rec = getRecommendation(searchYield);
+              const diff = searchYield - portfolioYield;
+              return (
+                <div className={cn(
+                  "p-3 rounded-lg border flex items-start gap-2 text-sm",
+                  rec?.type === 'buy' ? "bg-green-500/10 border-green-500/20" :
+                  rec?.type === 'skip' ? "bg-red-500/10 border-red-500/20" :
+                  "bg-yellow-500/10 border-yellow-500/20"
+                )}>
+                  {rec?.type === 'buy' ? <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0 mt-0.5" /> :
+                   rec?.type === 'skip' ? <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" /> :
+                   <Minus className="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" />}
+                  <p>
+                    {rec?.type === 'buy' && `${searchSymbol} verimi portföy ortalamanızdan %${Math.abs(diff).toFixed(2)} daha yüksek. Ekleme portföy veriminizi artırır.`}
+                    {rec?.type === 'skip' && `${searchSymbol} verimi portföy ortalamanızdan %${Math.abs(diff).toFixed(2)} daha düşük. Ekleme portföy veriminizi düşürür.`}
+                    {rec?.type === 'neutral' && `${searchSymbol} verimi portföy ortalamanıza çok yakın. Verim açısından nötr bir ekleme olur.`}
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

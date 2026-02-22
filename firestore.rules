@@ -28,6 +28,11 @@ service cloud.firestore {
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update, delete: if isOwner(userId);
 
+      // Temettü verileri koleksiyonu
+      match /dividends/{dividendId} {
+        allow read, write: if isOwner(userId);
+      }
+
       match /portfolios/{portfolioId} {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId) && request.resource.data.userId == userId;
