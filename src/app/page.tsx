@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -113,7 +112,7 @@ export default function PortfolioDashboard() {
   const { data: dbStocks, isLoading: isStocksLoading } = useCollection(stocksQuery);
 
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
-    if (symbols.length === 0 || isRefreshing) return;
+    if (symbols.length === 0) return;
     
     setIsRefreshing(true);
     try {
@@ -131,10 +130,15 @@ export default function PortfolioDashboard() {
       }
     } catch (error: any) {
       console.error("[API] Fiyat çekme hatası:", error.message);
+      toast({ 
+        title: "Hata", 
+        description: "Fiyatlar güncellenirken bir hata oluştu.",
+        variant: "destructive"
+      });
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing]);
+  }, []);
 
   // Sayfa yüklendiğinde veya stoklar değiştiğinde fiyatları çek
   useEffect(() => {
@@ -142,7 +146,8 @@ export default function PortfolioDashboard() {
       const symbols = dbStocks.map(s => s.symbol);
       fetchStockPrices(symbols);
     }
-  }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbStocks?.length, isStocksLoading]);
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
@@ -172,7 +177,7 @@ export default function PortfolioDashboard() {
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
   }, [assets, activeCategory]);
 
-  // Yeni Senkronizasyon Fonksiyonu: Canlı fiyatları DB'ye kalıcı olarak kaydeder
+  // Canlı fiyatları DB'ye kalıcı olarak kaydeder
   const handleSyncPrices = useCallback(() => {
     if (!user || !firestore || !portfolioId || assets.length === 0) return;
     
@@ -182,7 +187,6 @@ export default function PortfolioDashboard() {
         const market = marketData[asset.symbol.toUpperCase()];
         if (market && market.price > 0) {
           const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', asset.id);
-          // Firestore update işlemi (non-blocking kuralına uygun)
           updateDocumentNonBlocking(docRef, { 
             currentPrice: market.price,
             dailyChange: market.change,
