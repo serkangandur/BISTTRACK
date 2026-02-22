@@ -16,6 +16,9 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
   // Global Sınır State
   const [baseLimit, setBaseLimit] = useState(2814000);
   
+  // Sigorta Çarpanı State (Varsayılan 60 ay)
+  const [insuranceMultiplier, setInsuranceMultiplier] = useState(60);
+  
   // Hedef Ağırlıklar State
   const [targetWeights, setTargetWeights] = useState<Partial<Record<AssetCategory, number>>>({
     "Temettü": 70,
@@ -29,9 +32,11 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; currentVal: number }[]; limit: number; targetPercent: number }>> = {};
     
-    // Sigorta için özel maaş bazlı hesaplama (60 katı)
+    // Sigorta için özel maaş bazlı hesaplama (Dinamik çarpan)
     const insuranceHolding = holdings.find(h => h.category === "Sigorta");
-    const insuranceLimit = insuranceHolding?.monthlySalary ? insuranceHolding.monthlySalary * 60 : 474003.58;
+    const insuranceLimit = insuranceHolding?.monthlySalary 
+      ? insuranceHolding.monthlySalary * insuranceMultiplier 
+      : 474003.58;
 
     // Tüm kategorileri başlat
     const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Sigorta"];
@@ -75,7 +80,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     });
 
     return data;
-  }, [holdings, baseLimit, targetWeights]);
+  }, [holdings, baseLimit, targetWeights, insuranceMultiplier]);
 
   // ✅ STRATEJİK GLOBAL DEĞER: Temettü (Maliyet) + Diğerleri (Piyasa)
   const totalStrategicValue = useMemo(() => 
@@ -130,16 +135,25 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        <div className="border-t border-orange-500/60 py-1.5 bg-yellow-400/90 text-black text-center font-black text-xl leading-none">
+        <div className="border-t border-orange-500/60 py-1.5 bg-yellow-400/90 text-black text-center font-black text-xl leading-none h-[44px]">
           {category === "Sigorta" ? (
             <div className="flex justify-around items-center h-full">
-              <div className="text-center leading-tight">
-                <span className="text-[9px] block">AY</span>
-                <span className="text-[14px]">60</span>
+              <div className="text-center leading-tight flex flex-col items-center">
+                <span className="text-[8px] block font-bold text-black/60">AY</span>
+                <input 
+                  type="text"
+                  inputMode="numeric"
+                  value={insuranceMultiplier}
+                  onChange={(e) => {
+                    const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                    setInsuranceMultiplier(Number(rawValue) || 0);
+                  }}
+                  className="bg-transparent border-none text-center w-12 focus:outline-none focus:ring-0 font-black text-xl p-0 h-auto"
+                />
               </div>
               <div className="text-center leading-tight">
-                <span className="text-[9px] block">MAAŞ</span>
-                <span className="text-[14px]">₺{(data.limit/60).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                <span className="text-[8px] block font-bold text-black/60">MAAŞ</span>
+                <span className="text-[14px]">₺{(data.limit / (insuranceMultiplier || 1)).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
               </div>
             </div>
           ) : (
