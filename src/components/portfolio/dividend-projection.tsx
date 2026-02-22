@@ -45,6 +45,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
   const [priceGrowth, setPriceGrowth] = useState('30');
   const PRICE_GROWTH = parseFloat(priceGrowth) / 100 || 0.30;
   const [monthlyUSD, setMonthlyUSD] = useState('2000');
+  const [targetUSD, setTargetUSD] = useState('4000');
 
   // Her hisse için 10 yıllık projeksiyon hesapla
   const projections = useMemo(() => {
@@ -62,15 +63,14 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
         const year = START_YEAR + i;
         const hbt = baseHBT * Math.pow(1 + GROWTH_RATE, i);
         
-        const fiyat = year === START_YEAR 
-          ? parseFloat(input?.price2025 || '0') 
-          : year === 2026
-            ? livePrice
-            : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1);
-
         const projectedPrice = year === 2026 
           ? livePrice 
           : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1);
+
+        const fiyat = year === START_YEAR 
+          ? parseFloat(input?.price2025 || '0') 
+          : projectedPrice;
+
         const monthlyAddedLot = year > START_YEAR && projectedPrice > 0
           ? Math.floor((parseFloat(monthlyUSD || '2000') * usdRate) / TEMETTU_SYMBOLS.length / projectedPrice)
           : 0;
@@ -122,7 +122,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       {/* Ayarlar */}
       <div className="p-4 bg-card/20 rounded-xl border border-white/5">
         <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">2025 Başlangıç Değerleri & Ayarlar</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
           <div>
             <label className="text-xs text-muted-foreground">USD/TL Kuru</label>
             <input
@@ -161,6 +161,16 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               onChange={e => setMonthlyUSD(e.target.value)}
               className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
               placeholder="2000"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Yıllık Temettü Hedefi (USD)</label>
+            <input
+              type="number"
+              value={targetUSD}
+              onChange={e => setTargetUSD(e.target.value)}
+              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              placeholder="4000"
             />
           </div>
         </div>
@@ -239,6 +249,14 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                         </p>
                       </div>
                     )}
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Hedefe Ulaşım</p>
+                      <p className={cn("text-sm font-bold", yt.totalUSD >= parseFloat(targetUSD || '4000') ? "text-green-400" : "text-orange-400")}>
+                        {yt.totalUSD >= parseFloat(targetUSD || '4000') 
+                          ? "✅ Hedef Aşıldı!" 
+                          : `$${(parseFloat(targetUSD || '4000') - yt.totalUSD).toLocaleString('tr-TR', { maximumFractionDigits: 0 })} eksik`}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 {expandedYear === yt.year 
