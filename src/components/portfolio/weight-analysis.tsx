@@ -24,7 +24,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
   // Global Sınır State - Kullanıcı tarafından düzenlenebilir
   const [baseLimit, setBaseLimit] = useState(2814000);
 
-  // Kategorilere göre verileri grupla - ANA PARA (MALİYET) BAZLI HESAPLAMA
+  // Kategorilere göre verileri grupla - HYBRID HESAPLAMA (Sadece Temettü Ana Para, Diğerleri Piyasa Değeri)
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; currentVal: number }[]; limit: number; targetPercent: number }>> = {};
     
@@ -52,21 +52,24 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       
       const catData = data[h.category];
       if (catData) {
-        // ✅ ANA PARA HESABI: Miktar * Ortalama Maliyet
-        const principalVal = h.quantity * h.averageCost;
-        catData.total += principalVal;
+        // ✅ STRATEJİK HESAPLAMA: Sadece Temettü için Ana Para, Diğerleri için Güncel Değer
+        const val = h.category === "Temettü" 
+          ? h.quantity * h.averageCost 
+          : h.quantity * (h.currentPrice || h.averageCost);
+          
+        catData.total += val;
 
-        // Sembole göre grupla (Aynı hisseden farklı girişler varsa topla)
+        // Sembole göre grupla
         const existing = catData.holdings.find(item => item.symbol === h.symbol);
         if (existing) {
-          existing.currentVal += principalVal;
+          existing.currentVal += val;
         } else {
-          catData.holdings.push({ symbol: h.symbol, currentVal: principalVal });
+          catData.holdings.push({ symbol: h.symbol, currentVal: val });
         }
       }
     });
 
-    // Her kategorideki varlıkları büyüklüğüne göre sırala
+    // Sırala
     Object.values(data).forEach(d => {
       d?.holdings.sort((a, b) => b.currentVal - a.currentVal);
     });
@@ -74,21 +77,25 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     return data;
   }, [holdings, baseLimit]);
 
-  // ✅ STRATEJİK GÜNCELLEME: Sadece Temettü, Büyüme, Emtia, Kripto ve Nakit toplamı
-  const totalPrincipalValue = useMemo(() => 
+  // ✅ STRATEJİK GLOBAL DEĞER: Temettü (Maliyet) + Diğerleri (Piyasa)
+  const totalStrategicValue = useMemo(() => 
     holdings
       .filter(h => MAIN_INVESTMENT_CATEGORIES.includes(h.category))
-      .reduce((acc, h) => acc + (h.quantity * h.averageCost), 0)
+      .reduce((acc, h) => {
+        const val = h.category === "Temettü" 
+          ? h.quantity * h.averageCost 
+          : h.quantity * (h.currentPrice || h.averageCost);
+        return acc + val;
+      }, 0)
   , [holdings]);
 
-  // ✅ STRATEJİK GÜNCELLEME: Sadece bu kategorilerin toplam limiti
   const totalLimit = useMemo(() => {
      return Object.entries(categoryData)
        .filter(([cat]) => MAIN_INVESTMENT_CATEGORIES.includes(cat))
        .reduce((acc, [_, d]) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
 
-  const deficitSurplus = totalPrincipalValue - totalLimit;
+  const deficitSurplus = totalStrategicValue - totalLimit;
 
   const CategoryBoard = ({ category, label, color }: { category: AssetCategory, label: string, color: string }) => {
     const data = categoryData[category];
@@ -98,7 +105,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const actualPercent = data.limit > 0 ? (data.total / data.limit) * 100 : 0;
     const isOver = diff >= 0;
 
-    // Görsel bütünlük için boş satırları doldur
     const displayItems = [...data.holdings];
     while (displayItems.length < 10) {
       displayItems.push({ symbol: "", currentVal: 0 });
@@ -106,12 +112,10 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
     return (
       <div className="flex flex-col border border-orange-500/60 bg-black min-w-[180px] flex-1 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
-        {/* Kategori Başlığı */}
         <div className={cn("text-center font-black py-1.5 text-black text-[13px] uppercase tracking-tighter", color)}>
           {label}
         </div>
         
-        {/* Sınır (Target Limit) */}
         <div className="border-t border-orange-500/60 px-1 py-1">
           <div className="text-[10px] text-orange-400/80 text-center font-bold tracking-widest">SINIR</div>
           <div className="bg-yellow-400 text-black text-center font-black text-[14px] py-1">
@@ -119,7 +123,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Hedef Yüzde / Sigorta Bilgisi */}
         <div className="border-t border-orange-500/60 py-1.5 bg-yellow-400/90 text-black text-center font-black text-xl leading-none">
           {category === "Sigorta" ? (
             <div className="flex justify-around items-center h-full">
@@ -137,7 +140,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           )}
         </div>
 
-        {/* Fazla/Az Durumu */}
         <div className="border-t border-orange-500/60 px-1 py-1">
           <div className="text-[10px] text-orange-400/80 text-center font-bold uppercase tracking-widest">Fazla/Az</div>
           <div className={cn(
@@ -148,7 +150,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Mevcut Durum Yüzdesi */}
         <div className="border-t border-orange-500/60 py-1.5 text-center bg-zinc-950">
           <div className={cn(
             "text-[14px] font-black",
@@ -158,7 +159,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Varlık Listesi (Maliyet Bazlı) */}
         <div className="border-t border-orange-500/60 flex-1 overflow-hidden">
           {displayItems.map((h, i) => (
             <div key={i} className="grid grid-cols-5 border-b border-orange-500/30 last:border-0 h-6 items-center px-1.5 group hover:bg-white/5 transition-colors">
@@ -172,7 +172,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           ))}
         </div>
 
-        {/* Kategori Toplam Ana Para */}
         <div className="border-t border-orange-500/60 bg-zinc-900 p-2 text-center">
           <div className="text-[13px] font-black text-white/90">
             ₺{data.total.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
@@ -184,7 +183,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
   return (
     <div className="space-y-12 animate-in fade-in zoom-in duration-700 overflow-x-auto pb-8 px-2">
-      {/* Üst Global İstatistik Panelleri */}
       <div className="flex flex-wrap justify-center gap-8 md:gap-16 pt-6">
         <div className="min-w-[200px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
           <div className="bg-orange-600 text-black text-[11px] font-black text-center py-1 uppercase tracking-widest">Eksik/Fazla Miktar</div>
@@ -214,14 +212,13 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
         </div>
 
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım (Ana Para)</div>
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Portföy Değeri</div>
           <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
-            ₺{totalPrincipalValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+            ₺{totalStrategicValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>
 
-      {/* Dikey Kategori Panelleri Izgarası */}
       <div className="flex gap-4 min-w-[1000px] justify-between h-[650px]">
         <CategoryBoard category="Temettü" label="Temettü" color="bg-green-500" />
         <CategoryBoard category="Büyüme" label="Büyüme" color="bg-green-500" />
