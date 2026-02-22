@@ -15,6 +15,7 @@ const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
   "Emtia": 15,
   "Kripto": 5,
   "Nakit": 20,
+  "Döviz": 10,
 };
 
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
@@ -23,37 +24,48 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
   // Kategorilere göre verileri grupla - ANA PARA (Maliyet) BAZLI HESAPLAMA
   const categoryData = useMemo(() => {
-    const data: Partial<Record<AssetCategory, { total: number; holdings: StockHolding[]; limit: number; targetPercent: number }>> = {};
+    const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; totalCost: number }[]; limit: number; targetPercent: number }>> = {};
     
     // Sigorta için özel maaş bazlı hesaplama
     const insuranceHolding = holdings.find(h => h.category === "Sigorta");
     const insuranceLimit = insuranceHolding?.monthlySalary ? insuranceHolding.monthlySalary * 60 : 474003.58;
 
-    Object.keys(TARGET_WEIGHTS).forEach((cat) => {
-      const category = cat as AssetCategory;
-      const targetPercent = TARGET_WEIGHTS[category] || 0;
-      data[category] = {
+    // Tüm kategorileri başlat (Döviz dahil)
+    const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Döviz", "Sigorta"];
+    
+    allCategories.forEach((cat) => {
+      const targetPercent = TARGET_WEIGHTS[cat] || 0;
+      data[cat] = {
         total: 0,
         holdings: [],
-        limit: (baseLimit * targetPercent) / 100,
+        limit: cat === "Sigorta" ? insuranceLimit : (baseLimit * targetPercent) / 100,
         targetPercent
       };
     });
 
-    // Sigorta kategorisini ekle
-    data["Sigorta"] = {
-      total: 0,
-      holdings: [],
-      limit: insuranceLimit,
-      targetPercent: 0
-    };
-
+    // Verileri işle ve grupla
     holdings.forEach(h => {
-      if (data[h.category]) {
+      if (h.category === "Temettü Sabit") return;
+      
+      const catData = data[h.category];
+      if (catData) {
         // ✅ ANA PARA HESABI: Miktar * Ortalama Maliyet
-        data[h.category]!.total += h.quantity * h.averageCost;
-        data[h.category]!.holdings.push(h);
+        const costBasis = h.quantity * h.averageCost;
+        catData.total += costBasis;
+
+        // Sembole göre grupla (Aynı hisseden birden fazla işlem varsa topla)
+        const existing = catData.holdings.find(item => item.symbol === h.symbol);
+        if (existing) {
+          existing.totalCost += costBasis;
+        } else {
+          catData.holdings.push({ symbol: h.symbol, totalCost: costBasis });
+        }
       }
+    });
+
+    // Her kategorideki holdingleri büyüklüğüne göre sırala
+    Object.values(data).forEach(d => {
+      d?.holdings.sort((a, b) => b.totalCost - a.totalCost);
     });
 
     return data;
@@ -79,10 +91,10 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const actualPercent = data.limit > 0 ? (data.total / data.limit) * 100 : 0;
     const isOver = diff >= 0;
 
-    // 10 satıra tamamla
-    const displayHoldings = [...data.holdings];
-    while (displayHoldings.length < 10) {
-      displayHoldings.push({ id: `empty-${displayHoldings.length}`, symbol: "", name: "", quantity: 0, averageCost: 0, currentPrice: 0, dailyChange: 0, category: category });
+    // 10 satıra tamamla (Görsel tutarlılık için)
+    const displayItems = [...data.holdings];
+    while (displayItems.length < 10) {
+      displayItems.push({ symbol: "", totalCost: 0 });
     }
 
     return (
@@ -141,13 +153,13 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
         {/* Varlık Listesi Izgarası */}
         <div className="border-t border-orange-500/60 flex-1 overflow-hidden">
-          {displayHoldings.map((h, i) => (
-            <div key={h.id} className="grid grid-cols-5 border-b border-orange-500/30 last:border-0 h-6 items-center px-1.5 group hover:bg-white/5 transition-colors">
+          {displayItems.map((h, i) => (
+            <div key={i} className="grid grid-cols-5 border-b border-orange-500/30 last:border-0 h-6 items-center px-1.5 group hover:bg-white/5 transition-colors">
               <div className="col-span-2 text-[10px] font-bold text-sky-400 truncate uppercase tracking-tighter">
                 {h.symbol}
               </div>
               <div className="col-span-3 text-[10px] text-orange-200 text-right font-mono font-medium">
-                {h.symbol ? `₺${(h.quantity * h.averageCost).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
+                {h.symbol ? `₺${h.totalCost.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
               </div>
             </div>
           ))}
@@ -167,20 +179,18 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     <div className="space-y-12 animate-in fade-in zoom-in duration-700 overflow-x-auto pb-8 px-2">
       {/* Üst Global İstatistik Panelleri */}
       <div className="flex flex-wrap justify-center gap-8 md:gap-16 pt-6">
-        {/* Eksik/Fazla */}
         <div className="min-w-[200px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
           <div className="bg-orange-600 text-black text-[11px] font-black text-center py-1 uppercase tracking-widest">Eksik/Fazla Miktar</div>
           <div className={cn(
             "text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5",
             deficitSurplus >= 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
           )}>
-            {deficitSurplus >= 0 ? "+" : "-"}₺{Math.abs(deficitSurplus).toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+            {deficitSurplus >= 0 ? "+" : "-"}₺{Math.abs(deficitSurplus).toLocaleString("tr-TR", { minimumFractionDigits: 0 })}
           </div>
         </div>
 
-        {/* Global Sınır - DÜZENLENEBİLİR KUTU */}
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Sınır (Miktar Giriniz)</div>
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Sınır (Düzenle)</div>
           <div className="bg-yellow-400 text-black flex items-center justify-center py-4 border-t-2 border-orange-500 mt-0.5 relative group">
             <span className="font-black text-lg ml-4">₺</span>
             <input 
@@ -196,21 +206,21 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Global Yatırım (Ana Para Bazlı) */}
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım</div>
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım (Maliyet)</div>
           <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
-            ₺{totalCostBasis.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+            ₺{totalCostBasis.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>
 
       {/* Dikey Kategori Panelleri Izgarası */}
-      <div className="flex gap-4 min-w-[1100px] justify-between h-[650px]">
+      <div className="flex gap-4 min-w-[1200px] justify-between h-[650px]">
         <CategoryBoard category="Temettü" label="Temettü" color="bg-green-500" />
         <CategoryBoard category="Büyüme" label="Büyüme" color="bg-green-500" />
         <CategoryBoard category="Emtia" label="Emtia" color="bg-green-500" />
         <CategoryBoard category="Kripto" label="Kripto" color="bg-green-500" />
+        <CategoryBoard category="Döviz" label="Döviz" color="bg-green-500" />
         <CategoryBoard category="Nakit" label="Nakit" color="bg-green-500" />
         <CategoryBoard category="Sigorta" label="Sigorta" color="bg-green-500" />
       </div>
