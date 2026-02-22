@@ -19,14 +19,14 @@ const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
 };
 
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
-  // Global Sınır State
+  // Global Sınır State - Kullanıcı tarafından düzenlenebilir
   const [baseLimit, setBaseLimit] = useState(2814000);
 
-  // Kategorilere göre verileri grupla - GÜNCEL PİYASA DEĞERİ BAZLI HESAPLAMA
+  // Kategorilere göre verileri grupla - ANA PARA (MALİYET) BAZLI HESAPLAMA
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; currentVal: number }[]; limit: number; targetPercent: number }>> = {};
     
-    // Sigorta için özel maaş bazlı hesaplama
+    // Sigorta için özel maaş bazlı hesaplama (60 katı)
     const insuranceHolding = holdings.find(h => h.category === "Sigorta");
     const insuranceLimit = insuranceHolding?.monthlySalary ? insuranceHolding.monthlySalary * 60 : 474003.58;
 
@@ -45,25 +45,26 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
     // Verileri işle ve grupla
     holdings.forEach(h => {
+      // Temettü Sabit strateji dışı olduğu için analize dahil edilmez
       if (h.category === "Temettü Sabit") return;
       
       const catData = data[h.category];
       if (catData) {
-        // ✅ PİYASA DEĞERİ HESABI: Miktar * Güncel Fiyat
-        const currentVal = h.quantity * h.currentPrice;
-        catData.total += currentVal;
+        // ✅ ANA PARA HESABI: Miktar * Ortalama Maliyet
+        const principalVal = h.quantity * h.averageCost;
+        catData.total += principalVal;
 
-        // Sembole göre grupla
+        // Sembole göre grupla (Aynı hisseden farklı girişler varsa topla)
         const existing = catData.holdings.find(item => item.symbol === h.symbol);
         if (existing) {
-          existing.currentVal += currentVal;
+          existing.currentVal += principalVal;
         } else {
-          catData.holdings.push({ symbol: h.symbol, currentVal });
+          catData.holdings.push({ symbol: h.symbol, currentVal: principalVal });
         }
       }
     });
 
-    // Sıralama
+    // Her kategorideki varlıkları büyüklüğüne göre sırala
     Object.values(data).forEach(d => {
       d?.holdings.sort((a, b) => b.currentVal - a.currentVal);
     });
@@ -71,9 +72,9 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     return data;
   }, [holdings, baseLimit]);
 
-  // Toplam Portföy Değeri
-  const totalMarketValue = useMemo(() => 
-    holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0)
+  // Toplam Ana Para Değeri (Tüm portföyün maliyet toplamı)
+  const totalPrincipalValue = useMemo(() => 
+    holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.averageCost), 0)
   , [holdings]);
 
   // Kategorilerin toplam limiti
@@ -81,7 +82,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
      return Object.values(categoryData).reduce((acc, d) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
 
-  const deficitSurplus = totalMarketValue - totalLimit;
+  const deficitSurplus = totalPrincipalValue - totalLimit;
 
   const CategoryBoard = ({ category, label, color }: { category: AssetCategory, label: string, color: string }) => {
     const data = categoryData[category];
@@ -91,6 +92,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const actualPercent = data.limit > 0 ? (data.total / data.limit) * 100 : 0;
     const isOver = diff >= 0;
 
+    // Görsel bütünlük için boş satırları doldur
     const displayItems = [...data.holdings];
     while (displayItems.length < 10) {
       displayItems.push({ symbol: "", currentVal: 0 });
@@ -98,12 +100,12 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
     return (
       <div className="flex flex-col border border-orange-500/60 bg-black min-w-[180px] flex-1 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
-        {/* Header */}
+        {/* Kategori Başlığı */}
         <div className={cn("text-center font-black py-1.5 text-black text-[13px] uppercase tracking-tighter", color)}>
           {label}
         </div>
         
-        {/* Sınır Paneli */}
+        {/* Sınır (Target Limit) */}
         <div className="border-t border-orange-500/60 px-1 py-1">
           <div className="text-[10px] text-orange-400/80 text-center font-bold tracking-widest">SINIR</div>
           <div className="bg-yellow-400 text-black text-center font-black text-[14px] py-1">
@@ -111,7 +113,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Hedef Yüzde Paneli */}
+        {/* Hedef Yüzde / Sigorta Bilgisi */}
         <div className="border-t border-orange-500/60 py-1.5 bg-yellow-400/90 text-black text-center font-black text-xl leading-none">
           {category === "Sigorta" ? (
             <div className="flex justify-around items-center h-full">
@@ -129,7 +131,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           )}
         </div>
 
-        {/* Fazla/Az Paneli */}
+        {/* Fazla/Az Durumu */}
         <div className="border-t border-orange-500/60 px-1 py-1">
           <div className="text-[10px] text-orange-400/80 text-center font-bold uppercase tracking-widest">Fazla/Az</div>
           <div className={cn(
@@ -140,7 +142,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Gerçekleşen Yüzde Paneli */}
+        {/* Mevcut Durum Yüzdesi */}
         <div className="border-t border-orange-500/60 py-1.5 text-center bg-zinc-950">
           <div className={cn(
             "text-[14px] font-black",
@@ -150,7 +152,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Varlık Listesi Izgarası */}
+        {/* Varlık Listesi (Maliyet Bazlı) */}
         <div className="border-t border-orange-500/60 flex-1 overflow-hidden">
           {displayItems.map((h, i) => (
             <div key={i} className="grid grid-cols-5 border-b border-orange-500/30 last:border-0 h-6 items-center px-1.5 group hover:bg-white/5 transition-colors">
@@ -164,7 +166,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           ))}
         </div>
 
-        {/* Kategori Toplam Paneli */}
+        {/* Kategori Toplam Ana Para */}
         <div className="border-t border-orange-500/60 bg-zinc-900 p-2 text-center">
           <div className="text-[13px] font-black text-white/90">
             ₺{data.total.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
@@ -206,9 +208,9 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
         </div>
 
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım (Piyasa)</div>
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım (Ana Para)</div>
           <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
-            ₺{totalMarketValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+            ₺{totalPrincipalValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>
