@@ -12,77 +12,68 @@ export async function GET(request: NextRequest) {
   const updates: any[] = [];
   const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36' };
 
-  // Sayı temizleme fonksiyonu: "7.165,09" -> 7165.09
-  const parseVal = (txt: string) => parseFloat(txt.replace(/\./g, '').replace(',', '.'));
+  const parseNum = (t: string) => parseFloat(t.replace(/\./g, '').replace(',', '.'));
 
   try {
-    const [dovizRes, bistRes, altinRes] = await Promise.all([
-      fetch(`https://finans.cnnturk.com/doviz?v=${Date.now()}`, { headers }),
-      fetch(`https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri?v=${Date.now()}`, { headers }),
-      fetch(`https://finans.cnnturk.com/altin?v=${Date.now()}`, { headers })
+    const [dRes, bRes, aRes] = await Promise.all([
+      fetch(`https://finans.cnnturk.com/doviz?v=${Date.now()}`, { headers }).then(r => r.text()),
+      fetch(`https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri?v=${Date.now()}`, { headers }).then(r => r.text()),
+      fetch(`https://finans.cnnturk.com/altin?v=${Date.now()}`, { headers }).then(r => r.text())
     ]);
 
-    // 1. ALTIN (GA) & GÜMÜŞ (GG) TARAMA
-    if (altinRes.ok) {
-      const $ = cheerio.load(await altinRes.text());
-      $('tr').each((_, el) => {
-        const rowText = $(el).text().toUpperCase();
-        let sym = "";
-        if (rowText.includes("GRAM ALTIN")) sym = "GA";
-        else if (rowText.includes("GÜMÜŞ")) sym = "GG";
-
-        if (sym && requestedSymbols.includes(sym)) {
-          $(el).find('td').each((__, td) => {
-            const v = parseVal($(td).text().trim());
-            // Akıllı Filtre: Altın 5000+, Gümüş 100+ ise fiyattır
-            if (sym === "GA" && v > 5000) { 
-              updates.push({ symbol: "GA", price: v, change: 0 }); 
-              return false; 
-            }
-            if (sym === "GG" && v > 100 && v < 500) { 
-              updates.push({ symbol: "GG", price: v, change: 0 }); 
-              return false; 
-            }
-          });
-        }
-      });
-    }
-
-    // 2. DÖVİZ (USD & EUR) TARAMA
-    if (dovizRes.ok) {
-      const $ = cheerio.load(await dovizRes.text());
-      const dMap: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
-      $('tr').each((_, el) => {
-        const rowText = $(el).text().toUpperCase();
-        const key = Object.keys(dMap).find(k => rowText.includes(k));
-        if (key && requestedSymbols.includes(dMap[key])) {
-          $(el).find('td').each((__, td) => {
-            const v = parseVal($(td).text().trim());
-            // Döviz 30-100 arasıdır (51.68'i yakalar)
-            if (v > 30 && v < 100) { 
-              updates.push({ symbol: dMap[key], price: v, change: 0 }); 
-              return false; 
-            }
-          });
-        }
-      });
-    }
-
-    // 3. BIST (HİSSELER) TARAMA
-    if (bistRes.ok) {
-      const $ = cheerio.load(await bistRes.text());
-      $('tr').each((_, el) => {
-        const tds = $(el).find('td');
-        if (tds.length >= 2) {
-          const s = $(tds[0]).text().trim().split(/\s+/)[0].toUpperCase();
-          if (requestedSymbols.includes(s) && !['USD','EUR','GA','GG'].includes(s)) {
-            const v = parseVal($(tds[1]).text().trim());
-            if (!isNaN(v)) updates.push({ symbol: s, price: v, change: 0 });
+    // 1. DÖVİZ (USD, EUR) - Tüm satırı tara, mantıklı olanı al
+    const $d = cheerio.load(dRes);
+    const dMap: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
+    $d('tr').each((_, el) => {
+      const rowText = $d(el).text().toUpperCase();
+      const key = Object.keys(dMap).find(k => rowText.includes(k));
+      if (key && requestedSymbols.includes(dMap[key])) {
+        $d(el).find('td').each((i, td) => {
+          const val = parseNum($d(td).text().trim());
+          if (val > 30 && val < 100) { // 51.68 buraya düşer
+            updates.push({ symbol: dMap[key], price: val, change: 0 });
+            return false;
           }
+        });
+      }
+    });
+
+    // 2. ALTIN & GÜMÜŞ (GA, GG) - 7165 ve 118 hedefi
+    const $a = cheerio.load(aRes);
+    const aMap: any = { 'GRAM ALTIN': 'GA', 'GÜMÜŞ': 'GG' };
+    $a('tr').each((_, el) => {
+      const rowText = $a(el).text().toUpperCase();
+      const key = Object.keys(aMap).find(k => rowText.includes(k));
+      if (key && requestedSymbols.includes(aMap[key])) {
+        const sym = aMap[key];
+        $a(el).find('td').each((i, td) => {
+          const val = parseNum($a(td).text().trim());
+          if (sym === 'GA' && val > 5000) { // 7165 buraya düşer
+            updates.push({ symbol: sym, price: val, change: 0 });
+            return false;
+          }
+          if (sym === 'GG' && val > 100 && val < 500) { // 118 buraya düşer
+            updates.push({ symbol: sym, price: val, change: 0 });
+            return false;
+          }
+        });
+      }
+    });
+
+    // 3. BIST HİSSELERİ (PAGYO vb.)
+    const $b = cheerio.load(bRes);
+    $b('tr').each((_, el) => {
+      const tds = $b(el).find('td');
+      if (tds.length >= 2) {
+        const s = $b(tds[0]).text().trim().split(/\s+/)[0].toUpperCase();
+        if (requestedSymbols.includes(s) && !['USD','EUR','GA','GG'].includes(s)) {
+          const val = parseNum($b(tds[1]).text().trim());
+          if (!isNaN(val)) updates.push({ symbol: s, price: val, change: 0 });
         }
-      });
-    }
-  } catch (err) { console.error(err); }
+      }
+    });
+
+  } catch (e) { console.log("Hata:", e); }
 
   return NextResponse.json(updates);
 }
