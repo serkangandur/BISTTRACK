@@ -47,6 +47,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
   const [monthlyUSD, setMonthlyUSD] = useState('2000');
   const [monthlyTargetUSD, setMonthlyTargetUSD] = useState('4000');
   const [dollarInflation, setDollarInflation] = useState('3');
+  const [targetYear, setTargetYear] = useState('7');
   const yearlyTargetUSD = parseFloat(monthlyTargetUSD || '4000') * 12;
 
   // Her hisse için 10 yıllık projeksiyon hesapla
@@ -186,6 +187,16 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               placeholder="3"
             />
           </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Yıl Hedefi</label>
+            <input
+              type="number"
+              value={targetYear}
+              onChange={e => setTargetYear(e.target.value)}
+              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              placeholder="7"
+            />
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {TEMETTU_SYMBOLS.map(sym => {
@@ -241,7 +252,9 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "text-sm font-black px-3 py-1 rounded-lg",
-                    i === 0 ? "bg-primary/20 text-primary" : "bg-white/5 text-white"
+                    i === 0 ? "bg-primary/20 text-primary" : 
+                    i === parseInt(targetYear || '7') ? "bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/50" :
+                    "bg-white/5 text-white"
                   )}>
                     {yt.year}
                   </div>
@@ -262,13 +275,20 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                         </p>
                       </div>
                     )}
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Hedefe Ulaşım</p>
-                      <p className={cn("text-sm font-bold", yt.totalUSD >= yearlyTargetUSD ? "text-green-400" : "text-orange-400")}>
-                        {yt.totalUSD >= yearlyTargetUSD 
-                          ? "✅ Hedef Aşıldı!" 
-                          : `$${(yearlyTargetUSD - yt.totalUSD).toLocaleString('tr-TR', { maximumFractionDigits: 0 })} eksik`}
-                      </p>
+                    <div className="flex items-center">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Hedefe Ulaşım</p>
+                        <p className={cn("text-sm font-bold", yt.totalUSD >= yearlyTargetUSD ? "text-green-400" : "text-orange-400")}>
+                          {yt.totalUSD >= yearlyTargetUSD 
+                            ? "✅ Hedef Aşıldı!" 
+                            : `$${(yearlyTargetUSD - yt.totalUSD).toLocaleString('tr-TR', { maximumFractionDigits: 0 })} eksik`}
+                        </p>
+                      </div>
+                      {i === parseInt(targetYear || '7') && (
+                        <div className="ml-2 text-xs font-black bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                          🎯 HEDEF YIL
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
