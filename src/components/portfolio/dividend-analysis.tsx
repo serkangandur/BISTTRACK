@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -138,6 +139,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
 
   return (
     <div className="space-y-6">
+      {/* Başlık */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Temettü Analizi</h2>
@@ -147,6 +149,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         </div>
       </div>
 
+      {/* Portföy Verimi */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 bg-primary/10 rounded-xl border border-primary/20">
           <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Portföy Temettü Verimi</p>
@@ -162,6 +165,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         </div>
       </div>
 
+      {/* Hisse Kartları */}
       <div>
         <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">Temettü İzleme Paneli</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -180,6 +184,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                   ? "bg-green-500/10 border-green-500/30 shadow-lg shadow-green-500/10"
                   : "bg-card/20 border-white/5"
               )}>
+                {/* Kart Başlık */}
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
                     <div className={cn(
@@ -208,6 +213,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                   </button>
                 </div>
 
+                {/* Düzenleme Modu */}
                 {isEditing ? (
                   <div className="space-y-2">
                     <div>
@@ -273,6 +279,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                       )}
                     </div>
 
+                    {/* Verim Bar */}
                     {yieldValue > 0 && portfolioYield > 0 && (
                       <div className="space-y-1">
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
