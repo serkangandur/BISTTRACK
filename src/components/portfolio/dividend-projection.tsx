@@ -45,7 +45,8 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
   const [priceGrowth, setPriceGrowth] = useState('30');
   const PRICE_GROWTH = parseFloat(priceGrowth) / 100 || 0.30;
   const [monthlyUSD, setMonthlyUSD] = useState('2000');
-  const [targetUSD, setTargetUSD] = useState('4000');
+  const [monthlyTargetUSD, setMonthlyTargetUSD] = useState('4000');
+  const yearlyTargetUSD = parseFloat(monthlyTargetUSD || '4000') * 12;
 
   // Her hisse için 10 yıllık projeksiyon hesapla
   const projections = useMemo(() => {
@@ -164,11 +165,11 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Yıllık Temettü Hedefi (USD)</label>
+            <label className="text-xs text-muted-foreground">Aylık Temettü Hedefi (USD)</label>
             <input
               type="number"
-              value={targetUSD}
-              onChange={e => setTargetUSD(e.target.value)}
+              value={monthlyTargetUSD}
+              onChange={e => setMonthlyTargetUSD(e.target.value)}
               className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
               placeholder="4000"
             />
@@ -251,10 +252,10 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                     )}
                     <div>
                       <p className="text-[10px] text-muted-foreground">Hedefe Ulaşım</p>
-                      <p className={cn("text-sm font-bold", yt.totalUSD >= parseFloat(targetUSD || '4000') ? "text-green-400" : "text-orange-400")}>
-                        {yt.totalUSD >= parseFloat(targetUSD || '4000') 
+                      <p className={cn("text-sm font-bold", yt.totalUSD >= yearlyTargetUSD ? "text-green-400" : "text-orange-400")}>
+                        {yt.totalUSD >= yearlyTargetUSD 
                           ? "✅ Hedef Aşıldı!" 
-                          : `$${(parseFloat(targetUSD || '4000') - yt.totalUSD).toLocaleString('tr-TR', { maximumFractionDigits: 0 })} eksik`}
+                          : `$${(yearlyTargetUSD - yt.totalUSD).toLocaleString('tr-TR', { maximumFractionDigits: 0 })} eksik`}
                       </p>
                     </div>
                   </div>
