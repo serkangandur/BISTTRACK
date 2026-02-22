@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
 
         const alis = parseNum($a(tds[1]).text().trim());
 
-        // ✅ GRAM ALTIN — tabloda "GRAM ALTIN" yazıyor
+        // ✅ GRAM ALTIN
         if (
           requestedSymbols.includes('GA') &&
           labelText.includes('GRAM ALTIN') &&
@@ -82,8 +82,7 @@ export async function GET(request: NextRequest) {
           updates.push({ symbol: 'GA', price: alis, change: degisim });
         }
 
-        // ✅ GRAM GÜMÜŞ — tabloda "Gümüş Gram (TL)" yazıyor
-        // Normalize edilince: "GUMUS GRAM (TL)"
+        // ✅ GRAM GÜMÜŞ
         if (
           requestedSymbols.includes('GG') &&
           labelText.includes('GUMUS') &&
@@ -97,7 +96,7 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // Fallback: href üzerinden bul
+      // Fallback: GRAM ALTIN için href üzerinden bul
       if (!updates.find(u => u.symbol === 'GA') && requestedSymbols.includes('GA')) {
         $a('a[href*="gram-altin-fiyati"]').each((_, el) => {
           const parent = $a(el).closest('tr');
@@ -106,21 +105,22 @@ export async function GET(request: NextRequest) {
             const alis = parseNum($a(tds[1]).text().trim());
             if (!isNaN(alis) && alis > 1000) {
               updates.push({ symbol: 'GA', price: alis, change: 0 });
-              return false; // break
+              return false;
             }
           }
         });
       }
 
+      // ✅ Gümüş için — normalize yerine href ile direkt bul (daha güvenilir)
       if (!updates.find(u => u.symbol === 'GG') && requestedSymbols.includes('GG')) {
-        $a('a[href*="gumus-gram-TL"]').each((_, el) => {
+        $a('a[href*="gumus-gram-TL-fiyati"]').each((_, el) => {
           const parent = $a(el).closest('tr');
           const tds = parent.find('td');
           if (tds.length >= 2) {
             const alis = parseNum($a(tds[1]).text().trim());
             if (!isNaN(alis) && alis > 50 && alis < 1000) {
               updates.push({ symbol: 'GG', price: alis, change: 0 });
-              return false; // break
+              return false;
             }
           }
         });
