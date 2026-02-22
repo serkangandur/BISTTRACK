@@ -53,44 +53,60 @@ export async function GET(request: NextRequest) {
     if (altinHTML) {
       const $a = cheerio.load(altinHTML);
 
-      // Tüm tabloları tara
       $a('table tr').each((_, el) => {
         const tds = $a(el).find('td');
         if (tds.length < 2) return;
 
-        const labelText = $a(tds[0]).text().trim().toUpperCase();
-        const alisText  = $a(tds[1]).text().trim();
-        const alis      = parseNum(alisText);
+        // Türkçe karakter sorunları için normalize et
+        const labelRaw = $a(tds[0]).text().trim();
+        const labelText = labelRaw.toUpperCase()
+          .replace(/İ/g, 'I')
+          .replace(/Ş/g, 'S')
+          .replace(/Ğ/g, 'G')
+          .replace(/Ü/g, 'U')
+          .replace(/Ö/g, 'O')
+          .replace(/Ç/g, 'C');
 
-        // Gram Altın
-        if (requestedSymbols.includes('GA') && labelText.includes('GRAM ALTIN') && !labelText.includes('0.')) {
-          if (!isNaN(alis) && alis > 1000) {
-            const degisimText = tds.length >= 4 ? $a(tds[3]).text().trim() : '0';
-            const degisim = parseFloat(degisimText.replace('%', '').replace(',', '.').trim()) || 0;
-            updates.push({ symbol: 'GA', price: alis, change: degisim });
-          }
+        const alis = parseNum($a(tds[1]).text().trim());
+
+        // ✅ GRAM ALTIN — tabloda "GRAM ALTIN" yazıyor
+        if (
+          requestedSymbols.includes('GA') &&
+          labelText.includes('GRAM ALTIN') &&
+          !labelText.includes('0.25') &&
+          !labelText.includes('0.50') &&
+          !isNaN(alis) && alis > 1000
+        ) {
+          const degisimText = tds.length >= 4 ? $a(tds[3]).text().trim() : '0';
+          const degisim = parseFloat(degisimText.replace('%', '').replace(',', '.')) || 0;
+          updates.push({ symbol: 'GA', price: alis, change: degisim });
         }
 
-        // Gram Gümüş (TL)
-        if (requestedSymbols.includes('GG') && (labelText.includes('GÜMÜŞ GRAM') || labelText.includes('GÜMÜş GRAM')) && labelText.includes('TL')) {
-          if (!isNaN(alis) && alis > 50) {
-            const degisimText = tds.length >= 4 ? $a(tds[3]).text().trim() : '0';
-            const degisim = parseFloat(degisimText.replace('%', '').replace(',', '.').trim()) || 0;
-            updates.push({ symbol: 'GG', price: alis, change: degisim });
-          }
+        // ✅ GRAM GÜMÜŞ — tabloda "Gümüş Gram (TL)" yazıyor
+        // Normalize edilince: "GUMUS GRAM (TL)"
+        if (
+          requestedSymbols.includes('GG') &&
+          labelText.includes('GUMUS') &&
+          labelText.includes('GRAM') &&
+          labelText.includes('TL') &&
+          !isNaN(alis) && alis > 50 && alis < 1000
+        ) {
+          const degisimText = tds.length >= 4 ? $a(tds[3]).text().trim() : '0';
+          const degisim = parseFloat(degisimText.replace('%', '').replace(',', '.')) || 0;
+          updates.push({ symbol: 'GG', price: alis, change: degisim });
         }
       });
 
-      // Bulunamadıysa — link href ile bul (fallback)
+      // Fallback: href üzerinden bul
       if (!updates.find(u => u.symbol === 'GA') && requestedSymbols.includes('GA')) {
-        $a('a[href*="gram-altin"]').each((_, el) => {
+        $a('a[href*="gram-altin-fiyati"]').each((_, el) => {
           const parent = $a(el).closest('tr');
           const tds = parent.find('td');
           if (tds.length >= 2) {
             const alis = parseNum($a(tds[1]).text().trim());
             if (!isNaN(alis) && alis > 1000) {
               updates.push({ symbol: 'GA', price: alis, change: 0 });
-              return false;
+              return false; // break
             }
           }
         });
@@ -102,9 +118,9 @@ export async function GET(request: NextRequest) {
           const tds = parent.find('td');
           if (tds.length >= 2) {
             const alis = parseNum($a(tds[1]).text().trim());
-            if (!isNaN(alis) && alis > 50) {
+            if (!isNaN(alis) && alis > 50 && alis < 1000) {
               updates.push({ symbol: 'GG', price: alis, change: 0 });
-              return false;
+              return false; // break
             }
           }
         });
