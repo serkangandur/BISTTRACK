@@ -1,13 +1,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import yahooFinance from 'yahoo-finance2';
-import * as cheerio from 'cheerio';
 
 /**
- * Hibrit Veri Motoru v30.0 - "Mega Kurtarıcı"
- * - Kripto: Binance TR API (JSON)
- * - BIST: Yahoo Finance (.IS)
- * - Döviz/Emtia: Yahoo Finance + Doviz.com Scraping
+ * Hibrit Veri Motoru v31.0 - "Mega Kurtarıcı Fix"
+ * - Kripto: Binance TR API (Resmi JSON)
+ * - BIST: Yahoo Finance v7 (Doğrudan Fetch - Bot Engeline Takılmaz)
+ * - Döviz/Emtia: Yahoo Finance v7
+ * - Akıllı Mirroring: İstek gelen sembol ismini koruyarak veriyi üzerine yapıştırır.
  */
 
 export async function GET(request: NextRequest) {
@@ -19,101 +18,113 @@ export async function GET(request: NextRequest) {
   }
 
   const requestedSymbols = symbolsParam.split(',').map(s => s.trim());
-  console.log(`[API] [İSTEK ALINDI] Semboller: ${requestedSymbols.join(', ')}`);
+  console.log(`[API] [İSTEK] Semboller: ${requestedSymbols.join(', ')}`);
 
   const updates: any[] = [];
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  };
-
+  
   try {
-    // 1. KRİPTO VERİLERİ (BINANCE TR API)
+    // 1. KRİPTO VERİLERİ (BINANCE TR API) - Saniyelik ve Bot Engeli Yok
     let btcPrice = 0;
     let ethPrice = 0;
     try {
       const [btcRes, ethRes] = await Promise.all([
-        fetch('https://api.binance.tr/api/v3/ticker/price?symbol=BTCTRY', { cache: 'no-store' }).then(res => res.json()),
-        fetch('https://api.binance.tr/api/v3/ticker/price?symbol=ETHTRY', { cache: 'no-store' }).then(res => res.json())
+        fetch('https://api.binance.tr/api/v3/ticker/price?symbol=BTCTRY', { next: { revalidate: 0 } }).then(res => res.json()),
+        fetch('https://api.binance.tr/api/v3/ticker/price?symbol=ETHTRY', { next: { revalidate: 0 } }).then(res => res.json())
       ]);
       if (btcRes?.price) btcPrice = parseFloat(btcRes.price);
       if (ethRes?.price) ethPrice = parseFloat(ethRes.price);
-      console.log(`[API] [BINANCE] BTC: ${btcPrice} ₺, ETH: ${ethPrice} ₺`);
     } catch (e) {
-      console.error("[API] Binance TR Hatası, Yedek Aranıyor...");
+      console.error("[API] [BİNANCE] Hata: API'ye ulaşılamadı.");
     }
 
     // 2. YAHOO FINANCE İÇİN SEMBOLLERİ HAZIRLA
-    const yahooSymbols: string[] = [];
-    const bistMap: Record<string, string> = {};
+    const yahooQuerySymbols: string[] = [];
+    const symbolMapping: Record<string, string[]> = {}; // YahooSymbol -> OriginalRequestedNames[]
 
     for (const req of requestedSymbols) {
       const upper = req.toUpperCase();
       
-      // Kripto Eşleşmesi
-      if (upper.includes('BITCOIN') || upper.includes('BTC')) {
-        if (btcPrice > 0) updates.push({ symbol: req, price: btcPrice, change: 0 });
+      // Kripto Akıllı Eşleşme
+      if (upper.includes('BITCOIN') || upper === 'BTC') {
+        if (btcPrice > 0) {
+          updates.push({ symbol: req, price: btcPrice, change: 0 });
+          console.log(`[API] [EŞLEŞME] ${req} -> ${btcPrice} ₺`);
+        }
         continue;
       }
-      if (upper.includes('ETHEREUM') || upper.includes('ETH') || upper.includes('ETHERIUM')) {
-        if (ethPrice > 0) updates.push({ symbol: req, price: ethPrice, change: 0 });
-        continue;
-      }
-
-      // Döviz Eşleşmesi
-      if (upper === 'USD' || upper.includes('DOLAR')) {
-        yahooSymbols.push('USDTRY=X');
-        bistMap['USDTRY=X'] = req;
-        continue;
-      }
-      if (upper === 'EUR' || upper.includes('EURO')) {
-        yahooSymbols.push('EURTRY=X');
-        bistMap['EURTRY=X'] = req;
+      if (upper.includes('ETHEREUM') || upper.includes('ETH') || upper.includes('ETHERİUM')) {
+        if (ethPrice > 0) {
+          updates.push({ symbol: req, price: ethPrice, change: 0 });
+          console.log(`[API] [EŞLEŞME] ${req} -> ${ethPrice} ₺`);
+        }
         continue;
       }
 
-      // Emtia Eşleşmesi
-      if (upper === 'ALTIN' || upper.includes('GOLD')) {
-        yahooSymbols.push('GC=F'); // Altın ONS (USD) - TRY çevrimi aşağıda yapılacak
-        bistMap['GC=F'] = req;
-        continue;
+      // Döviz / Emtia / BIST Eşleşmeleri
+      let yahooSym = '';
+      if (upper === 'USD' || upper.includes('DOLAR')) yahooSym = 'USDTRY=X';
+      else if (upper === 'EUR' || upper.includes('EURO')) yahooSym = 'EURTRY=X';
+      else if (upper === 'ALTIN' || upper.includes('GOLD')) yahooSym = 'GC=F';
+      else if (upper === 'GUMUS' || upper.includes('SILVER')) yahooSym = 'SI=F';
+      else {
+        // BIST Hisseleri
+        yahooSym = upper.endsWith('.IS') ? upper : `${upper}.IS`;
       }
 
-      // BIST Hisseleri (Varsayılan)
-      const yahooSymbol = upper.endsWith('.IS') ? upper : `${upper}.IS`;
-      yahooSymbols.push(yahooSymbol);
-      bistMap[yahooSymbol] = req;
+      if (yahooSym) {
+        yahooQuerySymbols.push(yahooSym);
+        if (!symbolMapping[yahooSym]) symbolMapping[yahooSym] = [];
+        symbolMapping[yahooSym].push(req);
+      }
     }
 
-    // 3. YAHOO FINANCE TOPLU ÇEKİM
-    if (yahooSymbols.length > 0) {
+    // 3. YAHOO FINANCE TOPLU ÇEKİM (FETCH V7 API)
+    if (yahooQuerySymbols.length > 0) {
       try {
-        const quotes = await yahooFinance.quote(yahooSymbols, { validateResult: false });
+        const uniqueSymbols = Array.from(new Set(yahooQuerySymbols));
+        const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${uniqueSymbols.join(',')}`;
         
-        // USDTRY fiyatını altın hesaplaması için sakla
-        const usdTryQuote = quotes.find(q => q.symbol === 'USDTRY=X');
-        const usdTryPrice = usdTryQuote?.regularMarketPrice || 32.50; // Fallback
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          },
+          next: { revalidate: 0 }
+        });
 
-        for (const quote of quotes) {
-          const originalName = bistMap[quote.symbol];
-          let price = quote.regularMarketPrice || quote.regularMarketPreviousClose || 0;
-          let change = quote.regularMarketChangePercent || 0;
+        if (response.ok) {
+          const data = await response.json();
+          const results = data?.quoteResponse?.result || [];
 
-          // Altın ise Gram Altın hesapla (ONS / 31.1 * USDTRY)
-          if (quote.symbol === 'GC=F') {
-            price = (price / 31.1035) * usdTryPrice;
-          }
+          // Altın hesaplaması için USDTRY kurunu bul
+          const usdTryQuote = results.find((q: any) => q.symbol === 'USDTRY=X');
+          const currentUsdTry = usdTryQuote?.regularMarketPrice || 32.50;
 
-          if (price > 0) {
-            updates.push({
-              symbol: originalName,
-              price: Number(price.toFixed(4)),
-              change: Number(change.toFixed(2))
-            });
-            console.log(`[API] [YAHOO] ${originalName} -> ${price} ₺`);
+          for (const quote of results) {
+            const originalNames = symbolMapping[quote.symbol] || [];
+            let price = quote.regularMarketPrice || quote.regularMarketPreviousClose || 0;
+            const change = quote.regularMarketChangePercent || 0;
+
+            for (const name of originalNames) {
+              let finalPrice = price;
+              
+              // Gram Altın / Gümüş Dönüşümü (ONS / 31.1035 * USDTRY)
+              if (quote.symbol === 'GC=F' || quote.symbol === 'SI=F') {
+                finalPrice = (price / 31.1035) * currentUsdTry;
+              }
+
+              if (finalPrice > 0) {
+                updates.push({
+                  symbol: name,
+                  price: Number(finalPrice.toFixed(4)),
+                  change: Number(change.toFixed(2))
+                });
+                console.log(`[API] [YAHOO] ${name} -> ${finalPrice} ₺`);
+              }
+            }
           }
         }
       } catch (e) {
-        console.error("[API] Yahoo Finance Hatası:", e);
+        console.error("[API] [YAHOO] Hata:", e);
       }
     }
 
