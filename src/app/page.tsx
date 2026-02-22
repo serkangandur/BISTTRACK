@@ -23,7 +23,6 @@ import {
   Banknote, 
   ShieldCheck,
   History,
-  CloudUpload,
   PieChart,
   BanknoteIcon,
   Calculator
@@ -77,7 +76,6 @@ export default function PortfolioDashboard() {
   
   const [marketData, setMarketData] = useState<Record<string, StockPriceUpdate>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [activeCategory, setActiveCategory] = useState<ViewType>("Özet");
   
   const lastUpdateRef = useRef<number>(0);
@@ -136,6 +134,23 @@ export default function PortfolioDashboard() {
         });
         setMarketData(prev => ({ ...prev, ...newData }));
         lastUpdateRef.current = Date.now();
+
+        // Fiyatları otomatik kaydet
+        if (user && firestore && portfolioId && dbStocks) {
+          updates.forEach(u => {
+            if (u.price > 0) {
+              const matchingStock = dbStocks.find(s => s.symbol.toUpperCase() === u.symbol.toUpperCase());
+              if (matchingStock) {
+                const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', matchingStock.id);
+                updateDocumentNonBlocking(docRef, { 
+                  currentPrice: u.price,
+                  dailyChange: u.change,
+                  updatedAt: serverTimestamp() 
+                });
+              }
+            }
+          });
+        }
       }
     } catch (error: any) {
       console.error("[API] Fiyat çekme hatası:", error.message);
@@ -147,14 +162,14 @@ export default function PortfolioDashboard() {
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [user, firestore, portfolioId, dbStocks, toast]);
 
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
       const symbols = dbStocks.map(s => s.symbol);
       fetchStockPrices(symbols);
     }
-  }, [dbStocks?.length, isStocksLoading]);
+  }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
@@ -183,33 +198,6 @@ export default function PortfolioDashboard() {
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
   }, [assets, activeCategory]);
-
-  const handleSyncPrices = useCallback(() => {
-    if (!user || !firestore || !portfolioId || assets.length === 0) return;
-    
-    setIsSyncing(true);
-    try {
-      assets.forEach(asset => {
-        const market = marketData[asset.symbol.toUpperCase()];
-        if (market && market.price > 0) {
-          const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', asset.id);
-          updateDocumentNonBlocking(docRef, { 
-            currentPrice: market.price,
-            dailyChange: market.change,
-            updatedAt: serverTimestamp() 
-          });
-        }
-      });
-      toast({ 
-        title: "Piyasa Verileri Senkronize Edildi",
-        description: "Canlı fiyatlar portföy veritabanına kalıcı olarak kaydedildi." 
-      });
-    } catch (error) {
-      console.error("Senkronizasyon Hatası:", error);
-    } finally {
-      setTimeout(() => setIsSyncing(false), 1000);
-    }
-  }, [user, firestore, portfolioId, assets, marketData, toast]);
 
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
     if (!user || !firestore || !portfolioId) return;
@@ -335,16 +323,6 @@ export default function PortfolioDashboard() {
               >
                 <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
                 Fiyatları Güncelle
-              </Button>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20"
-                onClick={handleSyncPrices} 
-                disabled={isSyncing || Object.keys(marketData).length === 0}
-              >
-                <CloudUpload className={cn("h-4 w-4 mr-2", isSyncing && "animate-bounce")} />
-                Veritabanına Kaydet
               </Button>
             </div>
           </div>
