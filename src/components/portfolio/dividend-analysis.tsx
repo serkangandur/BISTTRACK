@@ -84,9 +84,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
 
   // Portföy ağırlıklı ortalama verimi
   const portfolioYield = useMemo(() => {
-    const temettuHoldings = holdings.filter(h => 
-      TEMETTU_SYMBOLS.includes(h.symbol.toUpperCase())
-    );
+    const temettuHoldings = holdings.filter(h => TEMETTU_SYMBOLS.includes(h.symbol.toUpperCase()));
     if (temettuHoldings.length === 0) return 0;
     const totalValue = temettuHoldings.reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0);
     if (totalValue === 0) return 0;
