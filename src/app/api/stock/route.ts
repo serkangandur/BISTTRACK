@@ -11,44 +11,70 @@ export async function GET(request: NextRequest) {
   const requestedSymbols = symbolsParam.split(',').map(s => s.trim().toUpperCase());
   const updates: any[] = [];
 
+  // --- 1. BIST HİSSELERE (CNN TÜRK) ---
   try {
-    const response = await fetch('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', {
+    const bistRes = await fetch('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', {
       cache: 'no-store',
       headers: { 'User-Agent': 'Mozilla/5.0' }
     });
-
-    if (!response.ok) return NextResponse.json([]);
-
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    
-    // Excel'deki "Tabelle 1" yapısına göre tüm satırları tara
-    $('tr').each((_, element) => {
-      const cols = $(element).find('td');
-      if (cols.length >= 2) {
-        // Excel Sütun 0: Menkul (Sembol + Ad) -> İlk kelimeyi al
-        const rawText = $(cols[0]).text().trim().toUpperCase();
-        const symbolInTable = rawText.split(/\s+/)[0]; 
-        
-        if (requestedSymbols.includes(symbolInTable)) {
-          // Excel Sütun 1: Son Fiyat
-          let priceRaw = $(cols[1]).text().trim();
-          const priceValue = parseFloat(priceRaw.replace(/\./g, '').replace(',', '.'));
-
-          if (!isNaN(priceValue)) {
-            updates.push({
-              symbol: symbolInTable,
-              price: priceValue,
-              change: 0
-            });
-            console.log(`[BIST-EXCEL] ${symbolInTable} Bulundu: ${priceValue} ₺`);
+    if (bistRes.ok) {
+      const html = await bistRes.text();
+      const $ = cheerio.load(html);
+      $('tr').each((_, element) => {
+        const cols = $(element).find('td');
+        if (cols.length >= 2) {
+          const rawText = $(cols[0]).text().trim().toUpperCase();
+          const symbolInTable = rawText.split(/\s+/)[0]; 
+          if (requestedSymbols.includes(symbolInTable)) {
+            let priceRaw = $(cols[1]).text().trim();
+            const priceValue = parseFloat(priceRaw.replace(/\./g, '').replace(',', '.'));
+            if (!isNaN(priceValue)) {
+              updates.push({ symbol: symbolInTable, price: priceValue, change: 0 });
+            }
           }
         }
-      }
-    });
+      });
+    }
+  } catch (e) { console.error("BIST hatası:", e); }
 
-    return NextResponse.json(updates);
-  } catch (error) {
-    return NextResponse.json(updates);
-  }
+  // --- 2. DÖVİZ (USD/EUR - CNN TÜRK) ---
+  try {
+    const dovizRes = await fetch('https://finans.cnnturk.com/doviz', {
+      cache: 'no-store',
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    if (dovizRes.ok) {
+      const html = await dovizRes.text();
+      const $ = cheerio.load(html);
+      
+      const mapping: Record<string, string> = {
+        'ABD DOLARI': 'USD',
+        'EURO': 'EUR'
+      };
+
+      $('tr').each((_, element) => {
+        const cols = $(element).find('td');
+        if (cols.length >= 3) {
+          const label = $(cols[0]).text().trim().toUpperCase();
+          // Excel görüntüne göre ismi eşleştir (ABD DOLARI -> USD)
+          const matchedSymbolKey = Object.keys(mapping).find(key => label.includes(key));
+          
+          if (matchedSymbolKey) {
+            const finalSymbol = mapping[matchedSymbolKey];
+            if (requestedSymbols.includes(finalSymbol)) {
+              // Sütun 2: Satış Fiyatı (Excel görüntünle aynı)
+              let priceRaw = $(cols[2]).text().trim();
+              const priceValue = parseFloat(priceRaw.replace(/\./g, '').replace(',', '.'));
+              if (!isNaN(priceValue)) {
+                updates.push({ symbol: finalSymbol, price: priceValue, change: 0 });
+                console.log(`[DÖVİZ] ${finalSymbol} Bulundu: ${priceValue} ₺`);
+              }
+            }
+          }
+        }
+      });
+    }
+  } catch (e) { console.error("Döviz hatası:", e); }
+
+  return NextResponse.json(updates);
 }
