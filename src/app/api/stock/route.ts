@@ -11,69 +11,67 @@ export async function GET(request: NextRequest) {
   const requestedSymbols = symbolsParam.split(',').map(s => s.trim().toUpperCase());
   const updates: any[] = [];
   
-  // Profesyonel tarayıcı başlığı (CNN'in bizi engellemesini önlemek için)
+  // Excel benzeri temiz başlıklar
   const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': '*/*',
+    'Connection': 'keep-alive'
   };
 
-  console.log("--- [API TARAMA BAŞLADI - PARALEL MOD] ---");
+  const urls = [
+    'https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri',
+    'https://finans.cnnturk.com/doviz'
+  ];
 
   try {
-    // İki sayfayı aynı anda çekerek hız kazanıyoruz
-    const [bistRes, dovizRes] = await Promise.allSettled([
-      fetch('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { cache: 'no-store', headers }),
-      fetch('https://finans.cnnturk.com/doviz', { cache: 'no-store', headers })
-    ]);
+    for (const url of urls) {
+      // Url sonuna ?t= ekleyerek cache'i patlatıyoruz (Excel'in yaptığı gibi)
+      const res = await fetch(`${url}?t=${Date.now()}`, { headers, cache: 'no-store' });
+      if (!res.ok) continue;
 
-    // 1. BIST PARSER
-    if (bistRes.status === 'fulfilled' && bistRes.value.ok) {
-      const html = await bistRes.value.text();
+      const html = await res.text();
       const $ = cheerio.load(html);
-      $('tr').each((_, element) => {
-        const cols = $(element).find('td');
-        if (cols.length >= 2) {
-          const rawText = $(cols[0]).text().trim().toUpperCase();
-          const symbolInTable = rawText.split(/\s+/)[0]; 
-          if (requestedSymbols.includes(symbolInTable)) {
-            const priceRaw = $(cols[1]).text().trim();
-            const priceValue = parseFloat(priceRaw.replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(priceValue)) updates.push({ symbol: symbolInTable, price: priceValue, change: 0 });
-          }
-        }
-      });
-    }
 
-    // 2. DÖVİZ PARSER
-    if (dovizRes.status === 'fulfilled' && dovizRes.value.ok) {
-      const html = await dovizRes.value.text();
-      const $ = cheerio.load(html);
-      const mapping: Record<string, string> = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
+      $('tr').each((_, el) => {
+        const text = $(el).text().toUpperCase();
+        const tds = $(el).find('td');
+        
+        if (tds.length >= 2) {
+          requestedSymbols.forEach(s => {
+            // Satırın içinde sembol geçiyor mu? (Örn: PAGYO veya ABD DOLARI)
+            const isMatch = text.includes(s) || 
+                          (s === 'USD' && text.includes('ABD DOLARI')) || 
+                          (s === 'EUR' && text.includes('EURO'));
 
-      $('tr').each((_, element) => {
-        const cols = $(element).find('td');
-        if (cols.length >= 3) {
-          const label = $(cols[0]).text().trim().toUpperCase();
-          // Eşleşmeyi kolaylaştırmak için .includes kullanıyoruz
-          const matchedKey = Object.keys(mapping).find(key => label.includes(key));
-          
-          if (matchedKey) {
-            const finalSymbol = mapping[matchedKey];
-            if (requestedSymbols.includes(finalSymbol)) {
-              const priceRaw = $(cols[2]).text().trim();
-              const priceValue = parseFloat(priceRaw.replace(/\./g, '').replace(',', '.'));
-              if (!isNaN(priceValue)) updates.push({ symbol: finalSymbol, price: priceValue, change: 0 });
+            if (isMatch) {
+              // Satırdaki tüm sayıları bul ve fiyat olabilecek olanı seç
+              tds.each((i, td) => {
+                // Sütun 0 genellikle isimdir, fiyata 1. sütundan itibaren bakıyoruz
+                if (i === 0) return true; 
+
+                const rawVal = $(td).text().trim();
+                const val = rawVal.replace(/\./g, '').replace(',', '.');
+                const num = parseFloat(val);
+
+                // 0.1 ile 10.000.000 arasındaki mantıklı ilk sayıyı al
+                if (!isNaN(num) && num > 0.1) {
+                  // Aynı sembolü mükerrer eklememek için kontrol
+                  if (!updates.find(u => u.symbol === s)) {
+                    updates.push({ symbol: s, price: Number(num.toFixed(4)), change: 0 });
+                    console.log(`[EXCEL-SIM] ${s} Yakalandı: ${num}`);
+                  }
+                  return false; // Satır taramasını bitir
+                }
+              });
             }
-          }
+          });
         }
       });
     }
-
   } catch (e: any) {
-    console.error("Sistem Hatası:", e.message);
+    console.log("Hata:", e.message);
   }
 
-  console.log(`--- [TARAMA BİTTİ] Bulunan Veri Sayısı: ${updates.length} ---`);
+  console.log(`[API SONUÇ] ${updates.length} veri yakalandı.`);
   return NextResponse.json(updates);
 }
