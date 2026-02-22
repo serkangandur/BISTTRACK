@@ -9,22 +9,23 @@ interface WeightAnalysisProps {
   holdings: StockHolding[];
 }
 
-const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
-  "Temettü": 70,
-  "Büyüme": 30,
-  "Emtia": 15,
-  "Kripto": 5,
-  "Nakit": 20,
-};
-
 // Global toplama dahil edilecek ana yatırım kategorileri
-const MAIN_INVESTMENT_CATEGORIES = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
+const MAIN_INVESTMENT_CATEGORIES: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
 
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
-  // Global Sınır State - Kullanıcı tarafından düzenlenebilir
+  // Global Sınır State
   const [baseLimit, setBaseLimit] = useState(2814000);
+  
+  // Hedef Ağırlıklar State
+  const [targetWeights, setTargetWeights] = useState<Partial<Record<AssetCategory, number>>>({
+    "Temettü": 70,
+    "Büyüme": 30,
+    "Emtia": 15,
+    "Kripto": 5,
+    "Nakit": 20,
+  });
 
-  // Kategorilere göre verileri grupla - HYBRID HESAPLAMA (Sadece Temettü Ana Para, Diğerleri Piyasa Değeri)
+  // Kategorilere göre verileri grupla - HYBRID HESAPLAMA
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; currentVal: number }[]; limit: number; targetPercent: number }>> = {};
     
@@ -36,7 +37,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Sigorta"];
     
     allCategories.forEach((cat) => {
-      const targetPercent = TARGET_WEIGHTS[cat] || 0;
+      const targetPercent = targetWeights[cat] || 0;
       data[cat] = {
         total: 0,
         holdings: [],
@@ -47,7 +48,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
     // Verileri işle ve grupla
     holdings.forEach(h => {
-      // Temettü Sabit strateji dışı olduğu için analize dahil edilmez
       if (h.category === "Temettü Sabit") return;
       
       const catData = data[h.category];
@@ -75,7 +75,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     });
 
     return data;
-  }, [holdings, baseLimit]);
+  }, [holdings, baseLimit, targetWeights]);
 
   // ✅ STRATEJİK GLOBAL DEĞER: Temettü (Maliyet) + Diğerleri (Piyasa)
   const totalStrategicValue = useMemo(() => 
@@ -91,11 +91,18 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
   const totalLimit = useMemo(() => {
      return Object.entries(categoryData)
-       .filter(([cat]) => MAIN_INVESTMENT_CATEGORIES.includes(cat))
+       .filter(([cat]) => MAIN_INVESTMENT_CATEGORIES.includes(cat as AssetCategory))
        .reduce((acc, [_, d]) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
 
   const deficitSurplus = totalStrategicValue - totalLimit;
+
+  const handleWeightChange = (category: AssetCategory, value: number) => {
+    setTargetWeights(prev => ({
+      ...prev,
+      [category]: value
+    }));
+  };
 
   const CategoryBoard = ({ category, label, color }: { category: AssetCategory, label: string, color: string }) => {
     const data = categoryData[category];
@@ -117,7 +124,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
         </div>
         
         <div className="border-t border-orange-500/60 px-1 py-1">
-          <div className="text-[10px] text-orange-400/80 text-center font-bold tracking-widest">SINIR</div>
+          <div className="text-[10px] text-orange-400/80 text-center font-bold tracking-widest uppercase">Sınır</div>
           <div className="bg-yellow-400 text-black text-center font-black text-[14px] py-1">
             ₺{data.limit.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
           </div>
@@ -131,12 +138,21 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
                 <span className="text-[14px]">60</span>
               </div>
               <div className="text-center leading-tight">
-                <span className="text-[9px] block">MAAS</span>
+                <span className="text-[9px] block">MAAŞ</span>
                 <span className="text-[14px]">₺{(data.limit/60).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
               </div>
             </div>
           ) : (
-            data.targetPercent
+            <input 
+              type="text"
+              inputMode="numeric"
+              value={data.targetPercent}
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                handleWeightChange(category, Number(rawValue) || 0);
+              }}
+              className="bg-transparent border-none text-center w-full focus:outline-none focus:ring-0 font-black text-xl p-0 h-full"
+            />
           )}
         </div>
 
@@ -212,7 +228,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
         </div>
 
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Portföy Değeri</div>
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım Değeri</div>
           <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
             ₺{totalStrategicValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
           </div>
