@@ -53,10 +53,10 @@ interface StockPriceUpdate {
 
 type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | AssetCategory;
 
-const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" }[] = [
+const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" | "analysis" }[] = [
   { label: "Özet", icon: LayoutDashboard, group: "main" },
-  { label: "Ağırlıklar", icon: PieChart, group: "main" },
-  { label: "Gelirler", icon: BanknoteIcon, group: "main" },
+  { label: "Ağırlıklar", icon: PieChart, group: "analysis" },
+  { label: "Gelirler", icon: BanknoteIcon, group: "analysis" },
   { label: "Temettü", icon: Receipt, group: "portfolios" },
   { label: "Temettü Sabit", icon: History, group: "portfolios" },
   { label: "Büyüme", icon: BarChart3, group: "portfolios" },
@@ -295,6 +295,16 @@ export default function PortfolioDashboard() {
               ))}
             </div>
           </div>
+
+          {/* ANALİZ GRUBU */}
+          <div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 px-2">Analiz</p>
+            <div className="space-y-1">
+              {SIDEBAR_ITEMS.filter(i => i.group === "analysis").map(item => (
+                <SidebarButton key={item.label} item={item} />
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="mt-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
@@ -357,17 +367,7 @@ export default function PortfolioDashboard() {
               </div>
             </>
           ) : activeCategory === "Ağırlıklar" ? (
-            <div className="space-y-8">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-2xl font-bold">Varlık Ağırlıkları</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Portföyünüzün çeşitliliğini ve risk dağılımını analiz edin.</p>
-                </div>
-                <Badge className="bg-primary/20 text-primary py-1 px-3">Toplam: ₺{totalValue.toLocaleString("tr-TR")}</Badge>
-              </div>
-
-              <WeightAnalysis holdings={assets} />
-            </div>
+            <WeightAnalysis holdings={assets} />
           ) : activeCategory === "Gelirler" ? (
              <IncomeAnalysis holdings={assets} />
           ) : (
