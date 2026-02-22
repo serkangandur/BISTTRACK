@@ -10,47 +10,44 @@ export async function GET(request: NextRequest) {
 
   const requestedSymbols = symbolsParam.split(',').map(s => s.trim().toUpperCase());
   const updates: any[] = [];
+  
+  // Profesyonel tarayıcı başlığı (CNN'in bizi engellemesini önlemek için)
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+  };
 
-  console.log("--- [API TARAMA BAŞLADI] ---");
+  console.log("--- [API TARAMA BAŞLADI - PARALEL MOD] ---");
 
-  // --- 1. BIST HİSSELERE (CNN TÜRK) ---
   try {
-    const bistRes = await fetch('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', {
-      cache: 'no-store',
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    if (bistRes.ok) {
-      const html = await bistRes.text();
+    // İki sayfayı aynı anda çekerek hız kazanıyoruz
+    const [bistRes, dovizRes] = await Promise.allSettled([
+      fetch('https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri', { cache: 'no-store', headers }),
+      fetch('https://finans.cnnturk.com/doviz', { cache: 'no-store', headers })
+    ]);
+
+    // 1. BIST PARSER
+    if (bistRes.status === 'fulfilled' && bistRes.value.ok) {
+      const html = await bistRes.value.text();
       const $ = cheerio.load(html);
       $('tr').each((_, element) => {
         const cols = $(element).find('td');
         if (cols.length >= 2) {
-          // Sütun 0: Sembol (PAGYO, TUPRS vb.)
           const rawText = $(cols[0]).text().trim().toUpperCase();
           const symbolInTable = rawText.split(/\s+/)[0]; 
-          
           if (requestedSymbols.includes(symbolInTable)) {
-            // Sütun 1: Son Fiyat
-            let priceRaw = $(cols[1]).text().trim();
+            const priceRaw = $(cols[1]).text().trim();
             const priceValue = parseFloat(priceRaw.replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(priceValue)) {
-              updates.push({ symbol: symbolInTable, price: priceValue, change: 0 });
-              console.log(`[BIST] ${symbolInTable} Bulundu: ${priceValue}`);
-            }
+            if (!isNaN(priceValue)) updates.push({ symbol: symbolInTable, price: priceValue, change: 0 });
           }
         }
       });
     }
-  } catch (e) { console.error("BIST Hatası:", e); }
 
-  // --- 2. DÖVİZ (USD/EUR - CNN TÜRK) ---
-  try {
-    const dovizRes = await fetch('https://finans.cnnturk.com/doviz', {
-      cache: 'no-store',
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
-    if (dovizRes.ok) {
-      const html = await dovizRes.text();
+    // 2. DÖVİZ PARSER
+    if (dovizRes.status === 'fulfilled' && dovizRes.value.ok) {
+      const html = await dovizRes.value.text();
       const $ = cheerio.load(html);
       const mapping: Record<string, string> = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
 
@@ -58,25 +55,25 @@ export async function GET(request: NextRequest) {
         const cols = $(element).find('td');
         if (cols.length >= 3) {
           const label = $(cols[0]).text().trim().toUpperCase();
-          const matchedKey = Object.keys(mapping).find(key => label === key);
+          // Eşleşmeyi kolaylaştırmak için .includes kullanıyoruz
+          const matchedKey = Object.keys(mapping).find(key => label.includes(key));
           
           if (matchedKey) {
             const finalSymbol = mapping[matchedKey];
             if (requestedSymbols.includes(finalSymbol)) {
-              // Sütun 2: Satış Fiyatı (Hatalı 0.874 değerini önlemek için cols[2] sabitlendi)
-              let priceRaw = $(cols[2]).text().trim();
+              const priceRaw = $(cols[2]).text().trim();
               const priceValue = parseFloat(priceRaw.replace(/\./g, '').replace(',', '.'));
-              if (!isNaN(priceValue)) {
-                updates.push({ symbol: finalSymbol, price: priceValue, change: 0 });
-                console.log(`[DÖVİZ] ${finalSymbol} Bulundu: ${priceValue}`);
-              }
+              if (!isNaN(priceValue)) updates.push({ symbol: finalSymbol, price: priceValue, change: 0 });
             }
           }
         }
       });
     }
-  } catch (e) { console.error("Döviz Hatası:", e); }
 
-  console.log(`--- [TARAMA BİTTİ] Toplam ${updates.length} veri bulundu. ---`);
+  } catch (e: any) {
+    console.error("Sistem Hatası:", e.message);
+  }
+
+  console.log(`--- [TARAMA BİTTİ] Bulunan Veri Sayısı: ${updates.length} ---`);
   return NextResponse.json(updates);
 }
