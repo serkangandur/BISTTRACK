@@ -179,8 +179,10 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
             return (
               <div key={symbol} className={cn(
                 "p-4 rounded-xl border space-y-3 transition-all",
-                yieldValue > 0 && portfolioYield > 0 && yieldValue > portfolioYield
+                yieldValue > portfolioYield && portfolioYield > 0
                   ? "bg-green-500/10 border-green-500/30 shadow-lg shadow-green-500/10"
+                  : yieldValue > 0 && yieldValue < portfolioYield && portfolioYield > 0
+                  ? "bg-card/20 border-orange-500/20"
                   : "bg-card/20 border-white/5"
               )}>
                 {/* Kart Başlık */}
@@ -188,7 +190,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                   <div className="flex items-center gap-2">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black",
-                      yieldValue > 0 && portfolioYield > 0 && yieldValue > portfolioYield
+                      yieldValue > portfolioYield && portfolioYield > 0
                         ? "bg-green-500/20 text-green-400"
                         : "bg-primary/10 text-primary"
                     )}>
@@ -197,7 +199,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                     <div>
                       <div className="flex items-center gap-1.5">
                         <p className="font-bold text-sm">{symbol}</p>
-                        {yieldValue > 0 && portfolioYield > 0 && yieldValue > portfolioYield && (
+                        {yieldValue > portfolioYield && portfolioYield > 0 && (
                           <span className="text-[10px] font-black bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">
                             ▲ YUKARI
                           </span>
