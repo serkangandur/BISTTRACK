@@ -171,6 +171,15 @@ export default function PortfolioDashboard() {
     }
   }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
 
+  // Her 15 dakikada bir otomatik güncelle
+  useEffect(() => {
+    if (!dbStocks || dbStocks.length === 0) return;
+    const interval = setInterval(() => {
+      fetchStockPrices(dbStocks.map(s => s.symbol));
+    }, 15 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [dbStocks, fetchStockPrices]);
+
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
     
