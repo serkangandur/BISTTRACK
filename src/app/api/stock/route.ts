@@ -38,7 +38,13 @@ const CRYPTO_ID_MAP: Record<string, string> = {
 };
 
 function normalizeSymbol(s: string): string {
-  const upper = s.trim().toUpperCase();
+  const upper = s.trim().toUpperCase()
+    .replace(/İ/g, 'I')
+    .replace(/Ş/g, 'S')
+    .replace(/Ğ/g, 'G')
+    .replace(/Ü/g, 'U')
+    .replace(/Ö/g, 'O')
+    .replace(/Ç/g, 'C');
   return SYMBOL_ALIASES[upper] || upper;
 }
 
@@ -73,7 +79,7 @@ export async function GET(request: NextRequest) {
   try {
     const ts = Date.now();
     
-    // Paralel Veri Çekme
+    // ✅ Paralel Veri Çekme
     const [altinHTML, dovizHTML, bistHTML, cryptoData] = await Promise.all([
       needsAltinGumus
         ? fetch(`https://finans.cnnturk.com/altin?v=${ts}`, { headers: fetchHeaders, cache: 'no-store' }).then(r => r.text())
@@ -99,7 +105,7 @@ export async function GET(request: NextRequest) {
       const $a = cheerio.load(altinHTML);
       // GA
       if (requestedSymbols.includes('GA')) {
-        $a('a[href*="gram-altin-fiyati"]').each((_, el) => {
+        $a('a[href*="gram-altin-fiyati"]').not('a[href*="0."]').each((_, el) => {
           const row = $a(el).closest('tr');
           const tds = row.find('td');
           if (tds.length >= 2) {
@@ -119,7 +125,7 @@ export async function GET(request: NextRequest) {
           const tds = row.find('td');
           if (tds.length >= 2) {
             const price = parseNum($a(tds[1]).text().trim());
-            if (price > 10 && price < 500) {
+            if (price > 10 && price < 1000) {
               const change = parseNum($a(tds[3]).text().replace('%', '')) || 0;
               pushUpdate('GG', price, change);
               return false;
@@ -134,12 +140,14 @@ export async function GET(request: NextRequest) {
       const $d = cheerio.load(dovizHTML);
       const dMap: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
       $d('tr').each((_, el) => {
-        const rowText = $d(el).text().toUpperCase();
+        const rowText = $d(el).text().toUpperCase()
+          .replace(/İ/g, 'I').replace(/Ş/g, 'S').replace(/Ğ/g, 'G')
+          .replace(/Ü/g, 'U').replace(/Ö/g, 'O').replace(/Ç/g, 'C');
         const key = Object.keys(dMap).find(k => rowText.includes(k));
         if (key && requestedSymbols.includes(dMap[key])) {
           $d(el).find('td').each((_, td) => {
             const val = parseNum($d(td).text().trim());
-            if (val > 30 && val < 100) { // Mantıklı kur aralığı (51.68 vb.)
+            if (val > 30 && val < 100) {
               pushUpdate(dMap[key], val, 0);
               return false;
             }
