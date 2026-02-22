@@ -13,75 +13,81 @@ export async function GET(request: NextRequest) {
   const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36' };
 
   try {
-    // 3 FARKLI KAYNAĞI AYNI ANDA ÇEKİYORUZ
+    // 3 ANA KAYNAĞI ÇEKİYORUZ
     const [dovizRes, bistRes, altinRes] = await Promise.all([
       fetch(`https://finans.cnnturk.com/doviz?t=${Date.now()}`, { headers, cache: 'no-store' }),
       fetch(`https://finans.cnnturk.com/canli-borsa/bist-tum-hisseleri?t=${Date.now()}`, { headers, cache: 'no-store' }),
       fetch(`https://finans.cnnturk.com/altin?t=${Date.now()}`, { headers, cache: 'no-store' })
     ]);
 
-    // --- 1. DÖVİZ İŞLEME (USD, EUR) ---
-    if (dovizRes.ok) {
-      const $ = cheerio.load(await dovizRes.text());
-      const mapping: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
-      $('tr').each((_, el) => {
-        const text = $(el).text().toUpperCase();
-        const matchedKey = Object.keys(mapping).find(k => text.includes(k));
-        if (matchedKey) {
-          const sym = mapping[matchedKey];
-          if (requestedSymbols.includes(sym)) {
-            $(el).find('td').each((__, td) => {
-              const val = parseFloat($(td).text().trim().replace(/\./g, '').replace(',', '.'));
-              if (val > 30 && val < 100) { updates.push({ symbol: sym, price: val, change: 0 }); return false; }
-            });
-          }
-        }
-      });
-    }
-
-    // --- 2. ALTIN VE GÜMÜŞ İŞLEME (GA, GG) ---
+    // --- 1. ALTIN VE GÜMÜŞ (7165,09 ve 118,46 HEDEFİ) ---
     if (altinRes.ok) {
       const $ = cheerio.load(await altinRes.text());
-      const emtiaMapping: any = { 'GRAM ALTIN': 'GA', 'GÜMÜŞ': 'GG' };
-      
+      const emtiaMap: any = { 'GRAM ALTIN': 'GA', 'GÜMÜŞ': 'GG' };
+
       $('tr').each((_, el) => {
-        const text = $(el).text().toUpperCase();
-        const matchedKey = Object.keys(emtiaMapping).find(k => text.includes(k));
+        const rowText = $(el).text().toUpperCase();
+        const matchedKey = Object.keys(emtiaMap).find(k => rowText.includes(k));
         
         if (matchedKey) {
-          const sym = emtiaMapping[matchedKey];
-          if (requestedSymbols.includes(sym) || requestedSymbols.includes(matchedKey.split(' ')[0])) {
-            $(el).find('td').each((i, td) => {
+          const sym = emtiaMap[matchedKey];
+          if (requestedSymbols.includes(sym)) {
+            let candidates: number[] = [];
+            $(el).find('td').each((__, td) => {
               const val = parseFloat($(td).text().trim().replace(/\./g, '').replace(',', '.'));
-              if (val > 25) { 
-                updates.push({ symbol: sym, price: val, change: 0 }); 
-                return false; 
-              }
+              if (!isNaN(val) && val > 10) candidates.push(val);
             });
+            // Satırdaki EN YÜKSEK rakamı al (Genelde Satış fiyatı budur: 7165 veya 118)
+            if (candidates.length > 0) {
+              const bestPrice = Math.max(...candidates);
+              updates.push({ symbol: sym, price: bestPrice, change: 0 });
+            }
           }
         }
       });
     }
 
-    // --- 3. BIST HİSSE İŞLEME (PAGYO vb.) ---
+    // --- 2. DÖVİZ (USD/EUR - 51,68 HEDEFİ) ---
+    if (dovizRes.ok) {
+      const $d = cheerio.load(await dovizRes.text());
+      const dovizMap: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
+      $d('tr').each((_, el) => {
+        const text = $d(el).text().toUpperCase();
+        const matchedKey = Object.keys(dovizMap).find(k => text.includes(k));
+        if (matchedKey) {
+          const sym = dovizMap[matchedKey];
+          if (requestedSymbols.includes(sym)) {
+            let candidates: number[] = [];
+            $d(el).find('td').each((__, td) => {
+              const val = parseFloat($d(td).text().trim().replace(/\./g, '').replace(',', '.'));
+              if (!isNaN(val) && val > 30 && val < 100) candidates.push(val);
+            });
+            if (candidates.length > 0) {
+              updates.push({ symbol: sym, price: Math.max(...candidates), change: 0 });
+            }
+          }
+        }
+      });
+    }
+
+    // --- 3. BIST (HİSSELER) ---
     if (bistRes.ok) {
-      const $ = cheerio.load(await bistRes.text());
-      $('tr').each((_, el) => {
-        const tds = $(el).find('td');
+      const $b = cheerio.load(await bistRes.text());
+      $b('tr').each((_, el) => {
+        const tds = $b(el).find('td');
         if (tds.length >= 2) {
-          const rawSymbol = $(tds[0]).text().trim().toUpperCase();
+          const rawSymbol = $b(tds[0]).text().trim().toUpperCase();
           const foundSymbol = requestedSymbols.find(s => rawSymbol.includes(s));
+          // Döviz ve Altın sembollerini burada tekrar eklemeyelim
           if (foundSymbol && !['USD','EUR','GA','GG'].includes(foundSymbol)) {
-            const price = parseFloat($(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
+            const price = parseFloat($b(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
             if (!isNaN(price)) updates.push({ symbol: foundSymbol, price, change: 0 });
           }
         }
       });
     }
 
-  } catch (e) {
-    console.error("Hata:", e);
-  }
+  } catch (e) { console.error("Hata:", e); }
 
   return NextResponse.json(updates);
 }
