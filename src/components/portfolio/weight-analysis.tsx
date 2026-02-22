@@ -17,6 +17,9 @@ const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
   "Nakit": 20,
 };
 
+// Global toplama dahil edilecek ana yatırım kategorileri
+const MAIN_INVESTMENT_CATEGORIES = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
+
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
   // Global Sınır State - Kullanıcı tarafından düzenlenebilir
   const [baseLimit, setBaseLimit] = useState(2814000);
@@ -71,14 +74,18 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     return data;
   }, [holdings, baseLimit]);
 
-  // Toplam Ana Para Değeri (Tüm portföyün maliyet toplamı)
+  // ✅ STRATEJİK GÜNCELLEME: Sadece Temettü, Büyüme, Emtia, Kripto ve Nakit toplamı
   const totalPrincipalValue = useMemo(() => 
-    holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.averageCost), 0)
+    holdings
+      .filter(h => MAIN_INVESTMENT_CATEGORIES.includes(h.category))
+      .reduce((acc, h) => acc + (h.quantity * h.averageCost), 0)
   , [holdings]);
 
-  // Kategorilerin toplam limiti
+  // ✅ STRATEJİK GÜNCELLEME: Sadece bu kategorilerin toplam limiti
   const totalLimit = useMemo(() => {
-     return Object.values(categoryData).reduce((acc, d) => acc + (d?.limit || 0), 0);
+     return Object.entries(categoryData)
+       .filter(([cat]) => MAIN_INVESTMENT_CATEGORIES.includes(cat))
+       .reduce((acc, [_, d]) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
 
   const deficitSurplus = totalPrincipalValue - totalLimit;
