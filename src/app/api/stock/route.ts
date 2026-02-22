@@ -96,9 +96,9 @@ export async function GET(request: NextRequest) {
         }
       });
 
-      // Fallback: GRAM ALTIN için href üzerinden bul
+      // ✅ Altın için — href üzerinden direkt bul (0.25 ve 0.50 hariç)
       if (!updates.find(u => u.symbol === 'GA') && requestedSymbols.includes('GA')) {
-        $a('a[href*="gram-altin-fiyati"]').each((_, el) => {
+        $a('a[href*="gram-altin-fiyati"]').not('a[href*="0.25"]').not('a[href*="0.50"]').each((_, el) => {
           const parent = $a(el).closest('tr');
           const tds = parent.find('td');
           if (tds.length >= 2) {
