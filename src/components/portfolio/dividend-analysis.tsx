@@ -1,76 +1,30 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { 
-  TrendingUp, TrendingDown, Minus, Search, RefreshCcw, 
+  TrendingUp, TrendingDown, Minus, Search, 
   Loader2, AlertCircle, CheckCircle2, Info, Pencil, Save, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { StockHolding } from '@/lib/types';
-import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { StockHolding, DividendRecord } from '@/lib/types';
 import { DividendProjection } from './dividend-projection';
-
-interface DividendRecord {
-  id: string;
-  symbol: string;
-  netDividendPerShare: number;
-  year: number;
-  updatedAt?: any;
-}
+import { TEMETTU_SYMBOLS } from '@/hooks/use-dividends';
 
 interface DividendAnalysisProps {
   holdings: StockHolding[];
+  dividendMap: Record<string, DividendRecord>;
+  onSaveDividend: (symbol: string, net: number, year: number) => Promise<void>;
+  isSaving?: boolean;
 }
 
-const TEMETTU_SYMBOLS = ['LOGO', 'TUPRS', 'CLEBI', 'ISMEN', 'PAGYO', 'ANHYT'];
-
-// Varsayılan bilinen temettü verileri (başlangıç için)
-const DEFAULT_DIVIDENDS: Record<string, { net: number; year: number }> = {
-  'TUPRS': { net: 12.92, year: 2025 },
-};
-
-export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
-  const { user } = useUser();
-  const firestore = useFirestore();
+export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSaving }: DividendAnalysisProps) {
   const [editingSymbol, setEditingSymbol] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ net: string; year: string }>({ net: '', year: '' });
-  const [isSaving, setIsSaving] = useState(false);
   const [searchSymbol, setSearchSymbol] = useState('');
   const [searchNet, setSearchNet] = useState('');
   const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
-
-  // Firebase'den temettü verilerini çek (Küresel veri alanı)
-  const dividendsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'globalData', 'dividends', 'stocks');
-  }, [user, firestore]);
-
-  const { data: dbDividends, isLoading } = useCollection(dividendsQuery);
-
-  // Temettü verilerini map'e çevir
-  const dividendMap = useMemo(() => {
-    const map: Record<string, DividendRecord> = {};
-    
-    // Önce default değerleri koy
-    TEMETTU_SYMBOLS.forEach(sym => {
-      const def = DEFAULT_DIVIDENDS[sym];
-      if (def) {
-        map[sym] = { id: sym, symbol: sym, netDividendPerShare: def.net, year: def.year };
-      }
-    });
-    
-    // Sonra Firebase verilerini üstüne yaz
-    if (dbDividends) {
-      dbDividends.forEach((d: any) => {
-        map[d.symbol] = { id: d.id, symbol: d.symbol, netDividendPerShare: d.netDividendPerShare, year: d.year };
-      });
-    }
-    
-    return map;
-  }, [dbDividends]);
 
   // Temettü verimini hesapla
   const calculateYield = (symbol: string): { market: number; cost: number } => {
@@ -95,21 +49,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
     }, 0);
   }, [holdings, dividendMap]);
 
-  // Firebase'e kaydet (Küresel veri alanı)
-  const saveDividend = async (symbol: string, net: number, year: number) => {
-    if (!user || !firestore) return;
-    setIsSaving(true);
-    try {
-      const ref = doc(firestore, 'globalData', 'dividends', 'stocks', symbol);
-      await setDoc(ref, { symbol, netDividendPerShare: net, year, updatedAt: serverTimestamp() }, { merge: true });
-      setEditingSymbol(null);
-    } catch (err) {
-      console.error('Kaydetme hatası:', err);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const startEdit = (symbol: string) => {
     const div = dividendMap[symbol];
     setEditValues({ 
@@ -117,6 +56,15 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
       year: div?.year?.toString() || new Date().getFullYear().toString() 
     });
     setEditingSymbol(symbol);
+  };
+
+  const handleSave = async (symbol: string) => {
+    const net = parseFloat(editValues.net.replace(',', '.'));
+    const year = parseInt(editValues.year);
+    if (isNaN(net) || isNaN(year)) return;
+    
+    await onSaveDividend(symbol, net, year);
+    setEditingSymbol(null);
   };
 
   const getRecommendation = (yieldValue: number) => {
@@ -127,11 +75,9 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
     return { type: 'neutral', label: 'Benzer Verim', color: 'text-yellow-400', icon: Minus };
   };
 
-  // Arama sonucu için anlık hesaplama
   const searchYield = useMemo(() => {
     const net = parseFloat(searchNet.replace(',', '.'));
     if (!net || !searchSymbol) return 0;
-    // Arama yapılan hisse portföyde varsa canlı fiyatı kullan
     const holding = holdings.find(h => h.symbol.toUpperCase() === searchSymbol.toUpperCase());
     if (holding && holding.currentPrice > 0) return (net / holding.currentPrice) * 100;
     return 0;
@@ -139,7 +85,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
 
   return (
     <div className="space-y-12">
-      {/* Başlık */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">Temettü Analizi</h2>
@@ -149,7 +94,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         </div>
       </div>
 
-      {/* Portföy Verimi */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 bg-primary/10 rounded-xl border border-primary/20">
           <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Portföy Temettü Verimi</p>
@@ -165,7 +109,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         </div>
       </div>
 
-      {/* Hisse Kartları */}
       <div className="space-y-4">
         <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Temettü İzleme Paneli</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -184,7 +127,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                   ? "bg-green-500/10 border-green-500/30 shadow-lg shadow-green-500/10"
                   : "bg-card/20 border-white/5"
               )}>
-                {/* Kart Başlık */}
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
                     <div className={cn(
@@ -213,7 +155,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                   </button>
                 </div>
 
-                {/* Düzenleme Modu */}
                 {isEditing ? (
                   <div className="space-y-2">
                     <div>
@@ -239,7 +180,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                       />
                     </div>
                     <Button size="sm" className="w-full" disabled={isSaving || !editValues.net}
-                      onClick={() => saveDividend(symbol, parseFloat(editValues.net.replace(',', '.')), parseInt(editValues.year))}>
+                      onClick={() => handleSave(symbol)}>
                       {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
                       Kaydet
                     </Button>
@@ -279,7 +220,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                       )}
                     </div>
 
-                    {/* Verim Bar */}
                     {yieldValue > 0 && portfolioYield > 0 && (
                       <div className="space-y-1">
                         <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
@@ -310,7 +250,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         </div>
       </div>
 
-      {/* Yeni Hisse Karşılaştır */}
       <div className="p-5 bg-card/20 rounded-xl border border-white/5 space-y-4">
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -342,7 +281,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
           />
         </div>
 
-        {/* Karşılaştırma Sonucu */}
         {searchSymbol && searchNet && parseFloat(searchNet) > 0 && (
           <div className="p-4 bg-background/30 rounded-xl border border-white/10 space-y-4">
             <div className="flex justify-between items-start flex-wrap gap-2">
@@ -388,11 +326,10 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
             {searchYield === 0 && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Info className="h-3.5 w-3.5" />
-                Bu hisse portföyünde olmadığı için canlı fiyat yok — tahmini verim hesaplanamıyor. Hisseyi ekledikten sonra verim otomatik hesaplanır.
+                Bu hisse portföyünde olmadığı için canlı fiyat yok — tahmini verim hesaplanamıyor.
               </p>
             )}
 
-            {/* Karar */}
             {portfolioYield > 0 && searchYield > 0 && (() => {
               const rec = getRecommendation(searchYield);
               const diff = searchYield - portfolioYield;
@@ -418,7 +355,6 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         )}
       </div>
 
-      {/* 10 Yıllık Projeksiyon */}
       <DividendProjection holdings={holdings} dividendMap={dividendMap} />
     </div>
   );

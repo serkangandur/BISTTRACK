@@ -44,6 +44,7 @@ import {
   setDocumentNonBlocking
 } from "@/firebase";
 import { collection, doc, serverTimestamp } from "firebase/firestore";
+import { useDividends } from "@/hooks/use-dividends";
 
 interface StockPriceUpdate {
   symbol: string;
@@ -92,6 +93,8 @@ export function PortfolioDashboard() {
       initiateAnonymousSignIn(auth);
     }
   }, [user, isUserLoading, auth]);
+
+  const { dividendMap, saveDividend, isSaving } = useDividends();
 
   const portfoliosQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -174,31 +177,26 @@ export function PortfolioDashboard() {
       }
     } catch (error: any) {
       console.error("[API] Fiyat çekme hatası:", error.message);
-      toast({ 
-        title: "Hata", 
-        description: "Fiyatlar güncellenirken bir hata oluştu.",
-        variant: "destructive"
-      });
     } finally {
       isRefreshingRef.current = false;
       setIsRefreshing(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
       fetchStockPrices(dbStocks.map((s: any) => s.symbol));
     }
-  }, [dbStocks?.length, isStocksLoading]);
+  }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
 
   // Her 15 dakikada bir otomatik güncelle
   useEffect(() => {
+    if (!dbStocks || dbStocks.length === 0) return;
     const interval = setInterval(() => {
-      const symbols = dbStocksRef.current.map((s: any) => s.symbol);
-      if (symbols.length > 0) fetchStockPrices(symbols);
+      fetchStockPrices(dbStocks.map((s: any) => s.symbol));
     }, 15 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [fetchStockPrices]);
+  }, [dbStocks, fetchStockPrices]);
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
@@ -370,7 +368,12 @@ export function PortfolioDashboard() {
           ) : activeCategory === "Gelirler" ? (
             <IncomeAnalysis holdings={assets} />
           ) : activeCategory === "Temettü Analizi" ? (
-            <DividendAnalysis holdings={assets} />
+            <DividendAnalysis 
+              holdings={assets} 
+              dividendMap={dividendMap} 
+              onSaveDividend={saveDividend} 
+              isSaving={isSaving}
+            />
           ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center">

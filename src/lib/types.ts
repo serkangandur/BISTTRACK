@@ -1,4 +1,3 @@
-
 export type AssetCategory = 
   | "Temettü" 
   | "Temettü Sabit"
@@ -8,6 +7,14 @@ export type AssetCategory =
   | "Kripto" 
   | "Döviz" 
   | "Sigorta";
+
+export interface DividendRecord {
+  id: string;
+  symbol: string;
+  netDividendPerShare: number;
+  year: number;
+  updatedAt?: any;
+}
 
 export interface StockHolding {
   id: string;
