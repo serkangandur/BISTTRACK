@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
@@ -44,7 +44,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
   // Firebase'den temettü verilerini çek
   const dividendsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'dividends');
+    return collection(firestore, 'globalData', 'dividends', 'stocks');
   }, [user, firestore]);
 
   const { data: dbDividends, isLoading } = useCollection(dividendsQuery);
@@ -99,7 +99,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
     if (!user || !firestore) return;
     setIsSaving(true);
     try {
-      const ref = doc(firestore, 'users', user.uid, 'dividends', symbol);
+      const ref = doc(firestore, 'globalData', 'dividends', 'stocks', symbol);
       await setDoc(ref, { symbol, netDividendPerShare: net, year, updatedAt: serverTimestamp() }, { merge: true });
       setEditingSymbol(null);
     } catch (err) {
@@ -153,7 +153,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         <div className="p-5 bg-primary/10 rounded-xl border border-primary/20">
           <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Portföy Temettü Verimi</p>
           <p className="text-3xl font-black text-primary">%{portfolioYield.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Ağırlıklı Ortalama (İzleme Listesi Bazlı)</p>
+          <p className="text-xs text-muted-foreground mt-1">Ağırlıklı Ortalama (Piyasa Değeri Bazlı)</p>
         </div>
         <div className="md:col-span-2 p-5 bg-card/20 rounded-xl border border-white/5 flex items-center gap-3">
           <Info className="h-5 w-5 text-muted-foreground shrink-0" />
@@ -181,6 +181,8 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                 "p-4 rounded-xl border space-y-3 transition-all",
                 yieldValue > portfolioYield && portfolioYield > 0
                   ? "bg-green-500/10 border-green-500/30 shadow-lg shadow-green-500/10"
+                  : yieldValue > 0 && yieldValue < portfolioYield && portfolioYield > 0
+                  ? "bg-card/20 border-orange-500/20"
                   : "bg-card/20 border-white/5"
               )}>
                 {/* Kart Başlık */}

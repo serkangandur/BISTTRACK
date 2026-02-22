@@ -164,15 +164,14 @@
         }
       },
       {
-        "path": "/users/{userId}/dividends/{symbol}",
+        "path": "/globalData/dividends/stocks/{symbol}",
         "definition": {
           "entityName": "DividendRecord",
           "schema": {
             "$ref": "#/backend/entities/DividendRecord"
           },
-          "description": "User-specific dividend tracking data.",
+          "description": "Global dividend tracking data available to all users.",
           "params": [
-            { "name": "userId", "description": "Owner ID" },
             { "name": "symbol", "description": "Stock symbol" }
           ]
         }

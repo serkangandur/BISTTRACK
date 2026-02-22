@@ -23,6 +23,11 @@ service cloud.firestore {
 
     // --- Collection Rules ---
 
+    // Küresel temettü verileri (Herkes okuyabilir ve giriş yapmış olanlar güncelleyebilir)
+    match /globalData/dividends/stocks/{symbol} {
+      allow read, write: if isSignedIn();
+    }
+
     match /users/{userId} {
       allow get, list: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.id == userId;
