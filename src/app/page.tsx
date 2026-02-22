@@ -20,7 +20,8 @@ import {
   Landmark, 
   Banknote, 
   ShieldCheck,
-  History
+  History,
+  CloudUpload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +69,7 @@ export default function PortfolioDashboard() {
   
   const [marketData, setMarketData] = useState<Record<string, StockPriceUpdate>>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [activeCategory, setActiveCategory] = useState<ViewType>("Özet");
   
   const lastUpdateRef = useRef<number>(0);
@@ -170,6 +172,35 @@ export default function PortfolioDashboard() {
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
   }, [assets, activeCategory]);
 
+  // Yeni Senkronizasyon Fonksiyonu: Canlı fiyatları DB'ye kalıcı olarak kaydeder
+  const handleSyncPrices = useCallback(() => {
+    if (!user || !firestore || !portfolioId || assets.length === 0) return;
+    
+    setIsSyncing(true);
+    try {
+      assets.forEach(asset => {
+        const market = marketData[asset.symbol.toUpperCase()];
+        if (market && market.price > 0) {
+          const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', asset.id);
+          // Firestore update işlemi (non-blocking kuralına uygun)
+          updateDocumentNonBlocking(docRef, { 
+            currentPrice: market.price,
+            dailyChange: market.change,
+            updatedAt: serverTimestamp() 
+          });
+        }
+      });
+      toast({ 
+        title: "Piyasa Verileri Senkronize Edildi",
+        description: "Canlı fiyatlar portföy veritabanına kalıcı olarak kaydedildi." 
+      });
+    } catch (error) {
+      console.error("Senkronizasyon Hatası:", error);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 1000);
+    }
+  }, [user, firestore, portfolioId, assets, marketData, toast]);
+
   const handleAddStock = (newStock: Omit<StockHolding, "id">) => {
     if (!user || !firestore || !portfolioId) return;
     const stocksRef = collection(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings');
@@ -257,7 +288,7 @@ export default function PortfolioDashboard() {
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-bold">{activeCategory === "Özet" ? "Genel Bakış" : activeCategory}</h2>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -267,6 +298,16 @@ export default function PortfolioDashboard() {
               >
                 <RefreshCcw className={cn("h-4 w-4 mr-2", isRefreshing && "animate-spin")} />
                 Fiyatları Güncelle
+              </Button>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                className="bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20"
+                onClick={handleSyncPrices} 
+                disabled={isSyncing || Object.keys(marketData).length === 0}
+              >
+                <CloudUpload className={cn("h-4 w-4 mr-2", isSyncing && "animate-bounce")} />
+                Veritabanına Kaydet
               </Button>
             </div>
           </div>
