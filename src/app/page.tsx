@@ -10,6 +10,7 @@ import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
 import { TargetProgress } from "@/components/portfolio/target-progress";
 import { WeightAnalysis } from "@/components/portfolio/weight-analysis";
 import { IncomeAnalysis } from "@/components/portfolio/income-analysis";
+import { DividendAnalysis } from "@/components/portfolio/dividend-analysis";
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -25,7 +26,8 @@ import {
   History,
   CloudUpload,
   PieChart,
-  BanknoteIcon
+  BanknoteIcon,
+  Calculator
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,12 +53,13 @@ interface StockPriceUpdate {
   change: number;
 }
 
-type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | AssetCategory;
+type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | AssetCategory;
 
 const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" | "analysis" }[] = [
   { label: "Özet", icon: LayoutDashboard, group: "main" },
   { label: "Ağırlıklar", icon: PieChart, group: "analysis" },
   { label: "Gelirler", icon: BanknoteIcon, group: "analysis" },
+  { label: "Temettü Analizi", icon: Calculator, group: "analysis" },
   { label: "Temettü", icon: Receipt, group: "portfolios" },
   { label: "Temettü Sabit", icon: History, group: "portfolios" },
   { label: "Büyüme", icon: BarChart3, group: "portfolios" },
@@ -176,7 +179,7 @@ export default function PortfolioDashboard() {
   }, [assets]);
 
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler") {
+    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi") {
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
@@ -370,6 +373,8 @@ export default function PortfolioDashboard() {
             <WeightAnalysis holdings={assets} />
           ) : activeCategory === "Gelirler" ? (
              <IncomeAnalysis holdings={assets} />
+          ) : activeCategory === "Temettü Analizi" ? (
+             <DividendAnalysis holdings={assets} />
           ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
