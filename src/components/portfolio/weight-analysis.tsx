@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { StockHolding, AssetCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +17,10 @@ const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
   "Nakit": 20,
 };
 
-// Görseldeki baz sınır değeri
-const BASE_LIMIT = 2814000;
-
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
+  // Global Sınır State - Kullanıcı tarafından düzenlenebilir
+  const [baseLimit, setBaseLimit] = useState(2814000);
+
   // Kategorilere göre verileri grupla - ANA PARA (Maliyet) BAZLI HESAPLAMA
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: StockHolding[]; limit: number; targetPercent: number }>> = {};
@@ -35,7 +35,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       data[category] = {
         total: 0,
         holdings: [],
-        limit: (BASE_LIMIT * targetPercent) / 100,
+        limit: (baseLimit * targetPercent) / 100,
         targetPercent
       };
     });
@@ -57,13 +57,14 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     });
 
     return data;
-  }, [holdings]);
+  }, [holdings, baseLimit]);
 
   // Toplam Ana Para Değeri
   const totalCostBasis = useMemo(() => 
     holdings.filter(h => h.category !== "Temettü Sabit").reduce((acc, h) => acc + (h.quantity * h.averageCost), 0)
   , [holdings]);
 
+  // Kategorilerin toplam limiti
   const totalLimit = useMemo(() => {
      return Object.values(categoryData).reduce((acc, d) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
@@ -78,7 +79,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const actualPercent = data.limit > 0 ? (data.total / data.limit) * 100 : 0;
     const isOver = diff >= 0;
 
-    // 10 satıra tamamla (Görseldeki estetik için)
+    // 10 satıra tamamla
     const displayHoldings = [...data.holdings];
     while (displayHoldings.length < 10) {
       displayHoldings.push({ id: `empty-${displayHoldings.length}`, symbol: "", name: "", quantity: 0, averageCost: 0, currentPrice: 0, dailyChange: 0, category: category });
@@ -146,7 +147,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
                 {h.symbol}
               </div>
               <div className="col-span-3 text-[10px] text-orange-200 text-right font-mono font-medium">
-                {/* ✅ ANA PARA HESABI: Lot * Ortalama Maliyet */}
                 {h.symbol ? `₺${(h.quantity * h.averageCost).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
               </div>
             </div>
@@ -178,15 +178,25 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
           </div>
         </div>
 
-        {/* Global Sınır */}
+        {/* Global Sınır - DÜZENLENEBİLİR KUTU */}
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Sınır</div>
-          <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
-            ₺{totalLimit.toLocaleString("tr-TR", { minimumFractionDigits: 2 })}
+          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Sınır (Miktar Giriniz)</div>
+          <div className="bg-yellow-400 text-black flex items-center justify-center py-4 border-t-2 border-orange-500 mt-0.5 relative group">
+            <span className="font-black text-lg ml-4">₺</span>
+            <input 
+              type="text"
+              inputMode="numeric"
+              value={baseLimit.toLocaleString("tr-TR")}
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                setBaseLimit(Number(rawValue) || 0);
+              }}
+              className="bg-transparent border-none text-left w-full focus:outline-none focus:ring-0 font-black text-lg px-2 placeholder-black/50"
+            />
           </div>
         </div>
 
-        {/* Global Toplam (Ana Para Bazlı) */}
+        {/* Global Yatırım (Ana Para Bazlı) */}
         <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
           <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım</div>
           <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
