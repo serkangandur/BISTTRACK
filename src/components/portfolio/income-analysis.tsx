@@ -1,11 +1,9 @@
-
 "use client";
 
 import { useMemo, useState } from "react";
 import { StockHolding, AssetCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -18,7 +16,7 @@ import {
   Coins, 
   Wallet,
   Calculator,
-  ChevronRight
+  DollarSign
 } from "lucide-react";
 
 interface IncomeAnalysisProps {
@@ -54,8 +52,11 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
         return acc + (Number(h.quantity) * Number(h.currentPrice || h.averageCost));
       }, 0);
 
+      // YILLIK: Toplam Portföy / 100 * 3.5
       const yearly = (totalVal / 100) * 3.5;
+      // AYLIK: Yıllık / 12
       const monthly = yearly / 12;
+      // USD: Aylık TL / Kur
       const monthlyUsd = monthly / USD_RATE;
 
       data[cat] = { totalVal, yearly, monthly, monthlyUsd };
@@ -73,8 +74,9 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* ÜST ÖZET KARTLARI */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* ÜST ÖZET KARTLARI - 4'lü Izgara */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* TL GELİR KARTI */}
         <Card className="bg-primary/5 border-primary/20 shadow-2xl relative overflow-hidden group">
           <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <TrendingUp className="w-24 h-24 rotate-12" />
@@ -89,6 +91,22 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
           </CardContent>
         </Card>
 
+        {/* USD GELİR KARTI */}
+        <Card className="bg-sky-400/5 border-sky-400/20 shadow-2xl relative overflow-hidden group">
+          <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <DollarSign className="w-24 h-24" />
+          </div>
+          <CardContent className="p-6">
+            <p className="text-[10px] font-black text-sky-400 uppercase tracking-widest mb-1">Mevcut Aylık Getiri (USD)</p>
+            <h3 className="text-3xl font-black text-sky-400">${totalMonthlyIncomeUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+            <div className="flex items-center gap-1.5 mt-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+               <p className="text-[10px] text-muted-foreground font-bold">Döviz Bazlı Aylık Akış</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* USD HEDEF KARTI */}
         <Card className="bg-card/40 border-white/5 shadow-2xl relative overflow-hidden group">
           <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <Target className="w-24 h-24 -rotate-12" />
@@ -109,6 +127,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
           </CardContent>
         </Card>
 
+        {/* İLERLEME KARTI */}
         <Card className={cn(
           "shadow-2xl relative overflow-hidden group border-none",
           progressPercent >= 100 ? "bg-bist-up/10" : "bg-orange-500/10"
@@ -172,10 +191,10 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
                   </div>
                 </div>
 
-                <div className="bg-white/5 rounded-lg p-3 border border-white/5 flex justify-between items-center group hover:border-orange-500/30 transition-colors">
+                <div className="bg-white/5 rounded-lg p-3 border border-white/5 flex justify-between items-center group hover:border-sky-400/30 transition-colors">
                   <div className="flex items-center gap-2">
                     <div className="p-1 rounded bg-sky-400/10">
-                      <TrendingUp className="w-3 h-3 text-sky-400" />
+                      <DollarSign className="w-3 h-3 text-sky-400" />
                     </div>
                     <span className="text-[10px] font-bold text-sky-400 uppercase">Aylık USD</span>
                   </div>
