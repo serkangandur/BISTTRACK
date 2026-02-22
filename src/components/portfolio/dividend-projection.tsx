@@ -46,6 +46,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
   const PRICE_GROWTH = parseFloat(priceGrowth) / 100 || 0.30;
   const [monthlyUSD, setMonthlyUSD] = useState('2000');
   const [monthlyTargetUSD, setMonthlyTargetUSD] = useState('4000');
+  const [dollarInflation, setDollarInflation] = useState('3');
   const yearlyTargetUSD = parseFloat(monthlyTargetUSD || '4000') * 12;
 
   // Her hisse için 10 yıllık projeksiyon hesapla
@@ -104,10 +105,11 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
     return Array.from({ length: YEARS }, (_, i) => {
       const year = START_YEAR + i;
       const totalTL = projections.reduce((acc, p) => acc + (p.years[i]?.temNet || 0), 0);
-      const totalUSD = totalTL / usdRate;
+      const inflationMultiplier = Math.pow(1 + (parseFloat(dollarInflation || '3') / 100), i);
+      const totalUSD = (totalTL / usdRate) / inflationMultiplier;
       return { year, totalTL, totalUSD };
     });
-  }, [projections, usdRate]);
+  }, [projections, usdRate, dollarInflation]);
 
   return (
     <div className="space-y-6">
@@ -123,7 +125,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       {/* Ayarlar */}
       <div className="p-4 bg-card/20 rounded-xl border border-white/5">
         <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">2025 Başlangıç Değerleri & Ayarlar</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <div>
             <label className="text-xs text-muted-foreground">USD/TL Kuru</label>
             <input
@@ -172,6 +174,16 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               onChange={e => setMonthlyTargetUSD(e.target.value)}
               className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
               placeholder="4000"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Dolar Enflasyonu (%)</label>
+            <input
+              type="number"
+              value={dollarInflation}
+              onChange={e => setDollarInflation(e.target.value)}
+              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              placeholder="3"
             />
           </div>
         </div>
