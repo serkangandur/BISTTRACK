@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -310,6 +309,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         </div>
       </div>
 
+      {/* Yeni Hisse Karşılaştır */}
       <div className="p-5 bg-card/20 rounded-xl border border-white/5 space-y-4">
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
@@ -341,6 +341,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
           />
         </div>
 
+        {/* Karşılaştırma Sonucu */}
         {searchSymbol && searchNet && parseFloat(searchNet) > 0 && (
           <div className="p-4 bg-background/30 rounded-xl border border-white/10 space-y-4">
             <div className="flex justify-between items-start flex-wrap gap-2">
@@ -390,6 +391,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
               </p>
             )}
 
+            {/* Karar */}
             {portfolioYield > 0 && searchYield > 0 && (() => {
               const rec = getRecommendation(searchYield);
               const diff = searchYield - portfolioYield;
