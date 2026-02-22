@@ -19,76 +19,64 @@ export async function GET(request: NextRequest) {
       fetch(`https://finans.cnnturk.com/altin?t=${Date.now()}`, { headers, cache: 'no-store' })
     ]);
 
-    // 1. ALTIN (GA) & GÜMÜŞ (GG) - Hedef: 7165,09 ve 118,46
-    if (altinRes.ok) {
-      const $ = cheerio.load(await altinRes.text());
-      const emtiaMap: any = { 'GRAM ALTIN': 'GA', 'GÜMÜŞ GRAM (TL)': 'GG' };
+    // --- AKILLI TARAYICI FONKSİYONU ---
+    const findBestPrice = (el: any, $: any, min: number, max: number) => {
+      let found = 0;
+      $(el).find('td').each((_: any, td: any) => {
+        const val = parseFloat($(td).text().trim().replace(/\./g, '').replace(',', '.'));
+        if (!isNaN(val) && val >= min && val <= max) {
+          found = val;
+        }
+      });
+      return found;
+    };
+
+    // 1. DÖVİZ (USD & EUR)
+    if (dovizRes.ok) {
+      const $ = cheerio.load(await dovizRes.text());
+      const map: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
       $('tr').each((_, el) => {
-        const tds = $(el).find('td');
-        if (tds.length >= 2) {
-          const rowName = $(tds[0]).text().trim().toUpperCase();
-          const matchedKey = Object.keys(emtiaMap).find(k => rowName.includes(k));
-          if (matchedKey) {
-            const sym = emtiaMap[matchedKey];
-            if (requestedSymbols.includes(sym)) {
-              // Görseldeki 2. sütun (Alış): 7165,09 ve 118,46
-              const val = parseFloat($(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
-              if (!isNaN(val)) {
-                updates.push({ symbol: sym, price: val, change: 0 });
-              }
-            }
-          }
+        const rowText = $(el).text().toUpperCase();
+        const key = Object.keys(map).find(k => rowText.includes(k));
+        if (key && requestedSymbols.includes(map[key])) {
+          const price = findBestPrice(el, $, 30, 70); // Dolar/Euro 30-70 arasıdır
+          if (price > 0) updates.push({ symbol: map[key], price, change: 0 });
         }
       });
     }
 
-    // 2. DÖVİZ (USD & EUR) - Hedef: 51,68
-    if (dovizRes.ok) {
-      const $d = cheerio.load(await dovizRes.text());
-      const dovizMap: any = { 'ABD DOLARI': 'USD', 'EURO': 'EUR' };
-      $d('tr').each((_, el) => {
-        const tds = $d(el).find('td');
-        if (tds.length >= 2) {
-          const rowName = $d(tds[0]).text().trim().toUpperCase();
-          const matchedKey = Object.keys(dovizMap).find(k => rowName.includes(k));
-          if (matchedKey) {
-            const sym = dovizMap[matchedKey];
-            if (requestedSymbols.includes(sym)) {
-              // 51,68'i yakalamak için tüm hücrelere bak
-              let bestPrice = 0;
-              tds.each((i, td) => {
-                const n = parseFloat($d(td).text().trim().replace(/\./g, '').replace(',', '.'));
-                if (n > 30 && n < 100) {
-                  bestPrice = n;
-                }
-              });
-              if (bestPrice > 0) {
-                updates.push({ symbol: sym, price: bestPrice, change: 0 });
-              }
-            }
-          }
+    // 2. ALTIN (GA) & GÜMÜŞ (GG)
+    if (altinRes.ok) {
+      const $ = cheerio.load(await altinRes.text());
+      const map: any = { 'GRAM ALTIN': 'GA', 'GÜMÜŞ': 'GG' };
+      $('tr').each((_, el) => {
+        const rowText = $(el).text().toUpperCase();
+        const key = Object.keys(map).find(k => rowText.includes(k));
+        if (key && requestedSymbols.includes(map[key])) {
+          // Altın için 5000-9000 arası, Gümüş için 50-250 arası rakam ara
+          const price = map[key] === 'GA' ? findBestPrice(el, $, 5000, 9000) : findBestPrice(el, $, 50, 250);
+          if (price > 0) updates.push({ symbol: map[key], price, change: 0 });
         }
       });
     }
 
     // 3. BIST (PAGYO vb.)
     if (bistRes.ok) {
-      const $b = cheerio.load(await bistRes.text());
-      $b('tr').each((_, el) => {
-        const tds = $b(el).find('td');
+      const $ = cheerio.load(await bistRes.text());
+      $('tr').each((_, el) => {
+        const tds = $(el).find('td');
         if (tds.length >= 2) {
-          const rawSym = $b(tds[0]).text().trim().split(/\s+/)[0].toUpperCase();
-          if (requestedSymbols.includes(rawSym) && !['USD','EUR','GA','GG'].includes(rawSym)) {
-            const price = parseFloat($b(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
-            if (!isNaN(price)) {
-              updates.push({ symbol: rawSym, price, change: 0 });
-            }
+          const sym = $(tds[0]).text().trim().split(/\s+/)[0].toUpperCase();
+          if (requestedSymbols.includes(sym) && !['USD','EUR','GA','GG'].includes(sym)) {
+            const price = parseFloat($(tds[1]).text().trim().replace(/\./g, '').replace(',', '.'));
+            if (!isNaN(price)) updates.push({ symbol: sym, price, change: 0 });
           }
         }
       });
     }
   } catch (error) {
-    console.error(error);
+    console.error("Hata:", error);
   }
+
   return NextResponse.json(updates);
 }
