@@ -4,22 +4,42 @@
 import { useMemo, useState } from "react";
 import { StockHolding, AssetCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { 
+  TrendingUp, 
+  Target, 
+  BarChart3, 
+  Receipt, 
+  Landmark, 
+  Coins, 
+  Banknote, 
+  ShieldCheck,
+  ChevronRight,
+  Calculator
+} from "lucide-react";
 
 interface WeightAnalysisProps {
   holdings: StockHolding[];
 }
 
-// Global toplama dahil edilecek ana yatırım kategorileri
 const MAIN_INVESTMENT_CATEGORIES: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
 
+const CATEGORY_CONFIG: Record<AssetCategory, { icon: any; color: string }> = {
+  "Temettü": { icon: Receipt, color: "text-blue-400" },
+  "Büyüme": { icon: BarChart3, color: "text-purple-400" },
+  "Emtia": { icon: Landmark, color: "text-amber-400" },
+  "Kripto": { icon: Coins, color: "text-orange-400" },
+  "Nakit": { icon: Banknote, color: "text-emerald-400" },
+  "Sigorta": { icon: ShieldCheck, color: "text-cyan-400" },
+  "Temettü Sabit": { icon: Calculator, color: "text-slate-400" }
+};
+
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
-  // Global Sınır State
   const [baseLimit, setBaseLimit] = useState(2814000);
-  
-  // Sigorta Çarpanı State (Varsayılan 60 ay)
   const [insuranceMultiplier, setInsuranceMultiplier] = useState(60);
-  
-  // Hedef Ağırlıklar State
   const [targetWeights, setTargetWeights] = useState<Partial<Record<AssetCategory, number>>>({
     "Temettü": 70,
     "Büyüme": 30,
@@ -28,17 +48,14 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     "Nakit": 20,
   });
 
-  // Kategorilere göre verileri grupla - HYBRID HESAPLAMA
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; currentVal: number }[]; limit: number; targetPercent: number }>> = {};
     
-    // Sigorta için özel maaş bazlı hesaplama (Dinamik çarpan)
     const insuranceHolding = holdings.find(h => h.category === "Sigorta");
     const insuranceLimit = insuranceHolding?.monthlySalary 
       ? insuranceHolding.monthlySalary * insuranceMultiplier 
       : 474003.58;
 
-    // Tüm kategorileri başlat
     const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Sigorta"];
     
     allCategories.forEach((cat) => {
@@ -51,20 +68,17 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       };
     });
 
-    // Verileri işle ve grupla
     holdings.forEach(h => {
       if (h.category === "Temettü Sabit") return;
       
       const catData = data[h.category];
       if (catData) {
-        // ✅ STRATEJİK HESAPLAMA: Sadece Temettü için Ana Para, Diğerleri için Güncel Değer
         const val = h.category === "Temettü" 
           ? h.quantity * h.averageCost 
           : h.quantity * (h.currentPrice || h.averageCost);
           
         catData.total += val;
 
-        // Sembole göre grupla
         const existing = catData.holdings.find(item => item.symbol === h.symbol);
         if (existing) {
           existing.currentVal += val;
@@ -74,7 +88,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       }
     });
 
-    // Sırala
     Object.values(data).forEach(d => {
       d?.holdings.sort((a, b) => b.currentVal - a.currentVal);
     });
@@ -82,7 +95,6 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     return data;
   }, [holdings, baseLimit, targetWeights, insuranceMultiplier]);
 
-  // ✅ STRATEJİK GLOBAL DEĞER: Temettü (Maliyet) + Diğerleri (Piyasa)
   const totalStrategicValue = useMemo(() => 
     holdings
       .filter(h => MAIN_INVESTMENT_CATEGORIES.includes(h.category))
@@ -102,161 +114,189 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
   const deficitSurplus = totalStrategicValue - totalLimit;
 
-  const handleWeightChange = (category: AssetCategory, value: number) => {
-    setTargetWeights(prev => ({
-      ...prev,
-      [category]: value
-    }));
+  const handleWeightChange = (category: AssetCategory, value: string) => {
+    const numValue = Number(value.replace(/[^0-9]/g, ''));
+    setTargetWeights(prev => ({ ...prev, [category]: numValue }));
   };
 
-  const CategoryBoard = ({ category, label, color }: { category: AssetCategory, label: string, color: string }) => {
+  const CategoryCard = ({ category, label }: { category: AssetCategory, label: string }) => {
     const data = categoryData[category];
     if (!data) return null;
 
+    const config = CATEGORY_CONFIG[category];
+    const Icon = config.icon;
     const diff = data.total - data.limit;
     const actualPercent = data.limit > 0 ? (data.total / data.limit) * 100 : 0;
     const isOver = diff >= 0;
 
-    const displayItems = [...data.holdings];
-    while (displayItems.length < 10) {
-      displayItems.push({ symbol: "", currentVal: 0 });
-    }
-
     return (
-      <div className="flex flex-col border border-orange-500/60 bg-black min-w-[180px] flex-1 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
-        <div className={cn("text-center font-black py-1.5 text-black text-[13px] uppercase tracking-tighter", color)}>
-          {label}
-        </div>
-        
-        <div className="border-t border-orange-500/60 px-1 py-1">
-          <div className="text-[10px] text-orange-400/80 text-center font-bold tracking-widest uppercase">Sınır</div>
-          <div className="bg-yellow-400 text-black text-center font-black text-[14px] py-1">
-            ₺{data.limit.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+      <Card className="bg-card/40 border-white/5 shadow-xl flex flex-col hover:border-white/10 transition-all duration-300">
+        <CardHeader className="p-4 pb-2 border-b border-white/5 flex flex-row items-center justify-between">
+          <div className="flex items-center gap-2">
+             <div className={cn("p-1.5 rounded-md bg-white/5", config.color)}>
+               <Icon className="w-4 h-4" />
+             </div>
+             <CardTitle className="text-xs font-bold uppercase tracking-wider">{label}</CardTitle>
           </div>
-        </div>
-
-        <div className="border-t border-orange-500/60 py-1.5 bg-yellow-400/90 text-black text-center font-black text-xl leading-none h-[44px]">
-          {category === "Sigorta" ? (
-            <div className="flex justify-around items-center h-full">
-              <div className="text-center leading-tight flex flex-col items-center">
-                <span className="text-[8px] block font-bold text-black/60">AY</span>
+          <div className="flex items-center gap-1">
+            {category === "Sigorta" ? (
+              <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Ay:</span>
                 <input 
                   type="text"
                   inputMode="numeric"
                   value={insuranceMultiplier}
-                  onChange={(e) => {
-                    const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                    setInsuranceMultiplier(Number(rawValue) || 0);
-                  }}
-                  className="bg-transparent border-none text-center w-12 focus:outline-none focus:ring-0 font-black text-xl p-0 h-auto"
+                  onChange={(e) => setInsuranceMultiplier(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                  className="bg-transparent border-none text-center w-8 focus:outline-none font-bold text-xs p-0"
                 />
               </div>
-              <div className="text-center leading-tight">
-                <span className="text-[8px] block font-bold text-black/60">MAAŞ</span>
-                <span className="text-[14px]">₺{(data.limit / (insuranceMultiplier || 1)).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+            ) : (
+              <div className="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/10">
+                <input 
+                  type="text"
+                  inputMode="numeric"
+                  value={data.targetPercent}
+                  onChange={(e) => handleWeightChange(category, e.target.value)}
+                  className="bg-transparent border-none text-right w-8 focus:outline-none font-bold text-xs p-0"
+                />
+                <span className="text-[10px] text-muted-foreground">%</span>
               </div>
+            )}
+          </div>
+        </CardHeader>
+        
+        <CardContent className="p-4 flex-1 flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Sınır Hedefi</p>
+              <p className="text-sm font-black">₺{data.limit.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</p>
             </div>
-          ) : (
-            <input 
-              type="text"
-              inputMode="numeric"
-              value={data.targetPercent}
-              onChange={(e) => {
-                const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                handleWeightChange(category, Number(rawValue) || 0);
-              }}
-              className="bg-transparent border-none text-center w-full focus:outline-none focus:ring-0 font-black text-xl p-0 h-full"
-            />
-          )}
-        </div>
-
-        <div className="border-t border-orange-500/60 px-1 py-1">
-          <div className="text-[10px] text-orange-400/80 text-center font-bold uppercase tracking-widest">Fazla/Az</div>
-          <div className={cn(
-            "text-center font-black text-[14px] py-1 border border-orange-500/20",
-            isOver ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"
-          )}>
-            {isOver ? "+" : "-"}₺{Math.abs(diff).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
-          </div>
-        </div>
-
-        <div className="border-t border-orange-500/60 py-1.5 text-center bg-zinc-950">
-          <div className={cn(
-            "text-[14px] font-black",
-            actualPercent >= 100 ? "text-green-400" : "text-red-400"
-          )}>
-            %{actualPercent.toFixed(2).replace('.', ',')}
-          </div>
-        </div>
-
-        <div className="border-t border-orange-500/60 flex-1 overflow-hidden">
-          {displayItems.map((h, i) => (
-            <div key={i} className="grid grid-cols-5 border-b border-orange-500/30 last:border-0 h-6 items-center px-1.5 group hover:bg-white/5 transition-colors">
-              <div className="col-span-2 text-[10px] font-bold text-sky-400 truncate uppercase tracking-tighter">
-                {h.symbol}
-              </div>
-              <div className="col-span-3 text-[10px] text-orange-200 text-right font-mono font-medium">
-                {h.symbol ? `₺${h.currentVal.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}` : ""}
-              </div>
+            <div className="space-y-1 text-right">
+              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Mevcut Durum</p>
+              <p className="text-sm font-black">₺{data.total.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</p>
             </div>
-          ))}
-        </div>
-
-        <div className="border-t border-orange-500/60 bg-zinc-900 p-2 text-center">
-          <div className="text-[13px] font-black text-white/90">
-            ₺{data.total.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
           </div>
-        </div>
-      </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-end">
+              <Badge variant="outline" className={cn(
+                "text-[10px] py-0 h-5 border-none font-bold",
+                isOver ? "bg-bist-up/10 text-bist-up" : "bg-bist-down/10 text-bist-down"
+              )}>
+                {isOver ? "+" : "-"}₺{Math.abs(diff).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+              </Badge>
+              <span className="text-[11px] font-black text-muted-foreground">%{actualPercent.toFixed(1)}</span>
+            </div>
+            <Progress value={actualPercent} className="h-1.5 bg-white/5" />
+          </div>
+
+          <div className="mt-2 border-t border-white/5 pt-3 space-y-1.5 flex-1">
+            <p className="text-[9px] text-muted-foreground font-black uppercase mb-2">Varlık Detayları</p>
+            {data.holdings.length > 0 ? (
+              <div className="space-y-1 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                {data.holdings.map((h, i) => (
+                  <div key={i} className="flex justify-between items-center text-[11px] group">
+                    <span className="text-primary font-bold flex items-center gap-1 uppercase">
+                      <ChevronRight className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {h.symbol}
+                    </span>
+                    <span className="font-medium text-muted-foreground">₺{h.currentVal.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[10px] text-muted-foreground italic py-4 text-center border border-dashed border-white/5 rounded">Henüz varlık yok</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     );
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in zoom-in duration-700 overflow-x-auto pb-8 px-2">
-      <div className="flex flex-wrap justify-center gap-8 md:gap-16 pt-6">
-        <div className="min-w-[200px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="bg-orange-600 text-black text-[11px] font-black text-center py-1 uppercase tracking-widest">Eksik/Fazla Miktar</div>
-          <div className={cn(
-            "text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5",
-            deficitSurplus >= 0 ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
-          )}>
-            {deficitSurplus >= 0 ? "+" : "-"}₺{Math.abs(deficitSurplus).toLocaleString("tr-TR", { minimumFractionDigits: 0 })}
+    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-primary/5 border-primary/20 shadow-2xl relative overflow-hidden group">
+          <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Calculator className="w-24 h-24 rotate-12" />
           </div>
-        </div>
+          <CardContent className="p-6">
+            <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Global Yatırım (Stratejik)</p>
+            <h3 className="text-3xl font-black text-white">₺{totalStrategicValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</h3>
+            <div className="flex items-center gap-1.5 mt-2">
+               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+               <p className="text-[10px] text-muted-foreground font-bold">Temettü (Maliyet) + Diğerleri (Piyasa)</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Sınır (Düzenle)</div>
-          <div className="bg-yellow-400 text-black flex items-center justify-center py-4 border-t-2 border-orange-500 mt-0.5 relative group">
-            <span className="font-black text-lg ml-4">₺</span>
-            <input 
-              type="text"
-              inputMode="numeric"
-              value={baseLimit.toLocaleString("tr-TR")}
-              onChange={(e) => {
-                const rawValue = e.target.value.replace(/[^0-9]/g, '');
-                setBaseLimit(Number(rawValue) || 0);
-              }}
-              className="bg-transparent border-none text-left w-full focus:outline-none focus:ring-0 font-black text-lg px-2 placeholder-black/50"
-            />
+        <Card className="bg-card/40 border-white/5 shadow-2xl relative overflow-hidden group">
+          <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Target className="w-24 h-24 -rotate-12" />
           </div>
-        </div>
+          <CardContent className="p-6">
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Global Sınır (Kişisel Hedef)</p>
+            <div className="flex items-center gap-2">
+              <span className="text-3xl font-black text-white">₺</span>
+              <input 
+                type="text"
+                inputMode="numeric"
+                value={baseLimit.toLocaleString("tr-TR")}
+                onChange={(e) => setBaseLimit(Number(e.target.value.replace(/[^0-9]/g, '')) || 0)}
+                className="bg-transparent border-none text-left w-full focus:outline-none font-black text-3xl p-0"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground font-bold mt-2 italic">Hesaplamaları tetikleyen ana limit</p>
+          </CardContent>
+        </Card>
 
-        <div className="min-w-[240px] border-2 border-orange-500 p-1 bg-black shadow-[0_0_20px_rgba(249,115,22,0.15)]">
-          <div className="text-orange-400 text-[11px] font-black text-center py-1 uppercase tracking-widest">Global Yatırım Değeri</div>
-          <div className="bg-yellow-400 text-black text-center py-4 font-black text-lg border-t-2 border-orange-500 mt-0.5">
-            ₺{totalStrategicValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+        <Card className={cn(
+          "shadow-2xl relative overflow-hidden group border-none",
+          deficitSurplus >= 0 ? "bg-bist-up/10" : "bg-bist-down/10"
+        )}>
+          <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <TrendingUp className="w-24 h-24" />
           </div>
-        </div>
+          <CardContent className="p-6">
+            <p className={cn(
+              "text-[10px] font-black uppercase tracking-widest mb-1",
+              deficitSurplus >= 0 ? "text-bist-up" : "text-bist-down"
+            )}>Eksik / Fazla Durumu</p>
+            <h3 className={cn(
+              "text-3xl font-black",
+              deficitSurplus >= 0 ? "text-bist-up" : "text-bist-down"
+            )}>
+              {deficitSurplus >= 0 ? "+" : "-"}₺{Math.abs(deficitSurplus).toLocaleString("tr-TR", { maximumFractionDigits: 0 })}
+            </h3>
+            <p className="text-[10px] text-muted-foreground font-bold mt-2">Hedeflenen stratejiye göre konumunuz</p>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="flex gap-4 min-w-[1000px] justify-between h-[650px]">
-        <CategoryBoard category="Temettü" label="Temettü" color="bg-green-500" />
-        <CategoryBoard category="Büyüme" label="Büyüme" color="bg-green-500" />
-        <CategoryBoard category="Emtia" label="Emtia" color="bg-green-500" />
-        <CategoryBoard category="Kripto" label="Kripto" color="bg-green-500" />
-        <CategoryBoard category="Nakit" label="Nakit" color="bg-green-500" />
-        <CategoryBoard category="Sigorta" label="Sigorta" color="bg-green-500" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <CategoryCard category="Temettü" label="Temettü" />
+        <CategoryCard category="Büyüme" label="Büyüme" />
+        <CategoryCard category="Emtia" label="Emtia" />
+        <CategoryCard category="Kripto" label="Kripto" />
+        <CategoryCard category="Nakit" label="Nakit" />
+        <CategoryCard category="Sigorta" label="Sigorta" />
       </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+      `}</style>
     </div>
   );
 }
