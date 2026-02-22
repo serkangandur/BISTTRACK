@@ -40,6 +40,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
       const yearly = (totalVal / 100) * 3.5;
       // Aylık Gelir = Yıllık Gelir / 12
       const monthly = yearly / 12;
+      // Aylık USD Gelir = Aylık TL Gelir / USD Kuru
       const monthlyUsd = monthly / currencies.usd;
 
       data[cat] = { yearly, monthly, monthlyUsd };
@@ -167,7 +168,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
                 <p className="text-xs font-black text-emerald-400">₺{data.monthly.toLocaleString("tr-TR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</p>
               </div>
               <div className="space-y-0.5">
-                <p className="text-[8px] text-muted-foreground">AYLIK GETİRİ (USD)</p>
+                <p className="text-[8px] text-sky-400 font-bold">AYLIK GETİRİ (USD)</p>
                 <p className="text-xs font-black text-orange-400">${data.monthlyUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
