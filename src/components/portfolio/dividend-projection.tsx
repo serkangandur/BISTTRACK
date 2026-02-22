@@ -112,6 +112,39 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
     });
   }, [projections, usdRate, dollarInflation]);
 
+  // Hedef yıl için geriye dönük hesaplama
+  const targetYearIndex = parseInt(targetYear || '7');
+  const requiredYearlyUSD = parseFloat(monthlyTargetUSD || '4000') * 12;
+
+  const requiredInvestment = useMemo(() => {
+    return TEMETTU_SYMBOLS.map(sym => {
+      const proj = projections.find(p => p.sym === sym);
+      if (!proj) return { sym, neededLot: 0, additionalLot: 0, neededUSD: 0, perYearUSD: 0, targetHBT: 0, targetPrice: 0 };
+
+      const targetYearData = proj.years[targetYearIndex];
+      const currentLot = parseInt(manualInputs[sym]?.lot2025 || '0');
+      const targetHBT = targetYearData?.hbt || 0;
+      
+      // Her hisse için hedef temettü = toplam hedef / hisse sayısı
+      const perStockTargetUSD = requiredYearlyUSD / TEMETTU_SYMBOLS.length;
+      const perStockTargetTL = perStockTargetUSD * usdRate;
+      
+      // Kaç lot gerekli
+      const neededLot = targetHBT > 0 ? Math.ceil(perStockTargetTL / targetHBT) : 0;
+      const additionalLot = Math.max(0, neededLot - currentLot);
+      
+      // O yılın fiyatıyla kaç USD
+      const targetPrice = targetYearData?.fiyat || 0;
+      const neededUSD = (additionalLot * targetPrice) / usdRate;
+      const perYearUSD = neededUSD / targetYearIndex;
+
+      return { sym, neededLot, additionalLot, neededUSD, perYearUSD, targetHBT, targetPrice };
+    });
+  }, [projections, targetYearIndex, manualInputs, usdRate, requiredYearlyUSD]);
+
+  const totalNeededUSD = requiredInvestment.reduce((acc, r) => acc + r.neededUSD, 0);
+  const totalPerYearUSD = requiredInvestment.reduce((acc, r) => acc + r.perYearUSD, 0);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -235,6 +268,62 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Hedef Hesaplama */}
+      <div className="p-5 bg-yellow-500/5 rounded-xl border border-yellow-500/20 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🎯</span>
+          <h3 className="text-sm font-black text-yellow-400 uppercase tracking-[0.2em]">
+            {targetYear} Yılda Aylık ${monthlyTargetUSD} Hedefi İçin Gerekli Yatırım
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-3 bg-background/30 rounded-lg">
+            <p className="text-xs text-muted-foreground">Toplam Gereken USD</p>
+            <p className="text-xl font-black text-yellow-400">${totalNeededUSD.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</p>
+          </div>
+          <div className="p-3 bg-background/30 rounded-lg">
+            <p className="text-xs text-muted-foreground">Yıllık Ortalama</p>
+            <p className="text-xl font-black text-yellow-400">${totalPerYearUSD.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</p>
+          </div>
+          <div className="p-3 bg-background/30 rounded-lg">
+            <p className="text-xs text-muted-foreground">Aylık Ortalama</p>
+            <p className="text-xl font-black text-yellow-400">${(totalPerYearUSD / 12).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</p>
+          </div>
+          <div className="p-3 bg-background/30 rounded-lg">
+            <p className="text-xs text-muted-foreground">Hedef Yıllık Temettü</p>
+            <p className="text-xl font-black text-green-400">${requiredYearlyUSD.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-white/10">
+                <td className="py-2 text-muted-foreground font-bold">HİSSE</td>
+                <td className="py-2 text-center text-muted-foreground font-bold">HEDEF LOT</td>
+                <td className="py-2 text-center text-muted-foreground font-bold">EK LOT</td>
+                <td className="py-2 text-center text-muted-foreground font-bold">{START_YEAR + targetYearIndex}. YIL HBT</td>
+                <td className="py-2 text-center text-muted-foreground font-bold">{START_YEAR + targetYearIndex}. YIL FİYAT</td>
+                <td className="py-2 text-center text-yellow-400 font-bold">GEREKEN USD</td>
+              </tr>
+            </thead>
+            <tbody>
+              {requiredInvestment.map(r => (
+                <tr key={r.sym} className="border-b border-white/5">
+                  <td className="py-2 font-bold">{r.sym}</td>
+                  <td className="py-2 text-center">{r.neededLot.toLocaleString('tr-TR')}</td>
+                  <td className="py-2 text-center text-orange-400">+{r.additionalLot.toLocaleString('tr-TR')}</td>
+                  <td className="py-2 text-center">₺{r.targetHBT.toFixed(4)}</td>
+                  <td className="py-2 text-center">₺{r.targetPrice.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</td>
+                  <td className="py-2 text-center text-yellow-400 font-bold">${r.neededUSD.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
