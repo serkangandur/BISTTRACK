@@ -42,7 +42,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
   const [searchNet, setSearchNet] = useState('');
   const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
 
-  // Firebase'den temettü verilerini çek
+  // Firebase'den temettü verilerini çek (Küresel veri alanı)
   const dividendsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return collection(firestore, 'globalData', 'dividends', 'stocks');
@@ -83,7 +83,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
     return { market, cost };
   };
 
-  // Portföy ağırlıklı ortalama verimi
+  // Portföy ağırlıklı ortalama verimi (İzleme listesindeki hisseler bazında)
   const portfolioYield = useMemo(() => {
     const temettuHoldings = holdings.filter(h => TEMETTU_SYMBOLS.includes(h.symbol.toUpperCase()));
     if (temettuHoldings.length === 0) return 0;
@@ -95,7 +95,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
     }, 0);
   }, [holdings, dividendMap]);
 
-  // Firebase'e kaydet
+  // Firebase'e kaydet (Küresel veri alanı)
   const saveDividend = async (symbol: string, net: number, year: number) => {
     if (!user || !firestore) return;
     setIsSaving(true);
