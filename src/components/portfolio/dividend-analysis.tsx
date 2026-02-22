@@ -71,13 +71,15 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
     return map;
   }, [dbDividends]);
 
-  // Temettü verimini hesapla: Net Temettü ÷ Canlı Fiyat × 100
-  const calculateYield = (symbol: string): number => {
+  // Temettü verimini hesapla
+  const calculateYield = (symbol: string): { market: number; cost: number } => {
     const div = dividendMap[symbol];
-    if (!div || div.netDividendPerShare === 0) return 0;
+    if (!div || div.netDividendPerShare === 0) return { market: 0, cost: 0 };
     const holding = holdings.find(h => h.symbol.toUpperCase() === symbol);
-    if (!holding || holding.currentPrice === 0) return 0;
-    return (div.netDividendPerShare / holding.currentPrice) * 100;
+    if (!holding) return { market: 0, cost: 0 };
+    const market = holding.currentPrice > 0 ? (div.netDividendPerShare / holding.currentPrice) * 100 : 0;
+    const cost = holding.averageCost > 0 ? (div.netDividendPerShare / holding.averageCost) * 100 : 0;
+    return { market, cost };
   };
 
   // Portföy ağırlıklı ortalama verimi
@@ -88,7 +90,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
     if (totalValue === 0) return 0;
     return temettuHoldings.reduce((acc, h) => {
       const weight = (h.quantity * h.currentPrice) / totalValue;
-      return acc + (weight * calculateYield(h.symbol.toUpperCase()));
+      return acc + (weight * calculateYield(h.symbol.toUpperCase()).market);
     }, 0);
   }, [holdings, dividendMap]);
 
@@ -169,7 +171,9 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
           {TEMETTU_SYMBOLS.map(symbol => {
             const div = dividendMap[symbol];
             const holding = holdings.find(h => h.symbol.toUpperCase() === symbol);
-            const yieldValue = calculateYield(symbol);
+            const yields = calculateYield(symbol);
+            const yieldValue = yields.market;
+            const costYield = yields.cost;
             const isEditing = editingSymbol === symbol;
 
             return (
@@ -232,9 +236,15 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-xs text-muted-foreground">Temettü Verimi</span>
+                        <span className="text-xs text-muted-foreground">Verim (Canlı Fiyat)</span>
                         <span className={cn("text-sm font-bold", yieldValue > 0 ? "text-green-400" : "text-muted-foreground")}>
                           {yieldValue > 0 ? `%${yieldValue.toFixed(2)}` : '%---'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Verim (Maliyetim)</span>
+                        <span className={cn("text-sm font-bold", costYield > 0 ? "text-blue-400" : "text-muted-foreground")}>
+                          {costYield > 0 ? `%${costYield.toFixed(2)}` : '%---'}
                         </span>
                       </div>
                       {holding && holding.currentPrice > 0 && (
