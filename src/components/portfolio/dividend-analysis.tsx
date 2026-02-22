@@ -84,7 +84,9 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
 
   // Portföy ağırlıklı ortalama verimi
   const portfolioYield = useMemo(() => {
-    const temettuHoldings = holdings.filter(h => h.category === 'Temettü');
+    const temettuHoldings = holdings.filter(h => 
+      TEMETTU_SYMBOLS.includes(h.symbol.toUpperCase())
+    );
     if (temettuHoldings.length === 0) return 0;
     const totalValue = temettuHoldings.reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0);
     if (totalValue === 0) return 0;
@@ -153,7 +155,7 @@ export function DividendAnalysis({ holdings }: DividendAnalysisProps) {
         <div className="p-5 bg-primary/10 rounded-xl border border-primary/20">
           <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Portföy Temettü Verimi</p>
           <p className="text-3xl font-black text-primary">%{portfolioYield.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Ağırlıklı Ortalama (Piyasa Değeri Bazlı)</p>
+          <p className="text-xs text-muted-foreground mt-1">Ağırlıklı Ortalama (İzleme Listesi Bazlı)</p>
         </div>
         <div className="md:col-span-2 p-5 bg-card/20 rounded-xl border border-white/5 flex items-center gap-3">
           <Info className="h-5 w-5 text-muted-foreground shrink-0" />
