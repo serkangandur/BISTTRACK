@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -7,6 +8,7 @@ import { StockTable } from "@/components/portfolio/stock-table";
 import { PortfolioCharts } from "@/components/portfolio/portfolio-charts";
 import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
 import { TargetProgress } from "@/components/portfolio/target-progress";
+import { WeightAnalysis } from "@/components/portfolio/weight-analysis";
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -21,13 +23,10 @@ import {
   ShieldCheck,
   History,
   CloudUpload,
-  PieChart,
-  ArrowRight
+  PieChart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { 
@@ -143,14 +142,14 @@ export default function PortfolioDashboard() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
       const symbols = dbStocks.map(s => s.symbol);
       fetchStockPrices(symbols);
     }
-  }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
+  }, [dbStocks?.length, isStocksLoading]);
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
@@ -364,46 +363,7 @@ export default function PortfolioDashboard() {
                 <Badge className="bg-primary/20 text-primary py-1 px-3">Toplam: ₺{totalValue.toLocaleString("tr-TR")}</Badge>
               </div>
 
-              <div className="grid gap-6 md:grid-cols-2">
-                 <PortfolioCharts holdings={assets} />
-              </div>
-
-              <Card className="bg-card/30 border-white/5">
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Ağırlık Detayları</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-6">
-                    {assets
-                      .filter(a => a.category !== "Temettü Sabit")
-                      .sort((a, b) => (b.quantity * b.currentPrice) - (a.quantity * a.currentPrice))
-                      .map((asset) => {
-                        const value = asset.quantity * asset.currentPrice;
-                        const weight = totalValue > 0 ? (value / totalValue) * 100 : 0;
-                        return (
-                          <div key={asset.id} className="space-y-2">
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white/5 rounded-lg border border-white/10">
-                                  <span className="font-bold text-sm">{asset.symbol}</span>
-                                </div>
-                                <div>
-                                  <div className="text-sm font-semibold">{asset.name}</div>
-                                  <div className="text-[10px] text-muted-foreground">{asset.category}</div>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-sm font-bold">%{weight.toFixed(2)}</div>
-                                <div className="text-[10px] text-muted-foreground">₺{value.toLocaleString("tr-TR")}</div>
-                              </div>
-                            </div>
-                            <Progress value={weight} className="h-1.5 bg-white/5" />
-                          </div>
-                        );
-                      })}
-                  </div>
-                </CardContent>
-              </Card>
+              <WeightAnalysis holdings={assets} />
             </div>
           ) : (
             <div className="space-y-6">
