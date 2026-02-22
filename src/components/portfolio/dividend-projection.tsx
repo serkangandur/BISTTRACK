@@ -68,14 +68,12 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
             ? livePrice
             : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1);
 
-        const monthlyTL = parseFloat(monthlyUSD || '2000') * usdRate;
-        const perStockTL = monthlyTL / TEMETTU_SYMBOLS.length;
-        const addedLotPerYear = year > START_YEAR && fiyat > 0 
-          ? Math.floor((perStockTL * 12) / fiyat) 
+        const monthlyAddedLot = year > START_YEAR && livePrice > 0
+          ? Math.floor((parseFloat(monthlyUSD || '2000') * usdRate) / TEMETTU_SYMBOLS.length / livePrice)
           : 0;
-
-        const lot = year === START_YEAR ? lot2025 : liveLot + addedLotPerYear * (i);
-        const lotEklem = year > START_YEAR ? addedLotPerYear : null;
+        const totalAddedLot = monthlyAddedLot * 12 * i;
+        const lot = year === START_YEAR ? lot2025 : liveLot + totalAddedLot;
+        const lotEklem = year > START_YEAR ? monthlyAddedLot * 12 : null;
         
         const hbtYukselmesi = year > START_YEAR ? hbt - baseHBT * Math.pow(1 + GROWTH_RATE, i - 1) : null;
         const temNet = lot * hbt;
