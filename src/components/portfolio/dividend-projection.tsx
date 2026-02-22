@@ -1,4 +1,4 @@
-'use client';
+'client';
 
 import { useState, useMemo } from 'react';
 import { Info, ChevronDown, ChevronUp } from 'lucide-react';
@@ -68,8 +68,11 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
             ? livePrice
             : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1);
 
-        const monthlyAddedLot = year > START_YEAR && livePrice > 0
-          ? Math.floor((parseFloat(monthlyUSD || '2000') * usdRate) / TEMETTU_SYMBOLS.length / livePrice)
+        const projectedPrice = year === 2026 
+          ? livePrice 
+          : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1);
+        const monthlyAddedLot = year > START_YEAR && projectedPrice > 0
+          ? Math.floor((parseFloat(monthlyUSD || '2000') * usdRate) / TEMETTU_SYMBOLS.length / projectedPrice)
           : 0;
         const totalAddedLot = monthlyAddedLot * 12 * i;
         const lot = year === START_YEAR ? lot2025 : liveLot + totalAddedLot;
