@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo, useState } from "react";
@@ -10,7 +9,7 @@ interface IncomeAnalysisProps {
 }
 
 export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
-  // Canlı kur verileri (Sabitlenmiş)
+  // Canlı kur verileri (Sabitlenmiş veya Mock)
   const currencies = {
     eur: 51.62,
     usd: 43.82
@@ -32,14 +31,12 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
       // SADECE İLGİLİ KATEGORİYİ FİLTRELE
       const filtered = holdings.filter(h => h.category === cat);
       
-      // HESAPLAMA: Ağırlıklar sekmesinden bağımsız olarak, 
-      // tüm kalemler için Piyasa Değeri (Miktar * Güncel Fiyat) baz alınır.
+      // HESAPLAMA: Toplam Portföy Miktarı (Miktar * Güncel Fiyat) üzerinden yıllık %3,5 getiri baz alınır.
       const totalVal = filtered.reduce((acc, h) => {
         const val = Number(h.quantity) * Number(h.currentPrice || h.averageCost);
         return acc + val;
       }, 0);
 
-      // FORMÜL: (Toplam Portföy Miktarı / 100) * 3,5
       const yearly = (totalVal / 100) * 3.5;
       const monthly = yearly / 12;
       const monthlyUsd = monthly / currencies.usd;
@@ -161,15 +158,15 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
             </div>
             <div className="border border-orange-500/50 bg-black p-4 space-y-4 text-center group hover:border-orange-500 transition-colors">
               <div className="space-y-0.5">
-                <p className="text-[8px] text-muted-foreground">YILLIK HEDEF (TL)</p>
+                <p className="text-[8px] text-muted-foreground">YILLIK GETİRİ (TL)</p>
                 <p className="text-sm font-black">₺{data.yearly.toLocaleString("tr-TR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</p>
               </div>
               <div className="space-y-0.5">
-                <p className="text-[8px] text-muted-foreground">AYLIK HEDEF (TL)</p>
+                <p className="text-[8px] text-muted-foreground">AYLIK GETİRİ (TL)</p>
                 <p className="text-xs font-black text-emerald-400">₺{data.monthly.toLocaleString("tr-TR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</p>
               </div>
               <div className="space-y-0.5">
-                <p className="text-[8px] text-muted-foreground">AYLIK HEDEF (USD)</p>
+                <p className="text-[8px] text-muted-foreground">AYLIK GETİRİ (USD)</p>
                 <p className="text-xs font-black text-orange-400">${data.monthlyUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
