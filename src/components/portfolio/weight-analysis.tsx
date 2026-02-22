@@ -15,7 +15,6 @@ const TARGET_WEIGHTS: Partial<Record<AssetCategory, number>> = {
   "Emtia": 15,
   "Kripto": 5,
   "Nakit": 20,
-  "Döviz": 10,
 };
 
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
@@ -31,7 +30,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const insuranceLimit = insuranceHolding?.monthlySalary ? insuranceHolding.monthlySalary * 60 : 474003.58;
 
     // Tüm kategorileri başlat
-    const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Döviz", "Sigorta"];
+    const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Sigorta"];
     
     allCategories.forEach((cat) => {
       const targetPercent = TARGET_WEIGHTS[cat] || 0;
@@ -216,12 +215,11 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       </div>
 
       {/* Dikey Kategori Panelleri Izgarası */}
-      <div className="flex gap-4 min-w-[1200px] justify-between h-[650px]">
+      <div className="flex gap-4 min-w-[1000px] justify-between h-[650px]">
         <CategoryBoard category="Temettü" label="Temettü" color="bg-green-500" />
         <CategoryBoard category="Büyüme" label="Büyüme" color="bg-green-500" />
         <CategoryBoard category="Emtia" label="Emtia" color="bg-green-500" />
         <CategoryBoard category="Kripto" label="Kripto" color="bg-green-500" />
-        <CategoryBoard category="Döviz" label="Döviz" color="bg-green-500" />
         <CategoryBoard category="Nakit" label="Nakit" color="bg-green-500" />
         <CategoryBoard category="Sigorta" label="Sigorta" color="bg-green-500" />
       </div>
