@@ -55,6 +55,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       const baseHBT = div?.netDividendPerShare || 0;
       const lot2025 = parseFloat(input?.lot2025 || '0') || 0;
       const liveLot = holding?.quantity || 0;
+      const livePrice = holding?.currentPrice || 0;
 
       const years = Array.from({ length: YEARS }, (_, i) => {
         const year = START_YEAR + i;
@@ -69,7 +70,9 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
           year,
           fiyat: year === START_YEAR 
             ? parseFloat(input?.price2025 || '0') 
-            : parseFloat(input?.price2025 || '0') * Math.pow(1 + PRICE_GROWTH, i),
+            : year === 2026
+              ? livePrice
+              : livePrice * Math.pow(1 + PRICE_GROWTH, i - 1),
           lot,
           lotEklem: year > START_YEAR ? lotEklem : null,
           hbt,
