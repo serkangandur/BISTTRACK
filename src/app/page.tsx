@@ -9,6 +9,7 @@ import { PortfolioCharts } from "@/components/portfolio/portfolio-charts";
 import { AddStockDialog } from "@/components/portfolio/add-stock-dialog";
 import { TargetProgress } from "@/components/portfolio/target-progress";
 import { WeightAnalysis } from "@/components/portfolio/weight-analysis";
+import { IncomeAnalysis } from "@/components/portfolio/income-analysis";
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -23,7 +24,8 @@ import {
   ShieldCheck,
   History,
   CloudUpload,
-  PieChart
+  PieChart,
+  BanknoteIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,11 +51,12 @@ interface StockPriceUpdate {
   change: number;
 }
 
-type ViewType = "Özet" | "Ağırlıklar" | AssetCategory;
+type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | AssetCategory;
 
 const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" }[] = [
   { label: "Özet", icon: LayoutDashboard, group: "main" },
   { label: "Ağırlıklar", icon: PieChart, group: "main" },
+  { label: "Gelirler", icon: BanknoteIcon, group: "main" },
   { label: "Temettü", icon: Receipt, group: "portfolios" },
   { label: "Temettü Sabit", icon: History, group: "portfolios" },
   { label: "Büyüme", icon: BarChart3, group: "portfolios" },
@@ -173,7 +176,7 @@ export default function PortfolioDashboard() {
   }, [assets]);
 
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar") {
+    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler") {
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
@@ -365,6 +368,8 @@ export default function PortfolioDashboard() {
 
               <WeightAnalysis holdings={assets} />
             </div>
+          ) : activeCategory === "Gelirler" ? (
+             <IncomeAnalysis holdings={assets} />
           ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
