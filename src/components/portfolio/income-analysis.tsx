@@ -26,24 +26,20 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
 
   const categoryIncomes = useMemo(() => {
     const data: Record<string, { yearly: number; monthly: number; monthlyUsd: number }> = {};
-    const categories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Sigorta"];
+    const categories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
 
     categories.forEach(cat => {
+      // SADECE İLGİLİ KATEGORİYİ FİLTRELE
       const filtered = holdings.filter(h => h.category === cat);
       
+      // HESAPLAMA: Ağırlıklar sekmesinden bağımsız olarak, 
+      // tüm kalemler için Piyasa Değeri (Miktar * Güncel Fiyat) baz alınır.
       const totalVal = filtered.reduce((acc, h) => {
-        /**
-         * STRATEJİ: 
-         * Sadece "Temettü" için Ana Para (Miktar * Maliyet) baz alınır.
-         * Diğer tüm kategoriler için Piyasa Değeri (Miktar * Güncel Fiyat) baz alınır.
-         */
-        const val = cat === "Temettü" 
-          ? (Number(h.quantity) * Number(h.averageCost)) 
-          : (Number(h.quantity) * Number(h.currentPrice || h.averageCost));
+        const val = Number(h.quantity) * Number(h.currentPrice || h.averageCost);
         return acc + val;
       }, 0);
 
-      // FORMÜL: (Toplam Büyüklük / 100) * 3,5
+      // FORMÜL: (Toplam Portföy Miktarı / 100) * 3,5
       const yearly = (totalVal / 100) * 3.5;
       const monthly = yearly / 12;
       const monthlyUsd = monthly / currencies.usd;
@@ -54,7 +50,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
     return data;
   }, [holdings, currencies.usd]);
 
-  // TOPLAM STRATEJİK GELİR (Sigorta hariç tutulmuştur)
+  // TOPLAM STRATEJİK GELİR (Sigorta ve Temettü Sabit hariç)
   const strategicCategories = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
   const totalMonthlyIncome = strategicCategories.reduce((acc, cat) => acc + (categoryIncomes[cat]?.monthly || 0), 0);
   
@@ -156,7 +152,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
       </div>
 
       {/* KATEGORİ BAZLI GELİR KARTLARI */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {Object.entries(categoryIncomes)
           .map(([cat, data]) => (
           <div key={cat} className="flex flex-col">
@@ -166,15 +162,15 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
             <div className="border border-orange-500/50 bg-black p-4 space-y-4 text-center group hover:border-orange-500 transition-colors">
               <div className="space-y-0.5">
                 <p className="text-[8px] text-muted-foreground">YILLIK HEDEF (TL)</p>
-                <p className="text-sm font-black">₺{data.yearly.toLocaleString("tr-TR", { minimumFractionDigits: 3 })}</p>
+                <p className="text-sm font-black">₺{data.yearly.toLocaleString("tr-TR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</p>
               </div>
               <div className="space-y-0.5">
                 <p className="text-[8px] text-muted-foreground">AYLIK HEDEF (TL)</p>
-                <p className="text-xs font-black text-emerald-400">₺{data.monthly.toLocaleString("tr-TR", { minimumFractionDigits: 3 })}</p>
+                <p className="text-xs font-black text-emerald-400">₺{data.monthly.toLocaleString("tr-TR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</p>
               </div>
               <div className="space-y-0.5">
                 <p className="text-[8px] text-muted-foreground">AYLIK HEDEF (USD)</p>
-                <p className="text-xs font-black text-orange-400">${data.monthlyUsd.toLocaleString("en-US", { minimumFractionDigits: 2 })}</p>
+                <p className="text-xs font-black text-orange-400">${data.monthlyUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
             </div>
           </div>
@@ -182,7 +178,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
       </div>
 
       <div className="text-[10px] text-muted-foreground text-center border-t border-white/5 pt-8">
-        * Hesaplamalar kategori büyüklüğünün (Temettü için Maliyet, diğerleri için Piyasa) yıllık %3,5 getirisi baz alınarak yapılmaktadır.
+        * Hesaplamalar kategori bazlı "Toplam Portföy Miktarı" (Miktar × Güncel Fiyat) üzerinden yıllık %3,5 getiri baz alınarak yapılmaktadır. Sigorta kategorisi toplamlardan hariç tutulmuştur.
       </div>
     </div>
   );
