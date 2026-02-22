@@ -10,7 +10,7 @@ interface IncomeAnalysisProps {
 }
 
 export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
-  // Mock döviz ve endeks verileri (Görseldeki gibi)
+  // Mock döviz ve endeks verileri
   const currencies = {
     eur: 51.62,
     usd: 43.82
@@ -24,19 +24,6 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
   // Hedef Gelir (Görseldeki gibi sabit veya ayarlanabilir)
   const [targetMonthlyIncome, setTargetMonthlyIncome] = useState(4000);
 
-  // Kategori bazlı yıllık TL gelir hesaplama (Mock Yield Rates)
-  // MVP: Kullanıcı girişi henüz yok, kategorilere göre tahmini verim oranları kullanıyoruz
-  const categoryYields: Record<AssetCategory, number> = {
-    "Temettü": 0.08,      // %8 Temettü Verimi
-    "Büyüme": 0.04,       // %4 Büyüme Getirisi (Temettü gibi nakit)
-    "Emtia": 0.01,        // %1 (Saklama maliyeti vb. nakit etkisi)
-    "Kripto": 0.005,
-    "Nakit": 0.45,        // %45 Faiz Getirisi
-    "Sigorta": 0.0,
-    "Döviz": 0.02,
-    "Temettü Sabit": 0.0
-  };
-
   const categoryIncomes = useMemo(() => {
     const data: Record<string, { yearly: number; monthly: number; monthlyUsd: number }> = {};
     const categories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Sigorta", "Döviz"];
@@ -44,12 +31,13 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
     categories.forEach(cat => {
       const filtered = holdings.filter(h => h.category === cat);
       const totalVal = filtered.reduce((acc, h) => {
-        // Temettü için maliyet, diğerleri için piyasa değeri baz alınabilir
+        // Stratejiye sadık kalınarak: Temettü için maliyet (Ana Para), diğerleri için piyasa değeri
         const val = cat === "Temettü" ? h.quantity * h.averageCost : h.quantity * h.currentPrice;
         return acc + val;
       }, 0);
 
-      const yearly = totalVal * categoryYields[cat];
+      // Talep edilen yeni hesaplama: Toplam / 100 * 3.5
+      const yearly = (totalVal / 100) * 3.5;
       const monthly = yearly / 12;
       const monthlyUsd = monthly / currencies.usd;
 
@@ -60,11 +48,13 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
   }, [holdings, currencies.usd]);
 
   const totalMonthlyIncome = Object.values(categoryIncomes).reduce((acc, val) => acc + val.monthly, 0);
+  
+  // Yatırımdan gelen gelir: Temettü ve Büyüme toplamı
   const investmentIncome = categoryIncomes["Temettü"].monthly + categoryIncomes["Büyüme"].monthly;
 
   // Chart Genişlikleri
-  const totalWidth = Math.min((totalMonthlyIncome / targetMonthlyIncome) * 100, 100);
-  const investmentWidth = Math.min((investmentIncome / targetMonthlyIncome) * 100, 100);
+  const totalWidth = Math.min((totalMonthlyIncome / (targetMonthlyIncome * currencies.usd / 12)) * 100, 100); // Örnek hedef bazlı
+  const investmentWidth = Math.min((investmentIncome / (targetMonthlyIncome * currencies.usd / 12)) * 100, 100);
 
   return (
     <div className="bg-black text-white p-8 space-y-12 font-mono uppercase tracking-tight select-none min-h-screen">
@@ -123,10 +113,10 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
           <div className="absolute left-0 h-full bg-emerald-900/50 w-full border-l-2 border-muted-foreground" />
           <div 
             className="h-full bg-emerald-600 shadow-[0_0_15px_rgba(5,150,105,0.3)] transition-all duration-1000 relative"
-            style={{ width: `${totalWidth}%` }}
+            style={{ width: `${Math.min(100, (totalMonthlyIncome / (targetMonthlyIncome * currencies.usd)) * 100)}%` }}
           >
             <div className="absolute -right-20 top-1/2 -translate-y-1/2 bg-black border border-white/20 px-2 text-[11px] font-black">
-              ${totalMonthlyIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              ${(totalMonthlyIncome / currencies.usd).toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
@@ -136,10 +126,10 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
           <div className="absolute left-0 h-full bg-orange-900/20 w-full border-l-2 border-muted-foreground" />
           <div 
             className="h-full bg-orange-600 shadow-[0_0_15px_rgba(234,88,12,0.3)] transition-all duration-1000 relative"
-            style={{ width: `${investmentWidth}%` }}
+            style={{ width: `${Math.min(100, (investmentIncome / (targetMonthlyIncome * currencies.usd)) * 100)}%` }}
           >
             <div className="absolute -right-20 top-1/2 -translate-y-1/2 bg-black border border-white/20 px-2 text-[11px] font-black">
-              ${investmentIncome.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              ${(investmentIncome / currencies.usd).toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </div>
           </div>
         </div>
