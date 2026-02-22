@@ -68,7 +68,7 @@ const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" 
   { label: "Sigorta", icon: ShieldCheck, group: "portfolios" },
 ];
 
-export default function PortfolioDashboard() {
+export function PortfolioDashboard() {
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -121,6 +121,7 @@ export default function PortfolioDashboard() {
   const fetchStockPrices = useCallback(async (symbols: string[]) => {
     if (symbols.length === 0) return;
     
+    if (isRefreshing) return;
     setIsRefreshing(true);
     try {
       const response = await fetch(`/api/stock?symbols=${encodeURIComponent(symbols.join(','))}`);
@@ -162,7 +163,7 @@ export default function PortfolioDashboard() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [user, firestore, portfolioId, dbStocks, toast]);
+  }, [user, firestore, portfolioId, dbStocks, toast, isRefreshing]);
 
   useEffect(() => {
     if (!isStocksLoading && dbStocks && dbStocks.length > 0) {
@@ -382,3 +383,5 @@ export default function PortfolioDashboard() {
     </div>
   );
 }
+
+export default PortfolioDashboard;
