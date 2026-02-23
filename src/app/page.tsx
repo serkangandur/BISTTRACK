@@ -10,7 +10,6 @@ import { TargetProgress } from "@/components/portfolio/target-progress";
 import { WeightAnalysis } from "@/components/portfolio/weight-analysis";
 import { IncomeAnalysis } from "@/components/portfolio/income-analysis";
 import { DividendAnalysis } from "@/components/portfolio/dividend-analysis";
-import { DividendProjection } from "@/components/portfolio/dividend-projection";
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -51,14 +50,13 @@ interface StockPriceUpdate {
   change: number;
 }
 
-type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | "10Y Projeksiyon" | AssetCategory;
+type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | AssetCategory;
 
 const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" | "analysis" }[] = [
   { label: "Özet", icon: LayoutDashboard, group: "main" },
   { label: "Ağırlıklar", icon: PieChart, group: "analysis" },
   { label: "Gelirler", icon: BanknoteIcon, group: "analysis" },
   { label: "Temettü Analizi", icon: Calculator, group: "analysis" },
-  { label: "10Y Projeksiyon", icon: TrendingUp, group: "analysis" },
   { label: "Temettü", icon: Receipt, group: "portfolios" },
   { label: "Temettü Sabit", icon: History, group: "portfolios" },
   { label: "Büyüme", icon: BarChart3, group: "portfolios" },
@@ -153,7 +151,6 @@ export function PortfolioDashboard() {
         });
         setMarketData(prev => ({ ...prev, ...newData }));
 
-        // Fiyatları otomatik kaydet
         const currentUser = userRef.current;
         const currentFirestore = firestoreRef.current;
         const currentDbStocks = dbStocksRef.current;
@@ -189,7 +186,6 @@ export function PortfolioDashboard() {
     }
   }, [dbStocks?.length, isStocksLoading, fetchStockPrices]);
 
-  // Her 15 dakikada bir otomatik güncelle
   useEffect(() => {
     if (!dbStocks || dbStocks.length === 0) return;
     const interval = setInterval(() => {
@@ -219,7 +215,7 @@ export function PortfolioDashboard() {
   }, [assets]);
 
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi" || activeCategory === "10Y Projeksiyon") {
+    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi") {
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
@@ -250,10 +246,7 @@ export function PortfolioDashboard() {
   const handleDeleteStock = (id: string) => {
     if (!user || !firestore || !portfolioId) return;
     const docRef = doc(firestore, 'users', user.uid, 'portfolios', portfolioId, 'stockHoldings', id);
-    setDocumentNonBlocking(docRef, {}, { merge: false }); // Logic should be delete but keeping non-blocking
-    // In actual use, deleteDocumentNonBlocking should be used from firebase/index.ts
-    // but the user didn't request adding it to the imports if missing.
-    // I'll use a standard approach.
+    setDocumentNonBlocking(docRef, {}, { merge: false });
   };
 
   if (isUserLoading || isPortfoliosLoading || (isStocksLoading && !dbStocks)) {
@@ -270,7 +263,6 @@ export function PortfolioDashboard() {
     const isActive = activeCategory === item.label;
     return (
       <button
-        key={item.label}
         onClick={() => setActiveCategory(item.label)}
         className={cn(
           "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
@@ -378,8 +370,6 @@ export function PortfolioDashboard() {
               onSaveDividend={saveDividend} 
               isSaving={isSaving}
             />
-          ) : activeCategory === "10Y Projeksiyon" ? (
-            <DividendProjection holdings={assets} dividendMap={dividendMap} />
           ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center">

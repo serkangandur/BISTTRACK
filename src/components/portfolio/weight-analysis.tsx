@@ -1,11 +1,9 @@
-
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { StockHolding, AssetCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -37,24 +35,49 @@ const CATEGORY_CONFIG: Record<AssetCategory, { icon: any; color: string }> = {
   "Temettü Sabit": { icon: Calculator, color: "text-slate-400" }
 };
 
+const DEFAULT_WEIGHTS = {
+  "Temettü": 70,
+  "Büyüme": 30,
+  "Emtia": 15,
+  "Kripto": 5,
+  "Nakit": 20,
+};
+
+function loadFromStorage<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined') return defaultValue;
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
 export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
-  const [baseLimit, setBaseLimit] = useState(2814000);
-  const [insuranceMultiplier, setInsuranceMultiplier] = useState(60);
-  const [targetWeights, setTargetWeights] = useState<Partial<Record<AssetCategory, number>>>({
-    "Temettü": 70,
-    "Büyüme": 30,
-    "Emtia": 15,
-    "Kripto": 5,
-    "Nakit": 20,
-  });
+  const [baseLimit, setBaseLimit] = useState<number>(() => loadFromStorage('bistrack_baseLimit', 2814000));
+  const [insuranceMultiplier, setInsuranceMultiplier] = useState<number>(() => loadFromStorage('bistrack_insuranceMultiplier', 60));
+  const [targetWeights, setTargetWeights] = useState<Partial<Record<AssetCategory, number>>>(() => loadFromStorage('bistrack_targetWeights', DEFAULT_WEIGHTS));
+
+  // localStorage'a kaydet
+  useEffect(() => { localStorage.setItem('bistrack_baseLimit', JSON.stringify(baseLimit)); }, [baseLimit]);
+  useEffect(() => { localStorage.setItem('bistrack_insuranceMultiplier', JSON.stringify(insuranceMultiplier)); }, [insuranceMultiplier]);
+  useEffect(() => { localStorage.setItem('bistrack_targetWeights', JSON.stringify(targetWeights)); }, [targetWeights]);
+
+  // income-analysis ile birebir aynı hesap
+  const monthlyIncome = useMemo(() => {
+    const INCOME_CATS: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
+    return INCOME_CATS.reduce((acc, cat) => {
+      const totalVal = holdings
+        .filter(h => h.category === cat)
+        .reduce((sum, h) => sum + (Number(h.quantity) * Number(h.currentPrice || h.averageCost)), 0);
+      return acc + (totalVal / 100 * 3.5) / 12;
+    }, 0);
+  }, [holdings]);
 
   const categoryData = useMemo(() => {
     const data: Partial<Record<AssetCategory, { total: number; holdings: { symbol: string; currentVal: number }[]; limit: number; targetPercent: number }>> = {};
     
-    const insuranceHolding = holdings.find(h => h.category === "Sigorta");
-    const insuranceLimit = insuranceHolding?.monthlySalary 
-      ? insuranceHolding.monthlySalary * insuranceMultiplier 
-      : 474003.58;
+    const insuranceLimit = monthlyIncome * insuranceMultiplier;
 
     const allCategories: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit", "Sigorta"];
     
@@ -70,15 +93,12 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
 
     holdings.forEach(h => {
       if (h.category === "Temettü Sabit") return;
-      
       const catData = data[h.category];
       if (catData) {
         const val = h.category === "Temettü" 
           ? h.quantity * h.averageCost 
           : h.quantity * (h.currentPrice || h.averageCost);
-          
         catData.total += val;
-
         const existing = catData.holdings.find(item => item.symbol === h.symbol);
         if (existing) {
           existing.currentVal += val;
@@ -107,9 +127,9 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
   , [holdings]);
 
   const totalLimit = useMemo(() => {
-     return Object.entries(categoryData)
-       .filter(([cat]) => MAIN_INVESTMENT_CATEGORIES.includes(cat as AssetCategory))
-       .reduce((acc, [_, d]) => acc + (d?.limit || 0), 0);
+    return Object.entries(categoryData)
+      .filter(([cat]) => MAIN_INVESTMENT_CATEGORIES.includes(cat as AssetCategory))
+      .reduce((acc, [_, d]) => acc + (d?.limit || 0), 0);
   }, [categoryData]);
 
   const deficitSurplus = totalStrategicValue - totalLimit;
@@ -133,10 +153,10 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       <Card className="bg-card/40 border-white/5 shadow-xl flex flex-col hover:border-white/10 transition-all duration-300">
         <CardHeader className="p-4 pb-2 border-b border-white/5 flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
-             <div className={cn("p-1.5 rounded-md bg-white/5", config.color)}>
-               <Icon className="w-4 h-4" />
-             </div>
-             <CardTitle className="text-xs font-bold uppercase tracking-wider">{label}</CardTitle>
+            <div className={cn("p-1.5 rounded-md bg-white/5", config.color)}>
+              <Icon className="w-4 h-4" />
+            </div>
+            <CardTitle className="text-xs font-bold uppercase tracking-wider">{label}</CardTitle>
           </div>
           <div className="flex items-center gap-1">
             {category === "Sigorta" ? (
@@ -224,8 +244,8 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
             <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Global Yatırım (Stratejik)</p>
             <h3 className="text-3xl font-black text-white">₺{totalStrategicValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</h3>
             <div className="flex items-center gap-1.5 mt-2">
-               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-               <p className="text-[10px] text-muted-foreground font-bold">Temettü (Maliyet) + Diğerleri (Piyasa)</p>
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <p className="text-[10px] text-muted-foreground font-bold">Temettü (Maliyet) + Diğerleri (Piyasa)</p>
             </div>
           </CardContent>
         </Card>
@@ -283,19 +303,10 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
       </div>
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.1);
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
       `}</style>
     </div>
   );
