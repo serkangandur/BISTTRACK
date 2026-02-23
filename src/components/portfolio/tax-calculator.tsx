@@ -13,11 +13,13 @@ import {
   ChevronDown,
   ChevronRight,
   ShieldCheck,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StockHolding } from "@/lib/types";
+import { useTaxPayments, TaxDividendPayment } from "@/hooks/use-tax-payments";
 
 // ═══════════════════════════════════════════════════════════════
 // 2025 YILI VERGİ PARAMETRELERİ
@@ -33,11 +35,10 @@ const TAX_BRACKETS_2025 = [
   { limit: Infinity, rate: 0.40 },
 ];
 
-const EXEMPTION_RATE = 0.5;        // GVK Madde 22/2 — Brüt temettünün %50'si istisna
-const WITHHOLDING_RATE = 0.15;     // GVK Geçici 67 — %15 stopaj
-const DECLARATION_THRESHOLD = 330000; // 2025 yılı beyan sınırı (GVK Madde 86/1-c)
+const EXEMPTION_RATE = 0.5;
+const WITHHOLDING_RATE = 0.15;
+const DECLARATION_THRESHOLD = 330000;
 
-// Mevzuat bilgisi — UI'da gösterilecek
 const TAX_LAW_INFO = {
   year: 2025,
   lawName: "Gelir Vergisi Genel Tebliği (Seri No: 329)",
@@ -47,17 +48,9 @@ const TAX_LAW_INFO = {
   lastVerified: "2025-03-01",
 };
 
-interface DividendPayment {
-  id: string;
-  stock: string;
-  netAmount: number;
-  date: string;
-  note: string;
-}
-
 interface GroupedStock {
   stock: string;
-  payments: DividendPayment[];
+  payments: TaxDividendPayment[];
   totalNet: number;
   totalGross: number;
   totalStopaj: number;
@@ -108,7 +101,9 @@ function parseNum(val: string): number {
 }
 
 export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
-  const [payments, setPayments] = useState<DividendPayment[]>([]);
+  // Firestore'dan gelen veriler
+  const { payments, isLoading, isSaving, addPayment, removePayment } = useTaxPayments();
+
   const [newStock, setNewStock] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newDate, setNewDate] = useState("");
@@ -116,7 +111,6 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [expandedStocks, setExpandedStocks] = useState<Set<string>>(new Set());
 
-  // Portföydeki temettü hisselerinin sembolleri
   const portfolioSymbols = useMemo(() => {
     const dividendCategories = ["Temettü", "Temettü Sabit"];
     return holdings
@@ -124,20 +118,18 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
       .map((h) => h.symbol.toUpperCase());
   }, [holdings]);
 
-  const addPayment = () => {
+  const handleAddPayment = async () => {
     const amount = parseNum(newAmount);
     if (!newStock.trim() || amount <= 0) return;
     const symbol = newStock.trim().toUpperCase();
-    setPayments((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        stock: symbol,
-        netAmount: amount,
-        date: newDate || new Date().toISOString().split("T")[0],
-        note: newNote.trim(),
-      },
-    ]);
+
+    await addPayment({
+      stock: symbol,
+      netAmount: amount,
+      date: newDate || new Date().toISOString().split("T")[0],
+      note: newNote.trim(),
+    });
+
     setNewStock("");
     setNewAmount("");
     setNewDate("");
@@ -146,8 +138,8 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
     setExpandedStocks((prev) => new Set(prev).add(symbol));
   };
 
-  const removePayment = (id: string) => {
-    setPayments((prev) => prev.filter((p) => p.id !== id));
+  const handleRemovePayment = async (id: string) => {
+    await removePayment(id);
   };
 
   const toggleExpand = (stock: string) => {
@@ -159,16 +151,13 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
     });
   };
 
-  // Hisseleri grupla — portföydekiler temettü olmasa bile listelenir (0 ile)
   const grouped = useMemo((): GroupedStock[] => {
-    const map = new Map<string, DividendPayment[]>();
+    const map = new Map<string, TaxDividendPayment[]>();
 
-    // Portföydeki tüm temettü hisselerini başlat (boş bile olsa)
     portfolioSymbols.forEach((sym) => {
       if (!map.has(sym)) map.set(sym, []);
     });
 
-    // Ödemeleri ekle
     payments.forEach((p) => {
       if (!map.has(p.stock)) map.set(p.stock, []);
       map.get(p.stock)!.push(p);
@@ -208,14 +197,9 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
 
     if (!needsDeclaration) {
       return {
-        gross,
-        withholding,
-        matrah,
+        gross, withholding, matrah,
         needsDeclaration: false,
-        totalTax: withholding,
-        taxPayable: 0,
-        refund: 0,
-        breakdown: [],
+        totalTax: withholding, taxPayable: 0, refund: 0, breakdown: [],
         netDividend: gross - withholding,
         effectiveRate: (withholding / gross) * 100,
       };
@@ -225,11 +209,8 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
     const taxPayable = totalTax - withholding;
 
     return {
-      gross,
-      withholding,
-      matrah,
-      needsDeclaration: true,
-      totalTax,
+      gross, withholding, matrah,
+      needsDeclaration: true, totalTax,
       taxPayable: Math.max(0, taxPayable),
       refund: taxPayable < 0 ? Math.abs(taxPayable) : 0,
       breakdown,
@@ -239,20 +220,21 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
   }, [totalGrossDividend]);
 
   const f = (val: number) =>
-    "₺" +
-    val.toLocaleString("tr-TR", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    "₺" + val.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleDateString("tr-TR", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return d.toLocaleDateString("tr-TR", { day: "2-digit", month: "short", year: "numeric" });
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <Loader2 className="animate-spin h-8 w-8 text-primary" />
+        <p className="text-sm text-muted-foreground">Temettü verileri yükleniyor...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -276,31 +258,13 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
             Mevzuat Bilgisi — {TAX_LAW_INFO.year} Yılı
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs">
-            <p>
-              <span className="text-emerald-400/60">Dayanak:</span>{" "}
-              {TAX_LAW_INFO.lawName}
-            </p>
-            <p>
-              <span className="text-emerald-400/60">Resmi Gazete:</span>{" "}
-              {TAX_LAW_INFO.gazetteDate} — Sayı: {TAX_LAW_INFO.gazetteNumber}
-            </p>
-            <p>
-              <span className="text-emerald-400/60">Vergi Tarifesi:</span> GVK Madde 103
-              (ücret dışı gelirler)
-            </p>
-            <p>
-              <span className="text-emerald-400/60">Son Kontrol:</span>{" "}
-              {new Date(TAX_LAW_INFO.lastVerified).toLocaleDateString("tr-TR", {
-                day: "2-digit",
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
+            <p><span className="text-emerald-400/60">Dayanak:</span> {TAX_LAW_INFO.lawName}</p>
+            <p><span className="text-emerald-400/60">Resmi Gazete:</span> {TAX_LAW_INFO.gazetteDate} — Sayı: {TAX_LAW_INFO.gazetteNumber}</p>
+            <p><span className="text-emerald-400/60">Vergi Tarifesi:</span> GVK Madde 103 (ücret dışı gelirler)</p>
+            <p><span className="text-emerald-400/60">Son Kontrol:</span> {new Date(TAX_LAW_INFO.lastVerified).toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })}</p>
           </div>
           <p className="text-[10px] text-emerald-400/40 mt-1">
-            Vergi dilimleri her yıl Resmi Gazete&apos;de yayımlanan Gelir Vergisi Genel
-            Tebliği ile güncellenir. Yeni yıl tebliği yayımlandığında bu hesaplayıcının
-            güncellenmesi gerekir.
+            Vergi dilimleri her yıl Resmi Gazete&apos;de yayımlanan Gelir Vergisi Genel Tebliği ile güncellenir. Yeni yıl tebliği yayımlandığında bu hesaplayıcının güncellenmesi gerekir.
           </p>
         </div>
       </div>
@@ -310,15 +274,10 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
         <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-300/80 space-y-1">
           <p>
-            <strong>İstisna Oranı:</strong> %50 (GVK Md. 22/2) ·{" "}
-            <strong>Stopaj:</strong> %15 (GVK Geç. Md. 67) ·{" "}
-            <strong>Beyan Sınırı:</strong> {DECLARATION_THRESHOLD.toLocaleString("tr-TR")} TL
-            (GVK Md. 86/1-c)
+            <strong>İstisna Oranı:</strong> %50 (GVK Md. 22/2) · <strong>Stopaj:</strong> %15 (GVK Geç. Md. 67) · <strong>Beyan Sınırı:</strong> {DECLARATION_THRESHOLD.toLocaleString("tr-TR")} TL (GVK Md. 86/1-c)
           </p>
           <p>
-            Portföyünüzdeki temettü hisseleri otomatik listelenir. Hisse bazında{" "}
-            <strong>net ele geçen temettü</strong> tutarlarını girin. Aynı hisseye birden fazla
-            ödeme ekleyebilirsiniz.
+            Portföyünüzdeki temettü hisseleri otomatik listelenir. Hisse bazında <strong>net ele geçen temettü</strong> tutarlarını girin. Veriler otomatik kaydedilir.
           </p>
         </div>
       </div>
@@ -348,9 +307,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                       ? `${prev.toLocaleString("tr-TR")} TL'den fazlası`
                       : `${prev === 0 ? "0" : prev.toLocaleString("tr-TR")} — ${bracket.limit.toLocaleString("tr-TR")} TL`}
                   </td>
-                  <td className="p-3 text-xs text-right text-primary font-bold">
-                    %{(bracket.rate * 100).toFixed(0)}
-                  </td>
+                  <td className="p-3 text-xs text-right text-primary font-bold">%{(bracket.rate * 100).toFixed(0)}</td>
                 </tr>
               );
             })}
@@ -358,7 +315,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
         </table>
       </div>
 
-      {/* Portföy Tablosu */}
+      {/* Temettü Gelirleri Tablosu */}
       <div>
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-3">
@@ -373,8 +330,10 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-primary text-primary-foreground"
             size="sm"
+            disabled={isSaving}
           >
-            <Plus className="w-4 h-4 mr-1" /> Temettü Ekle
+            {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+            Temettü Ekle
           </Button>
         </div>
 
@@ -382,77 +341,50 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           <div className="bg-card/40 border border-white/10 rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
             <div className="flex gap-3 items-end">
               <div className="flex-1">
-                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
-                  Hisse Adı
-                </label>
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Hisse Adı</label>
                 <div className="relative">
                   <input
-                    type="text"
-                    value={newStock}
-                    onChange={(e) => setNewStock(e.target.value)}
-                    placeholder="THYAO"
-                    autoFocus
-                    list="stock-suggestions"
+                    type="text" value={newStock} onChange={(e) => setNewStock(e.target.value)}
+                    placeholder="THYAO" autoFocus list="stock-suggestions"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
-                    onKeyDown={(e) => e.key === "Enter" && addPayment()}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                   />
                   <datalist id="stock-suggestions">
-                    {portfolioSymbols.map((sym) => (
-                      <option key={sym} value={sym} />
-                    ))}
+                    {portfolioSymbols.map((sym) => (<option key={sym} value={sym} />))}
                   </datalist>
                 </div>
               </div>
               <div className="flex-1">
-                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
-                  Net Temettü (₺)
-                </label>
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Net Temettü (₺)</label>
                 <input
-                  type="text"
-                  value={newAmount}
-                  onChange={(e) => setNewAmount(formatNum(e.target.value))}
+                  type="text" value={newAmount} onChange={(e) => setNewAmount(formatNum(e.target.value))}
                   placeholder="50.000"
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
-                  onKeyDown={(e) => e.key === "Enter" && addPayment()}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                 />
               </div>
               <div className="w-40">
-                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
-                  Tarih
-                </label>
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Tarih</label>
                 <input
-                  type="date"
-                  value={newDate}
-                  onChange={(e) => setNewDate(e.target.value)}
+                  type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition"
                 />
               </div>
             </div>
             <div className="flex gap-3 items-end">
               <div className="flex-1">
-                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
-                  Not (opsiyonel)
-                </label>
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Not (opsiyonel)</label>
                 <input
-                  type="text"
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
+                  type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)}
                   placeholder="1. ara temettü"
                   className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
-                  onKeyDown={(e) => e.key === "Enter" && addPayment()}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                 />
               </div>
-              <Button onClick={addPayment} size="sm" className="shrink-0">
-                Ekle
+              <Button onClick={handleAddPayment} size="sm" className="shrink-0" disabled={isSaving}>
+                {isSaving ? "Kaydediliyor..." : "Ekle"}
               </Button>
-              <Button
-                onClick={() => setShowAddForm(false)}
-                variant="ghost"
-                size="sm"
-                className="shrink-0 text-muted-foreground"
-              >
-                İptal
-              </Button>
+              <Button onClick={() => setShowAddForm(false)} variant="ghost" size="sm" className="shrink-0 text-muted-foreground">İptal</Button>
             </div>
           </div>
         )}
@@ -461,21 +393,11 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-white/5">
-                <th className="text-left p-4 text-xs font-medium text-muted-foreground">
-                  Varlık &amp; Kategori
-                </th>
-                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
-                  Ödeme Sayısı
-                </th>
-                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
-                  Net Temettü (₺)
-                </th>
-                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
-                  Brüt Temettü (₺)
-                </th>
-                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
-                  Stopaj (₺)
-                </th>
+                <th className="text-left p-4 text-xs font-medium text-muted-foreground">Varlık &amp; Kategori</th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">Ödeme Sayısı</th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">Net Temettü (₺)</th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">Brüt Temettü (₺)</th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">Stopaj (₺)</th>
                 <th className="p-4 w-12"></th>
               </tr>
             </thead>
@@ -484,10 +406,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 <>
                   {grouped.map((group) => {
                     const isExpanded = expandedStocks.has(group.stock);
-                    const pct =
-                      totalNetDividend > 0
-                        ? (group.totalNet / totalNetDividend) * 100
-                        : 0;
+                    const pct = totalNetDividend > 0 ? (group.totalNet / totalNetDividend) * 100 : 0;
                     const isFromPortfolio = portfolioSymbols.includes(group.stock);
                     return (
                       <Fragment key={group.stock}>
@@ -497,112 +416,58 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                         >
                           <td className="p-4">
                             <div className="flex items-center gap-2">
-                              {isExpanded ? (
-                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              ) : (
-                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                              )}
+                              {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                               <div>
                                 <div className="font-bold text-sm">{group.stock}</div>
                                 <div className="flex items-center gap-1.5 mt-0.5">
-                                  <Badge
-                                    variant="outline"
-                                    className={cn(
-                                      "text-[10px] px-1.5 py-0",
-                                      isFromPortfolio
-                                        ? "border-primary/30 text-primary"
-                                        : "border-white/20 text-muted-foreground"
-                                    )}
-                                  >
+                                  <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", isFromPortfolio ? "border-primary/30 text-primary" : "border-white/20 text-muted-foreground")}>
                                     {isFromPortfolio ? "Portföy" : "Manuel"}
                                   </Badge>
-                                  {group.totalNet > 0 && (
-                                    <span className="text-[10px] text-muted-foreground">
-                                      %{pct.toFixed(1)} pay
-                                    </span>
-                                  )}
+                                  {group.totalNet > 0 && <span className="text-[10px] text-muted-foreground">%{pct.toFixed(1)} pay</span>}
                                 </div>
                               </div>
                             </div>
                           </td>
+                          <td className="p-4 text-right"><Badge variant="outline" className="text-xs">{group.payments.length}</Badge></td>
                           <td className="p-4 text-right">
-                            <Badge variant="outline" className="text-xs">
-                              {group.payments.length}
-                            </Badge>
-                          </td>
-                          <td className="p-4 text-right">
-                            <div
-                              className={cn(
-                                "font-bold text-sm",
-                                group.totalNet > 0
-                                  ? "text-green-400"
-                                  : "text-muted-foreground/40"
-                              )}
-                            >
+                            <div className={cn("font-bold text-sm", group.totalNet > 0 ? "text-green-400" : "text-muted-foreground/40")}>
                               {group.totalNet > 0 ? f(group.totalNet) : "—"}
                             </div>
                           </td>
-                          <td className="p-4 text-right font-medium text-sm">
-                            {group.totalGross > 0 ? f(group.totalGross) : "—"}
-                          </td>
-                          <td className="p-4 text-right text-sm text-orange-400">
-                            {group.totalStopaj > 0 ? f(group.totalStopaj) : "—"}
-                          </td>
+                          <td className="p-4 text-right font-medium text-sm">{group.totalGross > 0 ? f(group.totalGross) : "—"}</td>
+                          <td className="p-4 text-right text-sm text-orange-400">{group.totalStopaj > 0 ? f(group.totalStopaj) : "—"}</td>
                           <td className="p-4"></td>
                         </tr>
 
-                        {isExpanded && group.payments.length > 0 &&
-                          group.payments.map((payment) => {
-                            const pgross = payment.netAmount / (1 - WITHHOLDING_RATE);
-                            const pstopaj = pgross * WITHHOLDING_RATE;
-                            return (
-                              <tr
-                                key={payment.id}
-                                className="border-b border-white/5 last:border-0 bg-white/[0.01]"
-                              >
-                                <td className="p-3 pl-12">
-                                  <div className="text-xs text-muted-foreground">
-                                    {formatDate(payment.date)}
-                                  </div>
-                                  {payment.note && (
-                                    <div className="text-[10px] text-muted-foreground/60 mt-0.5">
-                                      {payment.note}
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="p-3"></td>
-                                <td className="p-3 text-right text-xs text-green-400/80">
-                                  {f(payment.netAmount)}
-                                </td>
-                                <td className="p-3 text-right text-xs text-muted-foreground">
-                                  {f(pgross)}
-                                </td>
-                                <td className="p-3 text-right text-xs text-orange-400/60">
-                                  {f(pstopaj)}
-                                </td>
-                                <td className="p-3 text-right">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removePayment(payment.id);
-                                    }}
-                                    className="text-muted-foreground/30 hover:text-red-400 transition p-1 rounded-lg hover:bg-white/5"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
+                        {isExpanded && group.payments.length > 0 && group.payments.map((payment) => {
+                          const pgross = payment.netAmount / (1 - WITHHOLDING_RATE);
+                          const pstopaj = pgross * WITHHOLDING_RATE;
+                          return (
+                            <tr key={payment.id} className="border-b border-white/5 last:border-0 bg-white/[0.01]">
+                              <td className="p-3 pl-12">
+                                <div className="text-xs text-muted-foreground">{formatDate(payment.date)}</div>
+                                {payment.note && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{payment.note}</div>}
+                              </td>
+                              <td className="p-3"></td>
+                              <td className="p-3 text-right text-xs text-green-400/80">{f(payment.netAmount)}</td>
+                              <td className="p-3 text-right text-xs text-muted-foreground">{f(pgross)}</td>
+                              <td className="p-3 text-right text-xs text-orange-400/60">{f(pstopaj)}</td>
+                              <td className="p-3 text-right">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleRemovePayment(payment.id); }}
+                                  className="text-muted-foreground/30 hover:text-red-400 transition p-1 rounded-lg hover:bg-white/5"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
 
                         {isExpanded && group.payments.length === 0 && (
                           <tr className="border-b border-white/5 bg-white/[0.01]">
-                            <td
-                              colSpan={6}
-                              className="p-4 pl-12 text-xs text-muted-foreground/50"
-                            >
-                              Henüz temettü ödemesi eklenmedi. &quot;Temettü Ekle&quot; butonunu
-                              kullanarak bu hisseye ödeme ekleyin.
+                            <td colSpan={6} className="p-4 pl-12 text-xs text-muted-foreground/50">
+                              Henüz temettü ödemesi eklenmedi. &quot;Temettü Ekle&quot; butonunu kullanarak bu hisseye ödeme ekleyin.
                             </td>
                           </tr>
                         )}
@@ -612,16 +477,10 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
 
                   {totalNetDividend > 0 && (
                     <tr className="bg-white/[0.03] font-bold border-t border-white/10">
-                      <td className="p-4 text-sm" colSpan={2}>
-                        TOPLAM
-                      </td>
-                      <td className="p-4 text-right text-sm text-green-400">
-                        {f(totalNetDividend)}
-                      </td>
+                      <td className="p-4 text-sm" colSpan={2}>TOPLAM</td>
+                      <td className="p-4 text-right text-sm text-green-400">{f(totalNetDividend)}</td>
                       <td className="p-4 text-right text-sm">{f(totalGrossDividend)}</td>
-                      <td className="p-4 text-right text-sm text-orange-400">
-                        {f(totalGrossDividend * WITHHOLDING_RATE)}
-                      </td>
+                      <td className="p-4 text-right text-sm text-orange-400">{f(totalGrossDividend * WITHHOLDING_RATE)}</td>
                       <td className="p-4"></td>
                     </tr>
                   )}
@@ -629,13 +488,8 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
               ) : (
                 <tr>
                   <td colSpan={6} className="p-12 text-center">
-                    <p className="text-muted-foreground text-sm">
-                      Henüz temettü geliri eklenmedi.
-                    </p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">
-                      Portföyünüze temettü hissesi ekleyin veya &quot;Temettü Ekle&quot; butonunu
-                      kullanın.
-                    </p>
+                    <p className="text-muted-foreground text-sm">Henüz temettü geliri eklenmedi.</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">Portföyünüze temettü hissesi ekleyin veya &quot;Temettü Ekle&quot; butonunu kullanın.</p>
                   </td>
                 </tr>
               )}
@@ -662,36 +516,15 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
             </div>
             <div className="bg-card/30 border border-white/10 rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Efektif Vergi Oranı</p>
-              <p className="text-xl font-bold text-primary">
-                %{results.effectiveRate.toFixed(2)}
-              </p>
+              <p className="text-xl font-bold text-primary">%{results.effectiveRate.toFixed(2)}</p>
             </div>
           </div>
 
-          <div
-            className={cn(
-              "rounded-xl p-5 border flex items-start gap-3",
-              results.needsDeclaration
-                ? "bg-yellow-500/5 border-yellow-500/20"
-                : "bg-green-500/5 border-green-500/20"
-            )}
-          >
-            <AlertCircle
-              className={cn(
-                "w-5 h-5 shrink-0 mt-0.5",
-                results.needsDeclaration ? "text-yellow-400" : "text-green-400"
-              )}
-            />
+          <div className={cn("rounded-xl p-5 border flex items-start gap-3", results.needsDeclaration ? "bg-yellow-500/5 border-yellow-500/20" : "bg-green-500/5 border-green-500/20")}>
+            <AlertCircle className={cn("w-5 h-5 shrink-0 mt-0.5", results.needsDeclaration ? "text-yellow-400" : "text-green-400")} />
             <div>
-              <p
-                className={cn(
-                  "font-bold",
-                  results.needsDeclaration ? "text-yellow-400" : "text-green-400"
-                )}
-              >
-                {results.needsDeclaration
-                  ? "BEYANNAME VERİLMESİ ZORUNLU"
-                  : "BEYANNAME VERİLMESİNE GEREK YOK"}
+              <p className={cn("font-bold", results.needsDeclaration ? "text-yellow-400" : "text-green-400")}>
+                {results.needsDeclaration ? "BEYANNAME VERİLMESİ ZORUNLU" : "BEYANNAME VERİLMESİNE GEREK YOK"}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 {results.needsDeclaration
@@ -704,9 +537,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           {results.needsDeclaration && results.breakdown.length > 0 && (
             <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
               <div className="p-4 border-b border-white/5">
-                <h3 className="font-bold flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-primary" /> Vergi Dilimi Detayları
-                </h3>
+                <h3 className="font-bold flex items-center gap-2"><Calculator className="w-4 h-4 text-primary" /> Vergi Dilimi Detayları</h3>
               </div>
               <table className="w-full">
                 <thead>
@@ -722,16 +553,12 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                     <tr key={i} className="border-b border-white/5 last:border-0">
                       <td className="p-4 text-sm">{row.bracket}</td>
                       <td className="p-4 text-sm text-right">{f(row.amount)}</td>
-                      <td className="p-4 text-sm text-right text-primary">
-                        %{(row.rate * 100).toFixed(0)}
-                      </td>
+                      <td className="p-4 text-sm text-right text-primary">%{(row.rate * 100).toFixed(0)}</td>
                       <td className="p-4 text-sm text-right font-medium">{f(row.tax)}</td>
                     </tr>
                   ))}
                   <tr className="bg-white/5 font-bold">
-                    <td className="p-4 text-sm" colSpan={3}>
-                      Toplam Hesaplanan Vergi
-                    </td>
+                    <td className="p-4 text-sm" colSpan={3}>Toplam Hesaplanan Vergi</td>
                     <td className="p-4 text-sm text-right">{f(results.totalTax)}</td>
                   </tr>
                 </tbody>
@@ -751,24 +578,11 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 <span className="text-orange-400">- {f(results.withholding)}</span>
               </div>
               <div className="border-t border-white/10 pt-3 flex justify-between">
-                <span className="font-bold">
-                  {results.refund > 0 ? "Vergi İadesi" : "Ödenecek Vergi"}
-                </span>
-                <span
-                  className={cn(
-                    "text-xl font-bold flex items-center gap-2",
-                    results.refund > 0 ? "text-green-400" : "text-red-400"
-                  )}
-                >
-                  {results.refund > 0 ? (
-                    <>
-                      <ArrowDownCircle className="w-5 h-5" /> {f(results.refund)}
-                    </>
-                  ) : (
-                    <>
-                      <ArrowUpCircle className="w-5 h-5" /> {f(results.taxPayable)}
-                    </>
-                  )}
+                <span className="font-bold">{results.refund > 0 ? "Vergi İadesi" : "Ödenecek Vergi"}</span>
+                <span className={cn("text-xl font-bold flex items-center gap-2", results.refund > 0 ? "text-green-400" : "text-red-400")}>
+                  {results.refund > 0
+                    ? <><ArrowDownCircle className="w-5 h-5" /> {f(results.refund)}</>
+                    : <><ArrowUpCircle className="w-5 h-5" /> {f(results.taxPayable)}</>}
                 </span>
               </div>
             </div>
@@ -777,23 +591,15 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
             <p className="text-sm text-muted-foreground mb-1">Vergi Sonrası Net Temettü</p>
             <p className="text-3xl font-black text-primary">{f(results.netDividend)}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Toplam brüt {f(results.gross)} üzerinden
-            </p>
+            <p className="text-xs text-muted-foreground mt-2">Toplam brüt {f(results.gross)} üzerinden</p>
           </div>
         </div>
       )}
 
       {/* Alt Bilgi */}
       <div className="text-[10px] text-muted-foreground/40 text-center pt-4 border-t border-white/5 space-y-1">
-        <p>
-          Bu hesaplayıcı yalnızca bilgilendirme amaçlıdır, mali müşavirlik veya vergi danışmanlığı
-          hizmeti yerine geçmez.
-        </p>
-        <p>
-          Dayanak: {TAX_LAW_INFO.lawName} · R.G. {TAX_LAW_INFO.gazetteDate} (Sayı:{" "}
-          {TAX_LAW_INFO.gazetteNumber})
-        </p>
+        <p>Bu hesaplayıcı yalnızca bilgilendirme amaçlıdır, mali müşavirlik veya vergi danışmanlığı hizmeti yerine geçmez.</p>
+        <p>Dayanak: {TAX_LAW_INFO.lawName} · R.G. {TAX_LAW_INFO.gazetteDate} (Sayı: {TAX_LAW_INFO.gazetteNumber})</p>
       </div>
     </div>
   );
