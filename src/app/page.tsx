@@ -327,7 +327,7 @@ export function PortfolioDashboard() {
       <div className="flex-1 flex flex-col min-w-0">
         <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
-            <h2 className="text-lg font-bold">{activeCategory}</h2>
+            <h2 className="text-lg font-bold">{activeCategory} - UID: {user?.uid || "NO USER"}</h2>
             <Button 
               variant="outline" 
               size="sm" 
