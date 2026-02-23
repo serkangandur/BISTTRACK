@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Calculator, FileText, ArrowDownCircle, ArrowUpCircle, AlertCircle, Info } from "lucide-react";
+import { Calculator, FileText, ArrowDownCircle, ArrowUpCircle, AlertCircle, Info, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TAX_BRACKETS_2025 = [
@@ -15,6 +15,12 @@ const TAX_BRACKETS_2025 = [
 const EXEMPTION_RATE = 0.50;
 const WITHHOLDING_RATE = 0.15;
 const DECLARATION_THRESHOLD = 230000;
+
+interface DividendEntry {
+  id: string;
+  stock: string;
+  netAmount: number;
+}
 
 function calculateTax(matrah: number) {
   let remaining = matrah;
@@ -45,13 +51,44 @@ function calculateTax(matrah: number) {
   return { totalTax, breakdown };
 }
 
+function formatNum(val: string): string {
+  const raw = val.replace(/[^0-9]/g, '');
+  if (raw === '') return '';
+  return parseInt(raw).toLocaleString('tr-TR');
+}
+
+function parseNum(val: string): number {
+  return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+}
+
 export function TaxCalculator() {
-  const [grossDividend, setGrossDividend] = useState<string>("");
+  const [entries, setEntries] = useState<DividendEntry[]>([]);
+  const [newStock, setNewStock] = useState("");
+  const [newAmount, setNewAmount] = useState("");
+
+  const addEntry = () => {
+    const amount = parseNum(newAmount);
+    if (!newStock.trim() || amount <= 0) return;
+    setEntries(prev => [...prev, {
+      id: Date.now().toString(),
+      stock: newStock.trim().toUpperCase(),
+      netAmount: amount,
+    }]);
+    setNewStock("");
+    setNewAmount("");
+  };
+
+  const removeEntry = (id: string) => {
+    setEntries(prev => prev.filter(e => e.id !== id));
+  };
+
+  const totalNetDividend = useMemo(() => entries.reduce((sum, e) => sum + e.netAmount, 0), [entries]);
+  const totalGrossDividend = useMemo(() => totalNetDividend / (1 - WITHHOLDING_RATE), [totalNetDividend]);
 
   const results = useMemo(() => {
-    const gross = parseFloat(grossDividend.replace(/\./g, '').replace(',', '.')) || 0;
-    if (gross <= 0) return null;
+    if (totalGrossDividend <= 0) return null;
 
+    const gross = totalGrossDividend;
     const withholding = gross * WITHHOLDING_RATE;
     const matrah = gross * EXEMPTION_RATE;
     const needsDeclaration = matrah > DECLARATION_THRESHOLD;
@@ -86,17 +123,10 @@ export function TaxCalculator() {
       netDividend: gross - withholding - Math.max(0, taxPayable),
       effectiveRate: ((withholding + Math.max(0, taxPayable)) / gross) * 100,
     };
-  }, [grossDividend]);
+  }, [totalGrossDividend]);
 
   const formatCurrency = (val: number) =>
     val.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value.replace(/[^0-9]/g, '');
-    if (raw === '') { setGrossDividend(''); return; }
-    const num = parseInt(raw);
-    setGrossDividend(num.toLocaleString('tr-TR'));
-  };
 
   return (
     <div className="space-y-6">
@@ -105,7 +135,7 @@ export function TaxCalculator() {
           <FileText className="w-5 h-5 text-primary" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold">Temettü Vergi Hesaplama</h2>
+          <h2 className="text-2xl font-bold">Temettü Vergi Beyannamesi</h2>
           <p className="text-sm text-muted-foreground">2025-2026 Vergi Dilimleri</p>
         </div>
       </div>
@@ -117,31 +147,109 @@ export function TaxCalculator() {
           <p><strong>İstisna Oranı:</strong> %50 — Brüt temettünün yarısı vergiden muaftır.</p>
           <p><strong>Stopaj Oranı:</strong> %15 — Şirket ödeme anında keser.</p>
           <p><strong>Beyan Sınırı:</strong> 230.000 TL — Matrah bu tutarı aşarsa beyanname zorunludur.</p>
+          <p><strong>Not:</strong> Aşağıya hisse bazında net ele geçen temettü tutarlarını girin. Brüt çevirme otomatik yapılır.</p>
         </div>
       </div>
 
-      {/* Girdi */}
-      <div className="bg-card/30 border border-white/10 rounded-xl p-6">
-        <label className="text-sm font-medium text-muted-foreground block mb-2">
-          Brüt Temettü Tutarı (TL)
-        </label>
-        <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₺</span>
-          <input
-            type="text"
-            value={grossDividend}
-            onChange={handleInputChange}
-            placeholder="1.000.000"
-            className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-4 py-4 text-2xl font-bold text-white focus:outline-none focus:border-primary transition"
-          />
+      {/* Temettü Portföy Tablosu */}
+      <div className="bg-card/30 border border-white/10 rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+          <h3 className="font-bold flex items-center gap-2">
+            <Calculator className="w-4 h-4 text-primary" />
+            Temettü Gelirleri
+          </h3>
+          {entries.length > 0 && (
+            <span className="text-xs text-muted-foreground">{entries.length} hisse</span>
+          )}
         </div>
+
+        {/* Ekleme Formu */}
+        <div className="p-4 border-b border-white/5 flex gap-3 items-end">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground block mb-1">Hisse Adı</label>
+            <input
+              type="text"
+              value={newStock}
+              onChange={(e) => setNewStock(e.target.value)}
+              placeholder="THYAO"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary"
+              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground block mb-1">Net Temettü (₺)</label>
+            <input
+              type="text"
+              value={newAmount}
+              onChange={(e) => setNewAmount(formatNum(e.target.value))}
+              placeholder="50.000"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary"
+              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
+            />
+          </div>
+          <button
+            onClick={addEntry}
+            className="bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:opacity-90 transition flex items-center gap-1 text-sm font-medium shrink-0"
+          >
+            <Plus className="w-4 h-4" /> Ekle
+          </button>
+        </div>
+
+        {/* Tablo */}
+        {entries.length > 0 ? (
+          <table className="w-full">
+            <thead>
+              <tr className="text-xs text-muted-foreground border-b border-white/5">
+                <th className="text-left p-3">Hisse</th>
+                <th className="text-right p-3">Net Temettü</th>
+                <th className="text-right p-3">Brüt Temettü</th>
+                <th className="text-right p-3">Stopaj</th>
+                <th className="p-3 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((entry) => {
+                const gross = entry.netAmount / (1 - WITHHOLDING_RATE);
+                const stopaj = gross * WITHHOLDING_RATE;
+                return (
+                  <tr key={entry.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
+                    <td className="p-3 text-sm font-medium">{entry.stock}</td>
+                    <td className="p-3 text-sm text-right text-green-400">₺{formatCurrency(entry.netAmount)}</td>
+                    <td className="p-3 text-sm text-right">₺{formatCurrency(gross)}</td>
+                    <td className="p-3 text-sm text-right text-orange-400">₺{formatCurrency(stopaj)}</td>
+                    <td className="p-3">
+                      <button onClick={() => removeEntry(entry.id)} className="text-red-400/60 hover:text-red-400 transition">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="bg-white/5 font-bold">
+                <td className="p-3 text-sm">TOPLAM</td>
+                <td className="p-3 text-sm text-right text-green-400">₺{formatCurrency(totalNetDividend)}</td>
+                <td className="p-3 text-sm text-right">₺{formatCurrency(totalGrossDividend)}</td>
+                <td className="p-3 text-sm text-right text-orange-400">₺{formatCurrency(totalGrossDividend * WITHHOLDING_RATE)}</td>
+                <td className="p-3"></td>
+              </tr>
+            </tbody>
+          </table>
+        ) : (
+          <div className="p-8 text-center text-muted-foreground text-sm">
+            Henüz temettü geliri eklenmedi. Yukarıdan hisse ve net temettü tutarını girin.
+          </div>
+        )}
       </div>
 
       {/* Sonuçlar */}
       {results && (
         <div className="space-y-4 animate-in fade-in duration-500">
           {/* Özet Kartları */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+              <p className="text-xs text-muted-foreground mb-1">Toplam Brüt Temettü</p>
+              <p className="text-xl font-bold">₺{formatCurrency(results.gross)}</p>
+            </div>
             <div className="bg-card/30 border border-white/10 rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Kesilen Stopaj (%15)</p>
               <p className="text-xl font-bold text-orange-400">₺{formatCurrency(results.withholding)}</p>
@@ -220,7 +328,7 @@ export function TaxCalculator() {
             </div>
           )}
 
-          {/* Sonuç */}
+          {/* Mahsup Hesabı */}
           {results.needsDeclaration && (
             <div className="bg-card/30 border border-white/10 rounded-xl p-5 space-y-3">
               <h3 className="font-bold">Mahsup Hesabı</h3>
@@ -245,21 +353,4 @@ export function TaxCalculator() {
                   ) : (
                     <><ArrowUpCircle className="w-5 h-5" /> ₺{formatCurrency(results.taxPayable)}</>
                   )}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Net Temettü */}
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
-            <p className="text-sm text-muted-foreground mb-1">Net Ele Geçen Temettü</p>
-            <p className="text-3xl font-black text-primary">₺{formatCurrency(results.netDividend)}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Brüt ₺{formatCurrency(results.gross)} üzerinden
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+git add . && git commit -m "Update tax calculator with dividend portfolio table" && git push
