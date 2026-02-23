@@ -88,7 +88,7 @@ export function PortfolioDashboard() {
 
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
-      initiateAnonymousSignIn(auth);
+      window.location.href = "/login";
     }
   }, [user, isUserLoading, auth]);
 
