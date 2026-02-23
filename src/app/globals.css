@@ -29,35 +29,58 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    
+
     /* BIST Specific Functional Colors */
     --bist-up: 120 78% 60%; /* #4CE54C */
     --bist-down: 0 78% 60%; /* #E54C4C */
   }
 
   .dark {
-    --background: 210 20% 8%; /* #101418 */
-    --foreground: 210 40% 98%;
-    --card: 210 20% 10%;
-    --card-foreground: 210 40% 98%;
-    --popover: 210 20% 10%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 203 50% 60%; /* #66A5CC */
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 188 78% 74%; /* #87E4F2 */
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 62.8% 30.6%;
+    /* Arka plan — Derin lacivert-siyah, hafif mavi tonu */
+    --background: 222 30% 7%; /* #0D1117 — GitHub-dark benzeri */
+    --foreground: 210 40% 96%;
+
+    /* Kartlar — Hafif parlak, camımsı etki */
+    --card: 222 25% 11%; /* #161B22 */
+    --card-foreground: 210 40% 96%;
+    --popover: 222 25% 11%;
+    --popover-foreground: 210 40% 96%;
+
+    /* Primary — Canlı elektrik mavisi */
+    --primary: 217 91% 60%; /* #4B8BF5 — Google Blue benzeri */
+    --primary-foreground: 222 47% 3%;
+
+    /* Secondary — Koyu lacivert-gri */
+    --secondary: 222 25% 15%;
+    --secondary-foreground: 210 40% 90%;
+
+    /* Muted — Soft gri-lacivert */
+    --muted: 222 25% 15%;
+    --muted-foreground: 215 20% 55%;
+
+    /* Accent — Teal/Cyan vurgu */
+    --accent: 174 72% 56%; /* #3DD6B5 — Canlı teal */
+    --accent-foreground: 222 47% 5%;
+
+    /* Destructive — Vivid kırmızı */
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    
-    --bist-up: 120 78% 60%;
-    --bist-down: 0 78% 60%;
+
+    /* Border — Yumuşak mavi-gri çizgiler */
+    --border: 222 20% 18%;
+    --input: 222 20% 18%;
+    --ring: 217 91% 60%;
+
+    /* Chart renkleri — Canlı ve ayırt edilebilir */
+    --chart-1: 217 91% 60%;  /* Mavi */
+    --chart-2: 174 72% 50%;  /* Teal */
+    --chart-3: 262 83% 64%;  /* Mor */
+    --chart-4: 36 95% 60%;   /* Altın/Turuncu */
+    --chart-5: 340 75% 60%;  /* Pembe-kırmızı */
+
+    /* BIST renkleri — Daha parlak */
+    --bist-up: 142 72% 54%;   /* #4ADE80 — Yeşil */
+    --bist-down: 0 84% 60%;   /* #EF4444 — Kırmızı */
   }
 }
 

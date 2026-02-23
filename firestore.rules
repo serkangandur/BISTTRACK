@@ -48,6 +48,11 @@ service cloud.firestore {
           allow create: if isOwner(userId) && request.resource.data.portfolioId == portfolioId;
           allow update, delete: if isOwner(userId);
         }
+
+        // Vergi beyannamesi temettü ödemeleri
+        match /taxDividendPayments/{paymentId} {
+          allow read, write: if isOwner(userId);
+        }
       }
     }
   }
