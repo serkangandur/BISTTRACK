@@ -88,7 +88,7 @@ export function PortfolioDashboard() {
 
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
-      window.location.href = "/login";
+      if (typeof window !== "undefined") window.location.href = "/login";
     }
   }, [user, isUserLoading, auth]);
 
