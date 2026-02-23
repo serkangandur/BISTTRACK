@@ -140,7 +140,6 @@ export function TaxCalculator() {
         </div>
       </div>
 
-      {/* Bilgi Kutusu */}
       <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 flex gap-3">
         <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-300/80 space-y-1">
@@ -151,7 +150,6 @@ export function TaxCalculator() {
         </div>
       </div>
 
-      {/* Temettü Portföy Tablosu */}
       <div className="bg-card/30 border border-white/10 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-white/10 flex items-center justify-between">
           <h3 className="font-bold flex items-center gap-2">
@@ -163,7 +161,6 @@ export function TaxCalculator() {
           )}
         </div>
 
-        {/* Ekleme Formu */}
         <div className="p-4 border-b border-white/5 flex gap-3 items-end">
           <div className="flex-1">
             <label className="text-xs text-muted-foreground block mb-1">Hisse Adı</label>
@@ -195,7 +192,6 @@ export function TaxCalculator() {
           </button>
         </div>
 
-        {/* Tablo */}
         {entries.length > 0 ? (
           <table className="w-full">
             <thead>
@@ -241,10 +237,8 @@ export function TaxCalculator() {
         )}
       </div>
 
-      {/* Sonuçlar */}
       {results && (
         <div className="space-y-4 animate-in fade-in duration-500">
-          {/* Özet Kartları */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-card/30 border border-white/10 rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Toplam Brüt Temettü</p>
@@ -264,7 +258,6 @@ export function TaxCalculator() {
             </div>
           </div>
 
-          {/* Beyan Durumu */}
           <div className={cn(
             "rounded-xl p-5 border flex items-start gap-3",
             results.needsDeclaration
@@ -292,7 +285,6 @@ export function TaxCalculator() {
             </div>
           </div>
 
-          {/* Vergi Dilimleri Tablosu */}
           {results.needsDeclaration && results.breakdown.length > 0 && (
             <div className="bg-card/30 border border-white/10 rounded-xl overflow-hidden">
               <div className="p-4 border-b border-white/10">
@@ -328,7 +320,6 @@ export function TaxCalculator() {
             </div>
           )}
 
-          {/* Mahsup Hesabı */}
           {results.needsDeclaration && (
             <div className="bg-card/30 border border-white/10 rounded-xl p-5 space-y-3">
               <h3 className="font-bold">Mahsup Hesabı</h3>
@@ -353,4 +344,20 @@ export function TaxCalculator() {
                   ) : (
                     <><ArrowUpCircle className="w-5 h-5" /> ₺{formatCurrency(results.taxPayable)}</>
                   )}
-git add . && git commit -m "Update tax calculator with dividend portfolio table" && git push
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
+            <p className="text-sm text-muted-foreground mb-1">Vergi Sonrası Net Temettü</p>
+            <p className="text-3xl font-black text-primary">₺{formatCurrency(results.netDividend)}</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Toplam brüt ₺{formatCurrency(results.gross)} üzerinden
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
