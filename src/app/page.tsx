@@ -87,8 +87,10 @@ export function PortfolioDashboard() {
   useEffect(() => { firestoreRef.current = firestore; }, [firestore]);
 
   useEffect(() => {
-    if (!isUserLoading && !user && auth) {
-      if (typeof window !== "undefined") window.location.href = "/login";
+    if (!isUserLoading && auth) {
+      if (!user || user.isAnonymous) {
+        window.location.href = "/login";
+      }
     }
   }, [user, isUserLoading, auth]);
 
