@@ -37,7 +37,7 @@ export function TargetProgress({ currentTotal }: TargetProgressProps) {
               </TooltipProvider>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-white">%{progress.toFixed(4)}</span>
+              <span className="text-4xl font-black text-white">%{progress.toFixed(1)}</span>
               <span className="text-muted-foreground text-sm">tamamlandı</span>
             </div>
           </div>
