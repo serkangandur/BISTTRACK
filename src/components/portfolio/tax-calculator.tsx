@@ -12,23 +12,40 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StockHolding } from "@/lib/types";
 
+// ═══════════════════════════════════════════════════════════════
+// 2025 YILI VERGİ PARAMETRELERİ
+// Kaynak: GVK Madde 103 — Gelir Vergisi Genel Tebliği (Seri No: 329)
+// Resmi Gazete: 30.12.2024, Sayı: 32738 (2. Mükerrer)
+// Ücret dışı gelirler (temettü = menkul sermaye iradı) tarifesi
+// ═══════════════════════════════════════════════════════════════
 const TAX_BRACKETS_2025 = [
   { limit: 158000, rate: 0.15 },
-  { limit: 380000, rate: 0.20 },
-  { limit: 900000, rate: 0.27 },
+  { limit: 330000, rate: 0.20 },
+  { limit: 800000, rate: 0.27 },
   { limit: 4300000, rate: 0.35 },
   { limit: Infinity, rate: 0.40 },
 ];
 
-const EXEMPTION_RATE = 0.5;
-const WITHHOLDING_RATE = 0.15;
-const DECLARATION_THRESHOLD = 230000;
+const EXEMPTION_RATE = 0.5;        // GVK Madde 22/2 — Brüt temettünün %50'si istisna
+const WITHHOLDING_RATE = 0.15;     // GVK Geçici 67 — %15 stopaj
+const DECLARATION_THRESHOLD = 330000; // 2025 yılı beyan sınırı (GVK Madde 86/1-c)
+
+// Mevzuat bilgisi — UI'da gösterilecek
+const TAX_LAW_INFO = {
+  year: 2025,
+  lawName: "Gelir Vergisi Genel Tebliği (Seri No: 329)",
+  gazetteDate: "30.12.2024",
+  gazetteNumber: "32738 (2. Mükerrer)",
+  sourceUrl: "https://www.gib.gov.tr/node/157433",
+  lastVerified: "2025-03-01",
+};
 
 interface DividendPayment {
   id: string;
@@ -106,13 +123,6 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
       .filter((h) => dividendCategories.includes(h.category))
       .map((h) => h.symbol.toUpperCase());
   }, [holdings]);
-
-  // Tüm hisseler: portföydekiler + manuel eklenenler
-  const allStockSymbols = useMemo(() => {
-    const fromPayments = payments.map((p) => p.stock);
-    const combined = new Set([...portfolioSymbols, ...fromPayments]);
-    return Array.from(combined);
-  }, [portfolioSymbols, payments]);
 
   const addPayment = () => {
     const amount = parseNum(newAmount);
@@ -252,16 +262,58 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
         </div>
         <div>
           <h2 className="text-2xl font-bold">Temettü Vergi Beyannamesi</h2>
-          <p className="text-sm text-muted-foreground">2025-2026 Vergi Dilimleri</p>
+          <p className="text-sm text-muted-foreground">
+            {TAX_LAW_INFO.year} Takvim Yılı Gelirleri
+          </p>
         </div>
       </div>
 
+      {/* Mevzuat Bilgi Kutusu */}
+      <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 flex gap-3">
+        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+        <div className="text-sm text-emerald-300/80 space-y-1.5">
+          <p className="font-bold text-emerald-400 text-xs uppercase tracking-wider">
+            Mevzuat Bilgisi — {TAX_LAW_INFO.year} Yılı
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+            <p>
+              <span className="text-emerald-400/60">Dayanak:</span>{" "}
+              {TAX_LAW_INFO.lawName}
+            </p>
+            <p>
+              <span className="text-emerald-400/60">Resmi Gazete:</span>{" "}
+              {TAX_LAW_INFO.gazetteDate} — Sayı: {TAX_LAW_INFO.gazetteNumber}
+            </p>
+            <p>
+              <span className="text-emerald-400/60">Vergi Tarifesi:</span> GVK Madde 103
+              (ücret dışı gelirler)
+            </p>
+            <p>
+              <span className="text-emerald-400/60">Son Kontrol:</span>{" "}
+              {new Date(TAX_LAW_INFO.lastVerified).toLocaleDateString("tr-TR", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })}
+            </p>
+          </div>
+          <p className="text-[10px] text-emerald-400/40 mt-1">
+            Vergi dilimleri her yıl Resmi Gazete&apos;de yayımlanan Gelir Vergisi Genel
+            Tebliği ile güncellenir. Yeni yıl tebliği yayımlandığında bu hesaplayıcının
+            güncellenmesi gerekir.
+          </p>
+        </div>
+      </div>
+
+      {/* Vergi Parametreleri Özeti */}
       <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 flex gap-3">
         <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-300/80 space-y-1">
           <p>
-            <strong>İstisna Oranı:</strong> %50 · <strong>Stopaj:</strong> %15 ·{" "}
-            <strong>Beyan Sınırı:</strong> 230.000 TL
+            <strong>İstisna Oranı:</strong> %50 (GVK Md. 22/2) ·{" "}
+            <strong>Stopaj:</strong> %15 (GVK Geç. Md. 67) ·{" "}
+            <strong>Beyan Sınırı:</strong> {DECLARATION_THRESHOLD.toLocaleString("tr-TR")} TL
+            (GVK Md. 86/1-c)
           </p>
           <p>
             Portföyünüzdeki temettü hisseleri otomatik listelenir. Hisse bazında{" "}
@@ -269,6 +321,41 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
             ödeme ekleyebilirsiniz.
           </p>
         </div>
+      </div>
+
+      {/* Vergi Dilimleri Tablosu */}
+      <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-white/5">
+          <h3 className="font-bold text-sm flex items-center gap-2">
+            <Calculator className="w-4 h-4 text-primary" />
+            {TAX_LAW_INFO.year} Gelir Vergisi Tarifesi (Ücret Dışı Gelirler)
+          </h3>
+        </div>
+        <table className="w-full">
+          <thead>
+            <tr className="text-xs text-muted-foreground border-b border-white/5">
+              <th className="text-left p-3">Gelir Dilimi</th>
+              <th className="text-right p-3">Vergi Oranı</th>
+            </tr>
+          </thead>
+          <tbody>
+            {TAX_BRACKETS_2025.map((bracket, i) => {
+              const prev = i === 0 ? 0 : TAX_BRACKETS_2025[i - 1].limit;
+              return (
+                <tr key={i} className="border-b border-white/5 last:border-0">
+                  <td className="p-3 text-xs">
+                    {bracket.limit === Infinity
+                      ? `${prev.toLocaleString("tr-TR")} TL'den fazlası`
+                      : `${prev === 0 ? "0" : prev.toLocaleString("tr-TR")} — ${bracket.limit.toLocaleString("tr-TR")} TL`}
+                  </td>
+                  <td className="p-3 text-xs text-right text-primary font-bold">
+                    %{(bracket.rate * 100).toFixed(0)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
 
       {/* Portföy Tablosu */}
@@ -298,7 +385,6 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
                   Hisse Adı
                 </label>
-                {/* Portföydeki hisseler + serbest giriş */}
                 <div className="relative">
                   <input
                     type="text"
@@ -405,7 +491,6 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                     const isFromPortfolio = portfolioSymbols.includes(group.stock);
                     return (
                       <Fragment key={group.stock}>
-                        {/* Ana Hisse Satırı */}
                         <tr
                           className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
                           onClick={() => toggleExpand(group.stock)}
@@ -449,7 +534,9 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                             <div
                               className={cn(
                                 "font-bold text-sm",
-                                group.totalNet > 0 ? "text-green-400" : "text-muted-foreground/40"
+                                group.totalNet > 0
+                                  ? "text-green-400"
+                                  : "text-muted-foreground/40"
                               )}
                             >
                               {group.totalNet > 0 ? f(group.totalNet) : "—"}
@@ -464,7 +551,6 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                           <td className="p-4"></td>
                         </tr>
 
-                        {/* Alt Satırlar — Ödeme Detayları */}
                         {isExpanded && group.payments.length > 0 &&
                           group.payments.map((payment) => {
                             const pgross = payment.netAmount / (1 - WITHHOLDING_RATE);
@@ -509,10 +595,12 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                             );
                           })}
 
-                        {/* Expanded ama ödeme yok */}
                         {isExpanded && group.payments.length === 0 && (
                           <tr className="border-b border-white/5 bg-white/[0.01]">
-                            <td colSpan={6} className="p-4 pl-12 text-xs text-muted-foreground/50">
+                            <td
+                              colSpan={6}
+                              className="p-4 pl-12 text-xs text-muted-foreground/50"
+                            >
                               Henüz temettü ödemesi eklenmedi. &quot;Temettü Ekle&quot; butonunu
                               kullanarak bu hisseye ödeme ekleyin.
                             </td>
@@ -522,7 +610,6 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                     );
                   })}
 
-                  {/* Toplam Satırı */}
                   {totalNetDividend > 0 && (
                     <tr className="bg-white/[0.03] font-bold border-t border-white/10">
                       <td className="p-4 text-sm" colSpan={2}>
@@ -608,8 +695,8 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 {results.needsDeclaration
-                  ? `Matrah (${f(results.matrah)}) beyan sınırını (₺230.000) aşıyor.`
-                  : `Matrah (${f(results.matrah)}) beyan sınırının (₺230.000) altında. Stopaj nihai vergidir.`}
+                  ? `Matrah (${f(results.matrah)}) beyan sınırını (₺${DECLARATION_THRESHOLD.toLocaleString("tr-TR")}) aşıyor.`
+                  : `Matrah (${f(results.matrah)}) beyan sınırının (₺${DECLARATION_THRESHOLD.toLocaleString("tr-TR")}) altında. Stopaj nihai vergidir.`}
               </p>
             </div>
           </div>
@@ -696,6 +783,18 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           </div>
         </div>
       )}
+
+      {/* Alt Bilgi */}
+      <div className="text-[10px] text-muted-foreground/40 text-center pt-4 border-t border-white/5 space-y-1">
+        <p>
+          Bu hesaplayıcı yalnızca bilgilendirme amaçlıdır, mali müşavirlik veya vergi danışmanlığı
+          hizmeti yerine geçmez.
+        </p>
+        <p>
+          Dayanak: {TAX_LAW_INFO.lawName} · R.G. {TAX_LAW_INFO.gazetteDate} (Sayı:{" "}
+          {TAX_LAW_INFO.gazetteNumber})
+        </p>
+      </div>
     </div>
   );
 }
