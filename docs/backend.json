@@ -137,6 +137,21 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["symbol", "netDividendPerShare", "year"]
+    },
+    "TaxDividendPayment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TaxDividendPayment",
+      "type": "object",
+      "description": "A record of a dividend payment received by the user for tax calculation purposes.",
+      "properties": {
+        "id": { "type": "string" },
+        "stock": { "type": "string" },
+        "netAmount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "stock", "netAmount", "date"]
     }
   },
   "auth": {
@@ -160,6 +175,20 @@
               "name": "userId",
               "description": "The unique identifier of the user."
             }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/taxDividendPayments/{paymentId}",
+        "definition": {
+          "entityName": "TaxDividendPayment",
+          "schema": {
+            "$ref": "#/backend/entities/TaxDividendPayment"
+          },
+          "description": "Stores dividend payments for tax calculation purposes.",
+          "params": [
+            { "name": "userId", "description": "The unique identifier of the user." },
+            { "name": "paymentId", "description": "The unique identifier for a specific payment record." }
           ]
         }
       },
@@ -221,6 +250,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure supports hierarchical data for portfolios and user-specific customizations like dividend tracking, ensuring security via Authorization Independence."
+    "reasoning": "The Firestore structure supports hierarchical data for portfolios and user-specific customizations like dividend tracking and tax reporting, ensuring security via Authorization Independence."
   }
 }

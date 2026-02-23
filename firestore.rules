@@ -38,6 +38,11 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      // Vergi beyannamesi temettü ödemeleri
+      match /taxDividendPayments/{paymentId} {
+        allow read, write: if isOwner(userId);
+      }
+
       match /portfolios/{portfolioId} {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId) && request.resource.data.userId == userId;
@@ -47,11 +52,6 @@ service cloud.firestore {
           allow get, list: if isOwner(userId);
           allow create: if isOwner(userId) && request.resource.data.portfolioId == portfolioId;
           allow update, delete: if isOwner(userId);
-        }
-
-        // Vergi beyannamesi temettü ödemeleri
-        match /taxDividendPayments/{paymentId} {
-          allow read, write: if isOwner(userId);
         }
       }
     }
