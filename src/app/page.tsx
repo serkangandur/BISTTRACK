@@ -369,7 +369,7 @@ export function PortfolioDashboard() {
           ) : activeCategory === "Gelirler" ? (
             <IncomeAnalysis holdings={assets} />
           ) : activeCategory === "Vergi Beyannamesi" ? (
-            <TaxCalculator />
+            <TaxCalculator holdings={assets} />
           ) : activeCategory === "Temettü Analizi" ? (
             <DividendAnalysis 
               holdings={assets} 

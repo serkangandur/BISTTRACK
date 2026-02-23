@@ -1,8 +1,22 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Calculator, FileText, ArrowDownCircle, ArrowUpCircle, AlertCircle, Info, Plus, Trash2 } from "lucide-react";
+import { useState, useMemo, Fragment } from "react";
+import {
+  Calculator,
+  FileText,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  AlertCircle,
+  Info,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { StockHolding } from "@/lib/types";
 
 const TAX_BRACKETS_2025 = [
   { limit: 158000, rate: 0.15 },
@@ -12,14 +26,28 @@ const TAX_BRACKETS_2025 = [
   { limit: Infinity, rate: 0.40 },
 ];
 
-const EXEMPTION_RATE = 0.50;
+const EXEMPTION_RATE = 0.5;
 const WITHHOLDING_RATE = 0.15;
 const DECLARATION_THRESHOLD = 230000;
 
-interface DividendEntry {
+interface DividendPayment {
   id: string;
   stock: string;
   netAmount: number;
+  date: string;
+  note: string;
+}
+
+interface GroupedStock {
+  stock: string;
+  payments: DividendPayment[];
+  totalNet: number;
+  totalGross: number;
+  totalStopaj: number;
+}
+
+interface TaxCalculatorProps {
+  holdings?: StockHolding[];
 }
 
 function calculateTax(matrah: number) {
@@ -35,9 +63,10 @@ function calculateTax(matrah: number) {
     const taxForBracket = taxableInBracket * bracket.rate;
 
     breakdown.push({
-      bracket: prevLimit === 0
-        ? `0 - ${bracket.limit === Infinity ? '∞' : bracket.limit.toLocaleString('tr-TR')} TL`
-        : `${prevLimit.toLocaleString('tr-TR')} - ${bracket.limit === Infinity ? '∞' : bracket.limit.toLocaleString('tr-TR')} TL`,
+      bracket:
+        prevLimit === 0
+          ? `0 - ${bracket.limit === Infinity ? "∞" : bracket.limit.toLocaleString("tr-TR")} TL`
+          : `${prevLimit.toLocaleString("tr-TR")} - ${bracket.limit === Infinity ? "∞" : bracket.limit.toLocaleString("tr-TR")} TL`,
       amount: taxableInBracket,
       rate: bracket.rate,
       tax: taxForBracket,
@@ -52,38 +81,112 @@ function calculateTax(matrah: number) {
 }
 
 function formatNum(val: string): string {
-  const raw = val.replace(/[^0-9]/g, '');
-  if (raw === '') return '';
-  return parseInt(raw).toLocaleString('tr-TR');
+  const raw = val.replace(/[^0-9]/g, "");
+  if (raw === "") return "";
+  return parseInt(raw).toLocaleString("tr-TR");
 }
 
 function parseNum(val: string): number {
-  return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0;
+  return parseFloat(val.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
-export function TaxCalculator() {
-  const [entries, setEntries] = useState<DividendEntry[]>([]);
+export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
+  const [payments, setPayments] = useState<DividendPayment[]>([]);
   const [newStock, setNewStock] = useState("");
   const [newAmount, setNewAmount] = useState("");
+  const [newDate, setNewDate] = useState("");
+  const [newNote, setNewNote] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [expandedStocks, setExpandedStocks] = useState<Set<string>>(new Set());
 
-  const addEntry = () => {
+  // Portföydeki temettü hisselerinin sembolleri
+  const portfolioSymbols = useMemo(() => {
+    const dividendCategories = ["Temettü", "Temettü Sabit"];
+    return holdings
+      .filter((h) => dividendCategories.includes(h.category))
+      .map((h) => h.symbol.toUpperCase());
+  }, [holdings]);
+
+  // Tüm hisseler: portföydekiler + manuel eklenenler
+  const allStockSymbols = useMemo(() => {
+    const fromPayments = payments.map((p) => p.stock);
+    const combined = new Set([...portfolioSymbols, ...fromPayments]);
+    return Array.from(combined);
+  }, [portfolioSymbols, payments]);
+
+  const addPayment = () => {
     const amount = parseNum(newAmount);
     if (!newStock.trim() || amount <= 0) return;
-    setEntries(prev => [...prev, {
-      id: Date.now().toString(),
-      stock: newStock.trim().toUpperCase(),
-      netAmount: amount,
-    }]);
+    const symbol = newStock.trim().toUpperCase();
+    setPayments((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        stock: symbol,
+        netAmount: amount,
+        date: newDate || new Date().toISOString().split("T")[0],
+        note: newNote.trim(),
+      },
+    ]);
     setNewStock("");
     setNewAmount("");
+    setNewDate("");
+    setNewNote("");
+    setShowAddForm(false);
+    setExpandedStocks((prev) => new Set(prev).add(symbol));
   };
 
-  const removeEntry = (id: string) => {
-    setEntries(prev => prev.filter(e => e.id !== id));
+  const removePayment = (id: string) => {
+    setPayments((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const totalNetDividend = useMemo(() => entries.reduce((sum, e) => sum + e.netAmount, 0), [entries]);
-  const totalGrossDividend = useMemo(() => totalNetDividend / (1 - WITHHOLDING_RATE), [totalNetDividend]);
+  const toggleExpand = (stock: string) => {
+    setExpandedStocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(stock)) next.delete(stock);
+      else next.add(stock);
+      return next;
+    });
+  };
+
+  // Hisseleri grupla — portföydekiler temettü olmasa bile listelenir (0 ile)
+  const grouped = useMemo((): GroupedStock[] => {
+    const map = new Map<string, DividendPayment[]>();
+
+    // Portföydeki tüm temettü hisselerini başlat (boş bile olsa)
+    portfolioSymbols.forEach((sym) => {
+      if (!map.has(sym)) map.set(sym, []);
+    });
+
+    // Ödemeleri ekle
+    payments.forEach((p) => {
+      if (!map.has(p.stock)) map.set(p.stock, []);
+      map.get(p.stock)!.push(p);
+    });
+
+    return Array.from(map.entries())
+      .map(([stock, pmts]) => {
+        const totalNet = pmts.reduce((s, p) => s + p.netAmount, 0);
+        const totalGross = totalNet > 0 ? totalNet / (1 - WITHHOLDING_RATE) : 0;
+        return {
+          stock,
+          payments: pmts.sort((a, b) => a.date.localeCompare(b.date)),
+          totalNet,
+          totalGross,
+          totalStopaj: totalGross * WITHHOLDING_RATE,
+        };
+      })
+      .sort((a, b) => b.totalNet - a.totalNet);
+  }, [payments, portfolioSymbols]);
+
+  const totalNetDividend = useMemo(
+    () => payments.reduce((sum, p) => sum + p.netAmount, 0),
+    [payments]
+  );
+  const totalGrossDividend = useMemo(
+    () => (totalNetDividend > 0 ? totalNetDividend / (1 - WITHHOLDING_RATE) : 0),
+    [totalNetDividend]
+  );
 
   const results = useMemo(() => {
     if (totalGrossDividend <= 0) return null;
@@ -125,11 +228,24 @@ export function TaxCalculator() {
     };
   }, [totalGrossDividend]);
 
-  const formatCurrency = (val: number) =>
-    val.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const f = (val: number) =>
+    "₺" +
+    val.toLocaleString("tr-TR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("tr-TR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
           <FileText className="w-5 h-5 text-primary" />
@@ -143,177 +259,393 @@ export function TaxCalculator() {
       <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4 flex gap-3">
         <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-300/80 space-y-1">
-          <p><strong>İstisna Oranı:</strong> %50 — Brüt temettünün yarısı vergiden muaftır.</p>
-          <p><strong>Stopaj Oranı:</strong> %15 — Şirket ödeme anında keser.</p>
-          <p><strong>Beyan Sınırı:</strong> 230.000 TL — Matrah bu tutarı aşarsa beyanname zorunludur.</p>
-          <p><strong>Not:</strong> Aşağıya hisse bazında net ele geçen temettü tutarlarını girin. Brüt çevirme otomatik yapılır.</p>
+          <p>
+            <strong>İstisna Oranı:</strong> %50 · <strong>Stopaj:</strong> %15 ·{" "}
+            <strong>Beyan Sınırı:</strong> 230.000 TL
+          </p>
+          <p>
+            Portföyünüzdeki temettü hisseleri otomatik listelenir. Hisse bazında{" "}
+            <strong>net ele geçen temettü</strong> tutarlarını girin. Aynı hisseye birden fazla
+            ödeme ekleyebilirsiniz.
+          </p>
         </div>
       </div>
 
-      <div className="bg-card/30 border border-white/10 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <h3 className="font-bold flex items-center gap-2">
-            <Calculator className="w-4 h-4 text-primary" />
-            Temettü Gelirleri
-          </h3>
-          {entries.length > 0 && (
-            <span className="text-xs text-muted-foreground">{entries.length} hisse</span>
-          )}
-        </div>
-
-        <div className="p-4 border-b border-white/5 flex gap-3 items-end">
-          <div className="flex-1">
-            <label className="text-xs text-muted-foreground block mb-1">Hisse Adı</label>
-            <input
-              type="text"
-              value={newStock}
-              onChange={(e) => setNewStock(e.target.value)}
-              placeholder="THYAO"
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary"
-              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
-            />
+      {/* Portföy Tablosu */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">Temettü Gelirleri</h2>
+            {grouped.length > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {payments.length} ödeme · {grouped.length} hisse
+              </Badge>
+            )}
           </div>
-          <div className="flex-1">
-            <label className="text-xs text-muted-foreground block mb-1">Net Temettü (₺)</label>
-            <input
-              type="text"
-              value={newAmount}
-              onChange={(e) => setNewAmount(formatNum(e.target.value))}
-              placeholder="50.000"
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary"
-              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
-            />
-          </div>
-          <button
-            onClick={addEntry}
-            className="bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:opacity-90 transition flex items-center gap-1 text-sm font-medium shrink-0"
+          <Button
+            onClick={() => setShowAddForm(!showAddForm)}
+            className="bg-primary text-primary-foreground"
+            size="sm"
           >
-            <Plus className="w-4 h-4" /> Ekle
-          </button>
+            <Plus className="w-4 h-4 mr-1" /> Temettü Ekle
+          </Button>
         </div>
 
-        {entries.length > 0 ? (
+        {showAddForm && (
+          <div className="bg-card/40 border border-white/10 rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
+                  Hisse Adı
+                </label>
+                {/* Portföydeki hisseler + serbest giriş */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newStock}
+                    onChange={(e) => setNewStock(e.target.value)}
+                    placeholder="THYAO"
+                    autoFocus
+                    list="stock-suggestions"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                    onKeyDown={(e) => e.key === "Enter" && addPayment()}
+                  />
+                  <datalist id="stock-suggestions">
+                    {portfolioSymbols.map((sym) => (
+                      <option key={sym} value={sym} />
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
+                  Net Temettü (₺)
+                </label>
+                <input
+                  type="text"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(formatNum(e.target.value))}
+                  placeholder="50.000"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  onKeyDown={(e) => e.key === "Enter" && addPayment()}
+                />
+              </div>
+              <div className="w-40">
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
+                  Tarih
+                </label>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">
+                  Not (opsiyonel)
+                </label>
+                <input
+                  type="text"
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="1. ara temettü"
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  onKeyDown={(e) => e.key === "Enter" && addPayment()}
+                />
+              </div>
+              <Button onClick={addPayment} size="sm" className="shrink-0">
+                Ekle
+              </Button>
+              <Button
+                onClick={() => setShowAddForm(false)}
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-muted-foreground"
+              >
+                İptal
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="text-xs text-muted-foreground border-b border-white/5">
-                <th className="text-left p-3">Hisse</th>
-                <th className="text-right p-3">Net Temettü</th>
-                <th className="text-right p-3">Brüt Temettü</th>
-                <th className="text-right p-3">Stopaj</th>
-                <th className="p-3 w-10"></th>
+              <tr className="border-b border-white/5">
+                <th className="text-left p-4 text-xs font-medium text-muted-foreground">
+                  Varlık &amp; Kategori
+                </th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
+                  Ödeme Sayısı
+                </th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
+                  Net Temettü (₺)
+                </th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
+                  Brüt Temettü (₺)
+                </th>
+                <th className="text-right p-4 text-xs font-medium text-muted-foreground">
+                  Stopaj (₺)
+                </th>
+                <th className="p-4 w-12"></th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => {
-                const gross = entry.netAmount / (1 - WITHHOLDING_RATE);
-                const stopaj = gross * WITHHOLDING_RATE;
-                return (
-                  <tr key={entry.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
-                    <td className="p-3 text-sm font-medium">{entry.stock}</td>
-                    <td className="p-3 text-sm text-right text-green-400">₺{formatCurrency(entry.netAmount)}</td>
-                    <td className="p-3 text-sm text-right">₺{formatCurrency(gross)}</td>
-                    <td className="p-3 text-sm text-right text-orange-400">₺{formatCurrency(stopaj)}</td>
-                    <td className="p-3">
-                      <button onClick={() => removeEntry(entry.id)} className="text-red-400/60 hover:text-red-400 transition">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              <tr className="bg-white/5 font-bold">
-                <td className="p-3 text-sm">TOPLAM</td>
-                <td className="p-3 text-sm text-right text-green-400">₺{formatCurrency(totalNetDividend)}</td>
-                <td className="p-3 text-sm text-right">₺{formatCurrency(totalGrossDividend)}</td>
-                <td className="p-3 text-sm text-right text-orange-400">₺{formatCurrency(totalGrossDividend * WITHHOLDING_RATE)}</td>
-                <td className="p-3"></td>
-              </tr>
+              {grouped.length > 0 ? (
+                <>
+                  {grouped.map((group) => {
+                    const isExpanded = expandedStocks.has(group.stock);
+                    const pct =
+                      totalNetDividend > 0
+                        ? (group.totalNet / totalNetDividend) * 100
+                        : 0;
+                    const isFromPortfolio = portfolioSymbols.includes(group.stock);
+                    return (
+                      <Fragment key={group.stock}>
+                        {/* Ana Hisse Satırı */}
+                        <tr
+                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                          onClick={() => toggleExpand(group.stock)}
+                        >
+                          <td className="p-4">
+                            <div className="flex items-center gap-2">
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                              )}
+                              <div>
+                                <div className="font-bold text-sm">{group.stock}</div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "text-[10px] px-1.5 py-0",
+                                      isFromPortfolio
+                                        ? "border-primary/30 text-primary"
+                                        : "border-white/20 text-muted-foreground"
+                                    )}
+                                  >
+                                    {isFromPortfolio ? "Portföy" : "Manuel"}
+                                  </Badge>
+                                  {group.totalNet > 0 && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      %{pct.toFixed(1)} pay
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4 text-right">
+                            <Badge variant="outline" className="text-xs">
+                              {group.payments.length}
+                            </Badge>
+                          </td>
+                          <td className="p-4 text-right">
+                            <div
+                              className={cn(
+                                "font-bold text-sm",
+                                group.totalNet > 0 ? "text-green-400" : "text-muted-foreground/40"
+                              )}
+                            >
+                              {group.totalNet > 0 ? f(group.totalNet) : "—"}
+                            </div>
+                          </td>
+                          <td className="p-4 text-right font-medium text-sm">
+                            {group.totalGross > 0 ? f(group.totalGross) : "—"}
+                          </td>
+                          <td className="p-4 text-right text-sm text-orange-400">
+                            {group.totalStopaj > 0 ? f(group.totalStopaj) : "—"}
+                          </td>
+                          <td className="p-4"></td>
+                        </tr>
+
+                        {/* Alt Satırlar — Ödeme Detayları */}
+                        {isExpanded && group.payments.length > 0 &&
+                          group.payments.map((payment) => {
+                            const pgross = payment.netAmount / (1 - WITHHOLDING_RATE);
+                            const pstopaj = pgross * WITHHOLDING_RATE;
+                            return (
+                              <tr
+                                key={payment.id}
+                                className="border-b border-white/5 last:border-0 bg-white/[0.01]"
+                              >
+                                <td className="p-3 pl-12">
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatDate(payment.date)}
+                                  </div>
+                                  {payment.note && (
+                                    <div className="text-[10px] text-muted-foreground/60 mt-0.5">
+                                      {payment.note}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-3"></td>
+                                <td className="p-3 text-right text-xs text-green-400/80">
+                                  {f(payment.netAmount)}
+                                </td>
+                                <td className="p-3 text-right text-xs text-muted-foreground">
+                                  {f(pgross)}
+                                </td>
+                                <td className="p-3 text-right text-xs text-orange-400/60">
+                                  {f(pstopaj)}
+                                </td>
+                                <td className="p-3 text-right">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removePayment(payment.id);
+                                    }}
+                                    className="text-muted-foreground/30 hover:text-red-400 transition p-1 rounded-lg hover:bg-white/5"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                        {/* Expanded ama ödeme yok */}
+                        {isExpanded && group.payments.length === 0 && (
+                          <tr className="border-b border-white/5 bg-white/[0.01]">
+                            <td colSpan={6} className="p-4 pl-12 text-xs text-muted-foreground/50">
+                              Henüz temettü ödemesi eklenmedi. &quot;Temettü Ekle&quot; butonunu
+                              kullanarak bu hisseye ödeme ekleyin.
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+
+                  {/* Toplam Satırı */}
+                  {totalNetDividend > 0 && (
+                    <tr className="bg-white/[0.03] font-bold border-t border-white/10">
+                      <td className="p-4 text-sm" colSpan={2}>
+                        TOPLAM
+                      </td>
+                      <td className="p-4 text-right text-sm text-green-400">
+                        {f(totalNetDividend)}
+                      </td>
+                      <td className="p-4 text-right text-sm">{f(totalGrossDividend)}</td>
+                      <td className="p-4 text-right text-sm text-orange-400">
+                        {f(totalGrossDividend * WITHHOLDING_RATE)}
+                      </td>
+                      <td className="p-4"></td>
+                    </tr>
+                  )}
+                </>
+              ) : (
+                <tr>
+                  <td colSpan={6} className="p-12 text-center">
+                    <p className="text-muted-foreground text-sm">
+                      Henüz temettü geliri eklenmedi.
+                    </p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">
+                      Portföyünüze temettü hissesi ekleyin veya &quot;Temettü Ekle&quot; butonunu
+                      kullanın.
+                    </p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
-        ) : (
-          <div className="p-8 text-center text-muted-foreground text-sm">
-            Henüz temettü geliri eklenmedi. Yukarıdan hisse ve net temettü tutarını girin.
-          </div>
-        )}
+        </div>
       </div>
 
+      {/* Vergi Hesaplama Sonuçları */}
       {results && (
         <div className="space-y-4 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-card/30 border border-white/10 rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Toplam Brüt Temettü</p>
-              <p className="text-xl font-bold">₺{formatCurrency(results.gross)}</p>
+              <p className="text-xl font-bold">{f(results.gross)}</p>
             </div>
             <div className="bg-card/30 border border-white/10 rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Kesilen Stopaj (%15)</p>
-              <p className="text-xl font-bold text-orange-400">₺{formatCurrency(results.withholding)}</p>
+              <p className="text-xl font-bold text-orange-400">{f(results.withholding)}</p>
             </div>
             <div className="bg-card/30 border border-white/10 rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Vergiye Tabi Matrah (%50)</p>
-              <p className="text-xl font-bold">₺{formatCurrency(results.matrah)}</p>
+              <p className="text-xl font-bold">{f(results.matrah)}</p>
             </div>
             <div className="bg-card/30 border border-white/10 rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Efektif Vergi Oranı</p>
-              <p className="text-xl font-bold text-primary">%{results.effectiveRate.toFixed(2)}</p>
+              <p className="text-xl font-bold text-primary">
+                %{results.effectiveRate.toFixed(2)}
+              </p>
             </div>
           </div>
 
-          <div className={cn(
-            "rounded-xl p-5 border flex items-start gap-3",
-            results.needsDeclaration
-              ? "bg-yellow-500/5 border-yellow-500/20"
-              : "bg-green-500/5 border-green-500/20"
-          )}>
-            <AlertCircle className={cn(
-              "w-5 h-5 shrink-0 mt-0.5",
-              results.needsDeclaration ? "text-yellow-400" : "text-green-400"
-            )} />
-            <div>
-              <p className={cn(
-                "font-bold",
+          <div
+            className={cn(
+              "rounded-xl p-5 border flex items-start gap-3",
+              results.needsDeclaration
+                ? "bg-yellow-500/5 border-yellow-500/20"
+                : "bg-green-500/5 border-green-500/20"
+            )}
+          >
+            <AlertCircle
+              className={cn(
+                "w-5 h-5 shrink-0 mt-0.5",
                 results.needsDeclaration ? "text-yellow-400" : "text-green-400"
-              )}>
+              )}
+            />
+            <div>
+              <p
+                className={cn(
+                  "font-bold",
+                  results.needsDeclaration ? "text-yellow-400" : "text-green-400"
+                )}
+              >
                 {results.needsDeclaration
                   ? "BEYANNAME VERİLMESİ ZORUNLU"
                   : "BEYANNAME VERİLMESİNE GEREK YOK"}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 {results.needsDeclaration
-                  ? `Matrah (₺${formatCurrency(results.matrah)}) beyan sınırını (₺230.000) aşıyor.`
-                  : `Matrah (₺${formatCurrency(results.matrah)}) beyan sınırının (₺230.000) altında. Stopaj nihai vergidir.`}
+                  ? `Matrah (${f(results.matrah)}) beyan sınırını (₺230.000) aşıyor.`
+                  : `Matrah (${f(results.matrah)}) beyan sınırının (₺230.000) altında. Stopaj nihai vergidir.`}
               </p>
             </div>
           </div>
 
           {results.needsDeclaration && results.breakdown.length > 0 && (
-            <div className="bg-card/30 border border-white/10 rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-white/10">
+            <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-white/5">
                 <h3 className="font-bold flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-primary" />
-                  Vergi Dilimi Detayları
+                  <Calculator className="w-4 h-4 text-primary" /> Vergi Dilimi Detayları
                 </h3>
               </div>
               <table className="w-full">
                 <thead>
                   <tr className="text-xs text-muted-foreground border-b border-white/5">
-                    <th className="text-left p-3">Dilim</th>
-                    <th className="text-right p-3">Tutar</th>
-                    <th className="text-right p-3">Oran</th>
-                    <th className="text-right p-3">Vergi</th>
+                    <th className="text-left p-4">Dilim</th>
+                    <th className="text-right p-4">Tutar</th>
+                    <th className="text-right p-4">Oran</th>
+                    <th className="text-right p-4">Vergi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {results.breakdown.map((row, i) => (
                     <tr key={i} className="border-b border-white/5 last:border-0">
-                      <td className="p-3 text-sm">{row.bracket}</td>
-                      <td className="p-3 text-sm text-right">₺{formatCurrency(row.amount)}</td>
-                      <td className="p-3 text-sm text-right text-primary">%{(row.rate * 100).toFixed(0)}</td>
-                      <td className="p-3 text-sm text-right font-medium">₺{formatCurrency(row.tax)}</td>
+                      <td className="p-4 text-sm">{row.bracket}</td>
+                      <td className="p-4 text-sm text-right">{f(row.amount)}</td>
+                      <td className="p-4 text-sm text-right text-primary">
+                        %{(row.rate * 100).toFixed(0)}
+                      </td>
+                      <td className="p-4 text-sm text-right font-medium">{f(row.tax)}</td>
                     </tr>
                   ))}
                   <tr className="bg-white/5 font-bold">
-                    <td className="p-3 text-sm" colSpan={3}>Toplam Hesaplanan Vergi</td>
-                    <td className="p-3 text-sm text-right">₺{formatCurrency(results.totalTax)}</td>
+                    <td className="p-4 text-sm" colSpan={3}>
+                      Toplam Hesaplanan Vergi
+                    </td>
+                    <td className="p-4 text-sm text-right">{f(results.totalTax)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -325,24 +657,30 @@ export function TaxCalculator() {
               <h3 className="font-bold">Mahsup Hesabı</h3>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Hesaplanan Gelir Vergisi</span>
-                <span>₺{formatCurrency(results.totalTax)}</span>
+                <span>{f(results.totalTax)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">(-) Kesilen Stopaj</span>
-                <span className="text-orange-400">- ₺{formatCurrency(results.withholding)}</span>
+                <span className="text-orange-400">- {f(results.withholding)}</span>
               </div>
               <div className="border-t border-white/10 pt-3 flex justify-between">
                 <span className="font-bold">
                   {results.refund > 0 ? "Vergi İadesi" : "Ödenecek Vergi"}
                 </span>
-                <span className={cn(
-                  "text-xl font-bold flex items-center gap-2",
-                  results.refund > 0 ? "text-green-400" : "text-red-400"
-                )}>
+                <span
+                  className={cn(
+                    "text-xl font-bold flex items-center gap-2",
+                    results.refund > 0 ? "text-green-400" : "text-red-400"
+                  )}
+                >
                   {results.refund > 0 ? (
-                    <><ArrowDownCircle className="w-5 h-5" /> ₺{formatCurrency(results.refund)}</>
+                    <>
+                      <ArrowDownCircle className="w-5 h-5" /> {f(results.refund)}
+                    </>
                   ) : (
-                    <><ArrowUpCircle className="w-5 h-5" /> ₺{formatCurrency(results.taxPayable)}</>
+                    <>
+                      <ArrowUpCircle className="w-5 h-5" /> {f(results.taxPayable)}
+                    </>
                   )}
                 </span>
               </div>
@@ -351,9 +689,9 @@ export function TaxCalculator() {
 
           <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
             <p className="text-sm text-muted-foreground mb-1">Vergi Sonrası Net Temettü</p>
-            <p className="text-3xl font-black text-primary">₺{formatCurrency(results.netDividend)}</p>
+            <p className="text-3xl font-black text-primary">{f(results.netDividend)}</p>
             <p className="text-xs text-muted-foreground mt-2">
-              Toplam brüt ₺{formatCurrency(results.gross)} üzerinden
+              Toplam brüt {f(results.gross)} üzerinden
             </p>
           </div>
         </div>
