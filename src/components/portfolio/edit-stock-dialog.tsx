@@ -50,7 +50,7 @@ export function EditStockDialog({ stock, isOpen, onClose, onUpdate }: EditStockD
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px] bg-card border-white/10">
+      <DialogContent className="sm:max-w-[425px] bg-card border-white/[0.08]">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">İşlemi Düzenle: {stock?.symbol}</DialogTitle>
         </DialogHeader>
@@ -61,7 +61,7 @@ export function EditStockDialog({ stock, isOpen, onClose, onUpdate }: EditStockD
               id="edit-quantity"
               type="number"
               placeholder="0"
-              className="bg-white/5 border-white/10"
+              className="bg-white/[0.04] border-white/[0.08]"
               value={formData.quantity}
               onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
             />
@@ -74,7 +74,7 @@ export function EditStockDialog({ stock, isOpen, onClose, onUpdate }: EditStockD
               type="number"
               step="0.01"
               placeholder="0.00"
-              className="bg-white/5 border-white/10"
+              className="bg-white/[0.04] border-white/[0.08]"
               value={formData.averageCost}
               onChange={(e) => setFormData({ ...formData, averageCost: e.target.value })}
             />

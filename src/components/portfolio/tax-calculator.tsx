@@ -283,8 +283,8 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
       </div>
 
       {/* Vergi Dilimleri Tablosu */}
-      <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-white/5">
+      <div className="bg-card/20 border border-white/[0.06] rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-white/[0.06]">
           <h3 className="font-bold text-sm flex items-center gap-2">
             <Calculator className="w-4 h-4 text-primary" />
             {TAX_LAW_INFO.year} Gelir Vergisi Tarifesi (Ücret Dışı Gelirler)
@@ -292,7 +292,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
         </div>
         <table className="w-full">
           <thead>
-            <tr className="text-xs text-muted-foreground border-b border-white/5">
+            <tr className="text-xs text-muted-foreground border-b border-white/[0.06]">
               <th className="text-left p-3">Gelir Dilimi</th>
               <th className="text-right p-3">Vergi Oranı</th>
             </tr>
@@ -301,7 +301,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
             {TAX_BRACKETS_2025.map((bracket, i) => {
               const prev = i === 0 ? 0 : TAX_BRACKETS_2025[i - 1].limit;
               return (
-                <tr key={i} className="border-b border-white/5 last:border-0">
+                <tr key={i} className="border-b border-white/[0.06] last:border-0">
                   <td className="p-3 text-xs">
                     {bracket.limit === Infinity
                       ? `${prev.toLocaleString("tr-TR")} TL'den fazlası`
@@ -338,7 +338,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
         </div>
 
         {showAddForm && (
-          <div className="bg-card/40 border border-white/10 rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
+          <div className="bg-card/40 border border-white/[0.08] rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Hisse Adı</label>
@@ -346,7 +346,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                   <input
                     type="text" value={newStock} onChange={(e) => setNewStock(e.target.value)}
                     placeholder="THYAO" autoFocus list="stock-suggestions"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                     onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                   />
                   <datalist id="stock-suggestions">
@@ -359,7 +359,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 <input
                   type="text" value={newAmount} onChange={(e) => setNewAmount(formatNum(e.target.value))}
                   placeholder="50.000"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                   onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                 />
               </div>
@@ -367,7 +367,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Tarih</label>
                 <input
                   type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition"
                 />
               </div>
             </div>
@@ -377,7 +377,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 <input
                   type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)}
                   placeholder="1. ara temettü"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                   onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                 />
               </div>
@@ -389,10 +389,10 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           </div>
         )}
 
-        <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
+        <div className="bg-card/20 border border-white/[0.06] rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-white/[0.06]">
                 <th className="text-left p-4 text-xs font-medium text-muted-foreground">Varlık &amp; Kategori</th>
                 <th className="text-right p-4 text-xs font-medium text-muted-foreground">Ödeme Sayısı</th>
                 <th className="text-right p-4 text-xs font-medium text-muted-foreground">Net Temettü (₺)</th>
@@ -411,7 +411,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                     return (
                       <Fragment key={group.stock}>
                         <tr
-                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                          className="border-b border-white/[0.06] hover:bg-white/[0.02] transition-colors cursor-pointer"
                           onClick={() => toggleExpand(group.stock)}
                         >
                           <td className="p-4">
@@ -443,7 +443,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                           const pgross = payment.netAmount / (1 - WITHHOLDING_RATE);
                           const pstopaj = pgross * WITHHOLDING_RATE;
                           return (
-                            <tr key={payment.id} className="border-b border-white/5 last:border-0 bg-white/[0.01]">
+                            <tr key={payment.id} className="border-b border-white/[0.06] last:border-0 bg-white/[0.01]">
                               <td className="p-3 pl-12">
                                 <div className="text-xs text-muted-foreground">{formatDate(payment.date)}</div>
                                 {payment.note && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{payment.note}</div>}
@@ -465,7 +465,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                         })}
 
                         {isExpanded && group.payments.length === 0 && (
-                          <tr className="border-b border-white/5 bg-white/[0.01]">
+                          <tr className="border-b border-white/[0.06] bg-white/[0.01]">
                             <td colSpan={6} className="p-4 pl-12 text-xs text-muted-foreground/50">
                               Henüz temettü ödemesi eklenmedi. &quot;Temettü Ekle&quot; butonunu kullanarak bu hisseye ödeme ekleyin.
                             </td>
@@ -476,7 +476,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                   })}
 
                   {totalNetDividend > 0 && (
-                    <tr className="bg-white/[0.03] font-bold border-t border-white/10">
+                    <tr className="bg-white/[0.03] font-bold border-t border-white/[0.08]">
                       <td className="p-4 text-sm" colSpan={2}>TOPLAM</td>
                       <td className="p-4 text-right text-sm text-green-400">{f(totalNetDividend)}</td>
                       <td className="p-4 text-right text-sm">{f(totalGrossDividend)}</td>
@@ -502,19 +502,19 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
       {results && (
         <div className="space-y-4 animate-in fade-in duration-500">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+            <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Toplam Brüt Temettü</p>
               <p className="text-xl font-bold">{f(results.gross)}</p>
             </div>
-            <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+            <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Kesilen Stopaj (%15)</p>
               <p className="text-xl font-bold text-orange-400">{f(results.withholding)}</p>
             </div>
-            <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+            <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Vergiye Tabi Matrah (%50)</p>
               <p className="text-xl font-bold">{f(results.matrah)}</p>
             </div>
-            <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+            <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
               <p className="text-xs text-muted-foreground mb-1">Efektif Vergi Oranı</p>
               <p className="text-xl font-bold text-primary">%{results.effectiveRate.toFixed(2)}</p>
             </div>
@@ -535,13 +535,13 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           </div>
 
           {results.needsDeclaration && results.breakdown.length > 0 && (
-            <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-white/5">
+            <div className="bg-card/20 border border-white/[0.06] rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-white/[0.06]">
                 <h3 className="font-bold flex items-center gap-2"><Calculator className="w-4 h-4 text-primary" /> Vergi Dilimi Detayları</h3>
               </div>
               <table className="w-full">
                 <thead>
-                  <tr className="text-xs text-muted-foreground border-b border-white/5">
+                  <tr className="text-xs text-muted-foreground border-b border-white/[0.06]">
                     <th className="text-left p-4">Dilim</th>
                     <th className="text-right p-4">Tutar</th>
                     <th className="text-right p-4">Oran</th>
@@ -550,7 +550,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 </thead>
                 <tbody>
                   {results.breakdown.map((row, i) => (
-                    <tr key={i} className="border-b border-white/5 last:border-0">
+                    <tr key={i} className="border-b border-white/[0.06] last:border-0">
                       <td className="p-4 text-sm">{row.bracket}</td>
                       <td className="p-4 text-sm text-right">{f(row.amount)}</td>
                       <td className="p-4 text-sm text-right text-primary">%{(row.rate * 100).toFixed(0)}</td>
@@ -567,7 +567,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
           )}
 
           {results.needsDeclaration && (
-            <div className="bg-card/30 border border-white/10 rounded-xl p-5 space-y-3">
+            <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5 space-y-3">
               <h3 className="font-bold">Mahsup Hesabı</h3>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Hesaplanan Gelir Vergisi</span>
@@ -577,7 +577,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
                 <span className="text-muted-foreground">(-) Kesilen Stopaj</span>
                 <span className="text-orange-400">- {f(results.withholding)}</span>
               </div>
-              <div className="border-t border-white/10 pt-3 flex justify-between">
+              <div className="border-t border-white/[0.08] pt-3 flex justify-between">
                 <span className="font-bold">{results.refund > 0 ? "Vergi İadesi" : "Ödenecek Vergi"}</span>
                 <span className={cn("text-xl font-bold flex items-center gap-2", results.refund > 0 ? "text-green-400" : "text-red-400")}>
                   {results.refund > 0
@@ -588,7 +588,7 @@ export function TaxCalculator({ holdings = [] }: TaxCalculatorProps) {
             </div>
           )}
 
-          <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 text-center">
+          <div className="bg-gradient-to-br from-primary/10 to-accent/5 border border-primary/20 glow-primary rounded-xl p-6 text-center">
             <p className="text-sm text-muted-foreground mb-1">Vergi Sonrası Net Temettü</p>
             <p className="text-3xl font-black text-primary">{f(results.netDividend)}</p>
             <p className="text-xs text-muted-foreground mt-2">Toplam brüt {f(results.gross)} üzerinden</p>

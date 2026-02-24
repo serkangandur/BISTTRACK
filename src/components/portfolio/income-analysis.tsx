@@ -26,13 +26,13 @@ interface IncomeAnalysisProps {
 const INCOME_CATEGORIES: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
 
 const CATEGORY_CONFIG: Record<AssetCategory, { icon: any; color: string }> = {
-  "Temettü": { icon: Receipt, color: "text-blue-400" },
-  "Büyüme": { icon: BarChart3, color: "text-purple-400" },
-  "Emtia": { icon: Landmark, color: "text-amber-400" },
-  "Kripto": { icon: Coins, color: "text-orange-400" },
-  "Nakit": { icon: Banknote, color: "text-emerald-400" },
-  "Sigorta": { icon: Wallet, color: "text-cyan-400" },
-  "Temettü Sabit": { icon: Calculator, color: "text-slate-400" }
+  "Temettü": { icon: Receipt, color: "text-category-temettu" },
+  "Büyüme": { icon: BarChart3, color: "text-category-buyume" },
+  "Emtia": { icon: Landmark, color: "text-category-emtia" },
+  "Kripto": { icon: Coins, color: "text-category-kripto" },
+  "Nakit": { icon: Banknote, color: "text-category-nakit" },
+  "Sigorta": { icon: Wallet, color: "text-category-sigorta" },
+  "Temettü Sabit": { icon: Calculator, color: "text-category-temettu-sabit" }
 };
 
 export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
@@ -92,22 +92,22 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
         </Card>
 
         {/* USD GELİR KARTI */}
-        <Card className="bg-sky-400/5 border-sky-400/20 shadow-2xl relative overflow-hidden group">
+        <Card className="bg-accent/5 border-accent/20 shadow-2xl relative overflow-hidden group">
           <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <DollarSign className="w-24 h-24" />
           </div>
           <CardContent className="p-6">
-            <p className="text-[10px] font-black text-sky-400 uppercase tracking-widest mb-1">Mevcut Aylık Getiri (USD)</p>
-            <h3 className="text-3xl font-black text-sky-400">${totalMonthlyIncomeUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+            <p className="text-[10px] font-black text-accent uppercase tracking-widest mb-1">Mevcut Aylık Getiri (USD)</p>
+            <h3 className="text-3xl font-black text-accent">${totalMonthlyIncomeUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
             <div className="flex items-center gap-1.5 mt-2">
-               <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+               <div className="w-1.5 h-1.5 rounded-full bg-accent" />
                <p className="text-[10px] text-muted-foreground font-bold">Döviz Bazlı Aylık Akış</p>
             </div>
           </CardContent>
         </Card>
 
         {/* USD HEDEF KARTI */}
-        <Card className="bg-card/40 border-white/5 shadow-2xl relative overflow-hidden group">
+        <Card className="bg-card/40 border-white/[0.06] shadow-2xl relative overflow-hidden group">
           <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <Target className="w-24 h-24 -rotate-12" />
           </div>
@@ -166,8 +166,8 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
           const contribution = (data.monthlyUsd / targetMonthlyIncomeUsd) * 100;
 
           return (
-            <Card key={cat} className="bg-card/40 border-white/5 shadow-xl flex flex-col hover:border-white/10 transition-all duration-300">
-              <CardHeader className="p-4 pb-2 border-b border-white/5 flex flex-row items-center justify-between">
+            <Card key={cat} className="bg-card/40 border-white/[0.06] shadow-xl flex flex-col hover:border-white/10 transition-all duration-300">
+              <CardHeader className="p-4 pb-2 border-b border-white/[0.06] flex flex-row items-center justify-between">
                 <div className="flex items-center gap-2">
                    <div className={cn("p-1.5 rounded-md bg-white/5", config.color)}>
                      <Icon className="w-4 h-4" />
@@ -191,14 +191,14 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
                   </div>
                 </div>
 
-                <div className="bg-white/5 rounded-lg p-3 border border-white/5 flex justify-between items-center group hover:border-sky-400/30 transition-colors">
+                <div className="bg-white/[0.04] rounded-lg p-3 border border-white/[0.06] flex justify-between items-center group hover:border-accent/30 transition-colors">
                   <div className="flex items-center gap-2">
-                    <div className="p-1 rounded bg-sky-400/10">
-                      <DollarSign className="w-3 h-3 text-sky-400" />
+                    <div className="p-1 rounded bg-accent/10">
+                      <DollarSign className="w-3 h-3 text-accent" />
                     </div>
-                    <span className="text-[10px] font-bold text-sky-400 uppercase">Aylık USD</span>
+                    <span className="text-[10px] font-bold text-accent uppercase">Aylık USD</span>
                   </div>
-                  <span className="text-lg font-black text-orange-400">${data.monthlyUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span className="text-lg font-black text-gold">${data.monthlyUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
 
                 <div className="space-y-1.5 mt-1">
@@ -215,7 +215,7 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
       </div>
 
       <div className="flex justify-center pt-4">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] text-muted-foreground font-medium uppercase">
+        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/[0.04] border border-white/[0.08] rounded-full text-[10px] text-muted-foreground font-medium uppercase">
           <Calculator className="w-3 h-3" />
           Hesaplamalar kategori piyasa değeri üzerinden yıllık %3.5 getiri baz alınarak yapılmaktadır.
         </div>

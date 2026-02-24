@@ -244,7 +244,7 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
               <span className="text-xs text-blue-400/60">Alış Tarihi:</span>
               <input
                 type="date" value={buyDate} onChange={(e) => setBuyDate(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
+                className="bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-primary"
               />
             </div>
             {buyDateRate && (
@@ -269,26 +269,26 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
       {/* Özet Kartları */}
       {stockData.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Toplam Yatırım ($)</p>
             <p className="text-xl font-bold">{fUSD(totals.totalAnaparaUSD)}</p>
           </div>
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Güncel Değer ($)</p>
             <p className="text-xl font-bold">{fUSD(totals.totalCurrentUSD)}</p>
           </div>
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Toplam Temettü ($)</p>
             <p className="text-xl font-bold text-green-400">{fUSD(totals.totalDivUSD)}</p>
           </div>
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Net Getiri ($)</p>
             <p className={cn("text-xl font-bold flex items-center gap-1", getReturnColor(totals.totalReturnPct))}>
               {totals.totalReturnUSD >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               {fUSD(Math.abs(totals.totalReturnUSD))}
             </p>
           </div>
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Toplam Getiri (%)</p>
             <p className={cn("text-xl font-bold", getReturnColor(totals.totalReturnPct))}>
               %{totals.totalReturnPct.toFixed(1)}
@@ -299,7 +299,7 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
 
       {/* Grafik */}
       {stockData.length > 0 && (
-        <div className="bg-card/20 border border-white/5 rounded-xl p-6">
+        <div className="bg-card/20 border border-white/[0.06] rounded-xl p-6">
           <h3 className="font-bold text-sm mb-4 flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-primary" />
             Hisse Bazında Dolar Getiri (%)
@@ -368,12 +368,12 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
         </div>
 
         {showAddForm && (
-          <div className="bg-card/40 border border-white/10 rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
+          <div className="bg-card/40 border border-white/[0.08] rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Hisse Adı</label>
                 <input type="text" value={newStock} onChange={(e) => setNewStock(e.target.value)} placeholder="PAGYO" autoFocus list="dollar-stock-suggestions"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                   onKeyDown={(e) => e.key === "Enter" && handleAddPayment()} />
                 <datalist id="dollar-stock-suggestions">
                   {portfolioSymbols.map((sym) => (<option key={sym} value={sym} />))}
@@ -382,20 +382,20 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
               <div className="flex-1">
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Net Temettü (₺)</label>
                 <input type="text" value={newAmount} onChange={(e) => setNewAmount(formatNum(e.target.value))} placeholder="10.000"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                   onKeyDown={(e) => e.key === "Enter" && handleAddPayment()} />
               </div>
               <div className="w-40">
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Tarih</label>
                 <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition" />
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition" />
               </div>
             </div>
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Not (opsiyonel)</label>
                 <input type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="1. ara temettü"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                   onKeyDown={(e) => e.key === "Enter" && handleAddPayment()} />
               </div>
               <Button onClick={handleAddPayment} size="sm" className="shrink-0" disabled={isSaving}>
@@ -406,10 +406,10 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
           </div>
         )}
 
-        <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
+        <div className="bg-card/20 border border-white/[0.06] rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-white/[0.06]">
                 <th className="text-left p-4 text-xs font-medium text-muted-foreground">Hisse</th>
                 <th className="text-right p-4 text-xs font-medium text-muted-foreground">Anapara ($)</th>
                 <th className="text-right p-4 text-xs font-medium text-muted-foreground">Güncel Değer ($)</th>
@@ -425,7 +425,7 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
                     const isExpanded = expandedStocks.has(d.stock);
                     return (
                       <Fragment key={d.stock}>
-                        <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                        <tr className="border-b border-white/[0.06] hover:bg-white/[0.02] transition-colors cursor-pointer"
                           onClick={() => toggleExpand(d.stock)}>
                           <td className="p-4">
                             <div className="flex items-center gap-2">
@@ -453,7 +453,7 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
                         </tr>
 
                         {isExpanded && d.payments.length > 0 && d.payments.map((payment) => (
-                          <tr key={payment.id} className="border-b border-white/5 last:border-0 bg-white/[0.01]">
+                          <tr key={payment.id} className="border-b border-white/[0.06] last:border-0 bg-white/[0.01]">
                             <td className="p-3 pl-12">
                               <div className="text-xs text-muted-foreground">{formatDate(payment.date)}</div>
                               {payment.note && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{payment.note}</div>}
@@ -472,7 +472,7 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
                         ))}
 
                         {isExpanded && d.payments.length === 0 && (
-                          <tr className="border-b border-white/5 bg-white/[0.01]">
+                          <tr className="border-b border-white/[0.06] bg-white/[0.01]">
                             <td colSpan={6} className="p-4 pl-12 text-xs text-muted-foreground/50">
                               Henüz temettü eklenmedi. &quot;Temettü Ekle&quot; butonunu kullanın.
                             </td>
@@ -482,7 +482,7 @@ export function DollarReturnAnalysis({ holdings = [] }: DollarReturnAnalysisProp
                     );
                   })}
 
-                  <tr className="bg-white/[0.03] font-bold border-t border-white/10">
+                  <tr className="bg-white/[0.03] font-bold border-t border-white/[0.08]">
                     <td className="p-4 text-sm">TOPLAM</td>
                     <td className="p-4 text-right text-sm">{fUSD(totals.totalAnaparaUSD)}</td>
                     <td className="p-4 text-right text-sm">{fUSD(totals.totalCurrentUSD)}</td>

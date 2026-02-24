@@ -16,7 +16,7 @@ export function TargetProgress({ currentTotal }: TargetProgressProps) {
   const progress = Math.min((currentTotal / GLOBAL_TARGET) * 100, 100);
 
   return (
-    <Card className="bg-primary/5 border-primary/20 shadow-2xl overflow-hidden relative group">
+    <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-accent/5 border-primary/20 shadow-2xl overflow-hidden relative group">
       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
         <Target className="w-24 h-24 rotate-12" />
       </div>
@@ -47,9 +47,9 @@ export function TargetProgress({ currentTotal }: TargetProgressProps) {
               <span className="text-muted-foreground">Başlangıç</span>
               <span className="text-white">Hedef: ₺{GLOBAL_TARGET.toLocaleString("tr-TR")}</span>
             </div>
-            <div className="relative h-4 w-full bg-white/5 rounded-full overflow-hidden border border-white/5">
+            <div className="relative h-4 w-full bg-white/[0.06] rounded-full overflow-hidden border border-white/[0.04]">
               <div 
-                className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-accent transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(var(--primary),0.5)]"
+                className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-accent transition-all duration-1000 ease-out shadow-[0_0_25px_hsl(var(--primary)/0.4),_0_0_50px_hsl(var(--accent)/0.15)]"
                 style={{ width: `${progress}%` }}
               />
             </div>

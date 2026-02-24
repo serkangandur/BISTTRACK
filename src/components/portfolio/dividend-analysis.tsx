@@ -95,12 +95,12 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-5 bg-primary/10 rounded-xl border border-primary/20">
+        <div className="p-5 bg-gradient-to-br from-primary/15 to-primary/5 rounded-xl border border-primary/20">
           <p className="text-xs font-bold text-primary uppercase tracking-wider mb-1">Portföy Temettü Verimi</p>
           <p className="text-3xl font-black text-primary">%{portfolioYield.toFixed(2)}</p>
           <p className="text-xs text-muted-foreground mt-1">Ağırlıklı Ortalama (Piyasa Değeri Bazlı)</p>
         </div>
-        <div className="md:col-span-2 p-5 bg-card/20 rounded-xl border border-white/5 flex items-center gap-3">
+        <div className="md:col-span-2 p-5 bg-card/20 rounded-xl border border-white/[0.06] flex items-center gap-3">
           <Info className="h-5 w-5 text-muted-foreground shrink-0" />
           <p className="text-sm text-muted-foreground">
             Temettü verimi = Hisse Başı Net Temettü ÷ Canlı Fiyat × 100. 
@@ -164,7 +164,7 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
                         step="0.0001"
                         value={editValues.net}
                         onChange={e => setEditValues(v => ({ ...v, net: e.target.value }))}
-                        className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary/50"
+                        className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary/50"
                         placeholder="örn: 4.4737"
                         autoFocus
                       />
@@ -175,7 +175,7 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
                         type="number"
                         value={editValues.year}
                         onChange={e => setEditValues(v => ({ ...v, year: e.target.value }))}
-                        className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary/50"
+                        className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-primary/50"
                         placeholder="2025"
                       />
                     </div>
@@ -250,7 +250,7 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
         </div>
       </div>
 
-      <div className="p-5 bg-card/20 rounded-xl border border-white/5 space-y-4">
+      <div className="p-5 bg-card/20 rounded-xl border border-white/[0.06] space-y-4">
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Yeni Hisse Karşılaştır</h3>
@@ -262,7 +262,7 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
             value={searchSymbol}
             onChange={e => setSearchSymbol(e.target.value.toUpperCase())}
             placeholder="Hisse kodu (Örn: AKBNK, FROTO)"
-            className="bg-background/50 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+            className="bg-background/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
           />
           <input
             type="number"
@@ -270,19 +270,19 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
             value={searchNet}
             onChange={e => setSearchNet(e.target.value)}
             placeholder="Hisse başı net temettü (₺)"
-            className="bg-background/50 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+            className="bg-background/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
           />
           <input
             type="number"
             value={searchYear}
             onChange={e => setSearchYear(e.target.value)}
             placeholder="Yıl"
-            className="bg-background/50 border border-white/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
+            className="bg-background/50 border border-white/[0.08] rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-primary/50"
           />
         </div>
 
         {searchSymbol && searchNet && parseFloat(searchNet) > 0 && (
-          <div className="p-4 bg-background/30 rounded-xl border border-white/10 space-y-4">
+          <div className="p-4 bg-background/30 rounded-xl border border-white/[0.08] space-y-4">
             <div className="flex justify-between items-start flex-wrap gap-2">
               <div>
                 <p className="font-bold text-lg">{searchSymbol}</p>

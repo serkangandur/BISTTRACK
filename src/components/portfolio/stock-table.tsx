@@ -29,6 +29,17 @@ interface StockTableProps {
   onUpdate: (id: string, updatedData: Partial<StockHolding>) => void;
 }
 
+const CATEGORY_BADGE_COLORS: Record<string, string> = {
+  "Temettü": "border-category-temettu/30 bg-category-temettu/10 text-category-temettu",
+  "Temettü Sabit": "border-category-temettu-sabit/30 bg-category-temettu-sabit/10 text-category-temettu-sabit",
+  "Büyüme": "border-category-buyume/30 bg-category-buyume/10 text-category-buyume",
+  "Nakit": "border-category-nakit/30 bg-category-nakit/10 text-category-nakit",
+  "Emtia": "border-category-emtia/30 bg-category-emtia/10 text-category-emtia",
+  "Kripto": "border-category-kripto/30 bg-category-kripto/10 text-category-kripto",
+  "Döviz": "border-category-doviz/30 bg-category-doviz/10 text-category-doviz",
+  "Sigorta": "border-category-sigorta/30 bg-category-sigorta/10 text-category-sigorta",
+};
+
 export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
   const [editingStock, setEditingStock] = useState<StockHolding | null>(null);
 
@@ -52,10 +63,10 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
   };
 
   return (
-    <div className="rounded-xl border border-white/5 bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl">
+    <div className="rounded-xl border border-white/[0.06] bg-card/30 backdrop-blur-md overflow-hidden shadow-2xl">
       <Table>
-        <TableHeader className="bg-white/5">
-          <TableRow className="hover:bg-transparent border-white/5">
+        <TableHeader className="bg-white/[0.04]">
+          <TableRow className="hover:bg-transparent border-white/[0.04]">
             <TableHead className="font-semibold py-4">Varlık & Kategori</TableHead>
             <TableHead className="font-semibold">Miktar</TableHead>
             <TableHead className="font-semibold">Maliyet (₺)</TableHead>
@@ -77,7 +88,7 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
             const currencySymbol = getCurrencySymbol(stock.symbol, stock.category);
 
             return (
-              <TableRow key={stock.id} className="hover:bg-white/5 border-white/5 transition-colors group">
+              <TableRow key={stock.id} className="hover:bg-white/[0.04] border-white/[0.04] transition-colors group">
                 <TableCell className="font-bold py-4">
                   <div className="flex flex-col gap-1">
                     <span className="text-foreground group-hover:text-primary transition-colors flex items-center gap-2">
@@ -85,7 +96,7 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                       {stock.symbol}
                     </span>
                     <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className="text-[9px] py-0 h-4 border-white/10 bg-white/5">
+                      <Badge variant="outline" className={cn("text-[9px] py-0 h-4", CATEGORY_BADGE_COLORS[stock.category] || "border-white/10 bg-white/5")}>
                         <Tag className="w-2 h-2 mr-1" />
                         {stock.category}
                       </Badge>
@@ -135,7 +146,7 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-card border-white/10">
+                    <DropdownMenuContent align="end" className="bg-card border-white/[0.08]">
                       <DropdownMenuItem className="cursor-pointer gap-2" onClick={() => setEditingStock(stock)}>
                         <Edit2 className="w-3.5 h-3.5" />
                         Düzenle

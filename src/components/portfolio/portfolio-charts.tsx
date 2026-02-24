@@ -11,12 +11,14 @@ interface PortfolioChartsProps {
 }
 
 const COLORS = [
-  "hsl(203, 50%, 60%)",
-  "hsl(188, 78%, 74%)",
-  "hsl(173, 58%, 39%)",
-  "hsl(197, 37%, 24%)",
-  "hsl(210, 40%, 96.1%)",
-  "hsl(203, 50%, 40%)"
+  "#6366F1",
+  "#06B6D4",
+  "#F59E0B",
+  "#F97316",
+  "#10B981",
+  "#3B82F6",
+  "#EC4899",
+  "#8B5CF6",
 ];
 
 export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
@@ -30,7 +32,7 @@ export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <Card className="lg:col-span-1 bg-card/50 border-white/5 shadow-xl">
+      <Card className="lg:col-span-1 bg-card/50 border-white/[0.06] shadow-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Varlık Dağılımı</CardTitle>
         </CardHeader>
@@ -52,7 +54,7 @@ export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
                   ))}
                 </Pie>
                 <Tooltip 
-                  contentStyle={{ backgroundColor: "#101418", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}
+                  contentStyle={{ backgroundColor: "hsl(225, 25%, 10%)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
                   itemStyle={{ color: "#fff" }}
                   formatter={(value: number) => `₺${value.toLocaleString("tr-TR")}`}
                 />
@@ -70,7 +72,7 @@ export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
         </CardContent>
       </Card>
 
-      <Card className="lg:col-span-2 bg-card/50 border-white/5 shadow-xl">
+      <Card className="lg:col-span-2 bg-card/50 border-white/[0.06] shadow-xl">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Performans Geçmişi</CardTitle>
         </CardHeader>
@@ -80,7 +82,7 @@ export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
               <AreaChart data={PORTFOLIO_HISTORY}>
                 <defs>
                   <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
                     <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
@@ -96,7 +98,7 @@ export function PortfolioCharts({ holdings }: PortfolioChartsProps) {
                   tickFormatter={(val) => `₺${(val/1000)}k`}
                 />
                 <Tooltip 
-                   contentStyle={{ backgroundColor: "#101418", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px" }}
+                   contentStyle={{ backgroundColor: "hsl(225, 25%, 10%)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px" }}
                    itemStyle={{ color: "#fff" }}
                    labelStyle={{ color: "rgba(255,255,255,0.5)", marginBottom: "4px" }}
                    formatter={(value: number) => `₺${value.toLocaleString("tr-TR")}`}

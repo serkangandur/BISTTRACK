@@ -10,77 +10,105 @@
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 203 50% 60%; /* #66A5CC */
-    --primary-foreground: 210 40% 98%;
+    --primary: 230 90% 65%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222 47% 11%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 188 78% 74%; /* #87E4F2 */
+    --accent: 185 85% 55%;
     --accent-foreground: 222 47% 11%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 85% 62%;
+    --destructive-foreground: 0 0% 100%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 230 90% 65%;
     --radius: 0.75rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    --chart-1: 230 90% 65%;
+    --chart-2: 185 85% 55%;
+    --chart-3: 262 83% 64%;
+    --chart-4: 38 95% 55%;
+    --chart-5: 340 82% 60%;
+    --chart-6: 160 84% 52%;
+    --chart-7: 24 95% 55%;
+    --chart-8: 280 80% 60%;
 
     /* BIST Specific Functional Colors */
-    --bist-up: 120 78% 60%; /* #4CE54C */
-    --bist-down: 0 78% 60%; /* #E54C4C */
+    --bist-up: 160 84% 52%;
+    --bist-down: 0 85% 62%;
+    --bist-gold: 38 95% 55%;
+
+    /* Category Colors */
+    --cat-temettu: 239 84% 67%;
+    --cat-temettu-sabit: 258 90% 66%;
+    --cat-buyume: 191 91% 44%;
+    --cat-nakit: 160 84% 39%;
+    --cat-emtia: 38 92% 50%;
+    --cat-kripto: 25 95% 53%;
+    --cat-doviz: 217 91% 60%;
+    --cat-sigorta: 330 81% 60%;
   }
 
   .dark {
-    /* Arka plan — Derin lacivert-siyah, hafif mavi tonu */
-    --background: 222 30% 7%; /* #0D1117 — GitHub-dark benzeri */
-    --foreground: 210 40% 96%;
+    /* Arka plan — Derin lacivert, mavi alt ton */
+    --background: 225 25% 8%;
+    --foreground: 210 40% 98%;
 
-    /* Kartlar — Hafif parlak, camımsı etki */
-    --card: 222 25% 11%; /* #161B22 */
-    --card-foreground: 210 40% 96%;
-    --popover: 222 25% 11%;
-    --popover-foreground: 210 40% 96%;
+    /* Kartlar — Yükseltilmiş, hafif cam efekti */
+    --card: 225 20% 12%;
+    --card-foreground: 210 40% 98%;
+    --popover: 225 20% 12%;
+    --popover-foreground: 210 40% 98%;
 
-    /* Primary — Canlı elektrik mavisi */
-    --primary: 217 91% 60%; /* #4B8BF5 — Google Blue benzeri */
-    --primary-foreground: 222 47% 3%;
+    /* Primary — Elektrik indigo */
+    --primary: 230 90% 65%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Secondary — Koyu lacivert-gri */
-    --secondary: 222 25% 15%;
-    --secondary-foreground: 210 40% 90%;
+    /* Secondary — Koyu lacivert */
+    --secondary: 225 20% 16%;
+    --secondary-foreground: 210 40% 95%;
 
-    /* Muted — Soft gri-lacivert */
-    --muted: 222 25% 15%;
-    --muted-foreground: 215 20% 55%;
+    /* Muted — Daha parlak gri-mavi */
+    --muted: 225 20% 16%;
+    --muted-foreground: 215 20% 60%;
 
-    /* Accent — Teal/Cyan vurgu */
-    --accent: 174 72% 56%; /* #3DD6B5 — Canlı teal */
-    --accent-foreground: 222 47% 5%;
+    /* Accent — Canlı cyan */
+    --accent: 185 85% 55%;
+    --accent-foreground: 225 25% 5%;
 
-    /* Destructive — Vivid kırmızı */
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive — Vivid coral kırmızı */
+    --destructive: 0 85% 62%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* Border — Yumuşak mavi-gri çizgiler */
-    --border: 222 20% 18%;
-    --input: 222 20% 18%;
-    --ring: 217 91% 60%;
+    /* Border — Yumuşak mavi-gri */
+    --border: 225 15% 18%;
+    --input: 225 15% 18%;
+    --ring: 230 90% 65%;
 
-    /* Chart renkleri — Canlı ve ayırt edilebilir */
-    --chart-1: 217 91% 60%;  /* Mavi */
-    --chart-2: 174 72% 50%;  /* Teal */
-    --chart-3: 262 83% 64%;  /* Mor */
-    --chart-4: 36 95% 60%;   /* Altın/Turuncu */
-    --chart-5: 340 75% 60%;  /* Pembe-kırmızı */
+    /* Chart renkleri — Canlı 8'li palet */
+    --chart-1: 230 90% 65%;
+    --chart-2: 185 85% 55%;
+    --chart-3: 262 83% 64%;
+    --chart-4: 38 95% 55%;
+    --chart-5: 340 82% 60%;
+    --chart-6: 160 84% 52%;
+    --chart-7: 24 95% 55%;
+    --chart-8: 280 80% 60%;
 
-    /* BIST renkleri — Daha parlak */
-    --bist-up: 142 72% 54%;   /* #4ADE80 — Yeşil */
-    --bist-down: 0 84% 60%;   /* #EF4444 — Kırmızı */
+    /* BIST renkleri — Canlı zümrüt ve coral */
+    --bist-up: 160 84% 52%;
+    --bist-down: 0 85% 62%;
+    --bist-gold: 38 95% 55%;
+
+    /* Kategori Renkleri */
+    --cat-temettu: 239 84% 67%;
+    --cat-temettu-sabit: 258 90% 66%;
+    --cat-buyume: 191 91% 44%;
+    --cat-nakit: 160 84% 39%;
+    --cat-emtia: 38 92% 50%;
+    --cat-kripto: 25 95% 53%;
+    --cat-doviz: 217 91% 60%;
+    --cat-sigorta: 330 81% 60%;
   }
 }
 
@@ -90,5 +118,38 @@
   }
   body {
     @apply bg-background text-foreground font-body;
+  }
+}
+
+@layer components {
+  /* Premium gradient border */
+  .gradient-border {
+    position: relative;
+    background: hsl(var(--card));
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  .gradient-border::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.3), hsl(var(--accent) / 0.3));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Glow efektleri */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.15), 0 0 40px hsl(var(--primary) / 0.05);
+  }
+  .glow-accent {
+    box-shadow: 0 0 20px hsl(var(--accent) / 0.15), 0 0 40px hsl(var(--accent) / 0.05);
+  }
+  .glow-up {
+    box-shadow: 0 0 20px hsl(var(--bist-up) / 0.15), 0 0 40px hsl(var(--bist-up) / 0.05);
   }
 }

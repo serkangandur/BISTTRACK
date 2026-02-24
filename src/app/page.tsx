@@ -262,7 +262,7 @@ export function PortfolioDashboard() {
 
   if (isUserLoading || isPortfoliosLoading || (isStocksLoading && !dbStocks)) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#101418] gap-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="animate-spin h-12 w-12 text-primary" />
         <p className="text-sm text-muted-foreground animate-pulse">Varlıklar Hazırlanıyor...</p>
       </div>
@@ -277,22 +277,22 @@ export function PortfolioDashboard() {
         onClick={() => setActiveCategory(item.label)}
         className={cn(
           "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative",
-          isActive 
-            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 font-bold" 
-            : "text-muted-foreground hover:bg-white/5 hover:text-white"
+          isActive
+            ? "bg-primary/15 text-primary shadow-lg shadow-primary/10 font-bold border border-primary/20"
+            : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
         )}
       >
-        <Icon className={cn("w-4 h-4", isActive ? "text-white" : "text-muted-foreground group-hover:text-primary")} />
+        <Icon className={cn("w-4 h-4", isActive ? "text-primary" : "text-muted-foreground group-hover:text-primary")} />
         <span className="text-sm">{item.label}</span>
       </button>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[#101418] text-white flex">
-      <aside className="w-64 sticky top-0 h-screen border-r border-white/5 bg-background/50 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex shrink-0">
+    <div className="min-h-screen bg-background text-foreground flex">
+      <aside className="w-64 sticky top-0 h-screen border-r border-white/[0.06] bg-background/60 backdrop-blur-xl flex flex-col p-4 gap-2 hidden lg:flex shrink-0">
         <div className="flex items-center gap-3 px-2 py-4 mb-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
+          <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shadow-lg shadow-primary/25">
             <TrendingUp className="text-primary-foreground h-5 w-5" />
           </div>
           <h1 className="text-lg font-bold tracking-tighter">BISTrack</h1>
@@ -325,7 +325,7 @@ export function PortfolioDashboard() {
           </div>
         </div>
 
-        <div className="mt-auto p-4 bg-primary/5 rounded-xl border border-primary/10">
+        <div className="mt-auto p-4 bg-gradient-to-br from-primary/10 to-accent/5 rounded-xl border border-primary/15 glow-primary">
           <p className="text-[10px] font-bold text-primary uppercase mb-2">Toplam Değer</p>
           <div className="text-lg font-black truncate">₺{totalValue.toLocaleString("tr-TR", { maximumFractionDigits: 0 })}</div>
           <div className="flex items-center gap-1 text-[9px] text-muted-foreground mt-1">
@@ -336,7 +336,7 @@ export function PortfolioDashboard() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <nav className="sticky top-0 z-50 border-b border-white/5 bg-background/80 backdrop-blur-md">
+        <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-background/80 backdrop-blur-xl">
           <div className="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
             <h2 className="text-lg font-bold">{activeCategory}</h2>
             <Button 
@@ -395,7 +395,7 @@ export function PortfolioDashboard() {
               </div>
               <StockTable holdings={filteredAssets} onDelete={handleDeleteStock} onUpdate={handleUpdateStock} />
               {filteredAssets.length === 0 && (
-                <div className="p-12 text-center bg-card/20 rounded-xl border border-dashed border-white/10">
+                <div className="p-12 text-center bg-card/20 rounded-xl border border-dashed border-white/[0.08]">
                   <p className="text-muted-foreground">Bu kategoride henüz bir varlık eklenmemiş.</p>
                 </div>
               )}

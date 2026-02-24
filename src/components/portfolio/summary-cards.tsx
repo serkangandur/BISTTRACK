@@ -22,6 +22,17 @@ const CATEGORY_ICONS: Record<AssetCategory, any> = {
   "Sigorta": ShieldCheck
 };
 
+const CATEGORY_COLORS: Record<AssetCategory, string> = {
+  "Temettü": "text-category-temettu",
+  "Temettü Sabit": "text-category-temettu-sabit",
+  "Büyüme": "text-category-buyume",
+  "Nakit": "text-category-nakit",
+  "Emtia": "text-category-emtia",
+  "Kripto": "text-category-kripto",
+  "Döviz": "text-category-doviz",
+  "Sigorta": "text-category-sigorta",
+};
+
 export function SummaryCards({ holdings }: SummaryCardsProps) {
   // STRATEJİK İZOLASYON: Temettü Sabit hariç toplam
   const totalAssets = holdings
@@ -42,7 +53,7 @@ export function SummaryCards({ holdings }: SummaryCardsProps) {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-primary/10 border-primary/20 backdrop-blur-sm shadow-xl col-span-1 md:col-span-2">
+        <Card className="bg-gradient-to-br from-primary/15 to-accent/5 border-primary/20 backdrop-blur-sm shadow-xl glow-primary col-span-1 md:col-span-2">
           <CardContent className="p-6">
             <div className="flex items-center justify-between pb-2">
               <p className="text-sm font-bold text-primary uppercase tracking-widest">TOPLAM PORTFÖY</p>
@@ -59,20 +70,20 @@ export function SummaryCards({ holdings }: SummaryCardsProps) {
 
           const value = categoryTotals[cat as AssetCategory] || 0;
           if (cat === "Sigorta") return (
-             <Card key={cat} className="bg-accent/5 border-accent/20 shadow-lg">
+             <Card key={cat} className="bg-category-sigorta/5 border-category-sigorta/20 shadow-lg">
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-accent uppercase">{cat}</p>
-                  <Icon className="h-4 w-4 text-accent" />
+                  <p className="text-[10px] font-bold text-category-sigorta uppercase">{cat}</p>
+                  <Icon className="h-4 w-4 text-category-sigorta" />
                 </div>
                 <div>
                   <div className="text-xl font-bold">₺{value.toLocaleString("tr-TR")}</div>
                   <div className="mt-2 space-y-1">
                     <div className="flex justify-between text-[9px] font-bold uppercase">
                       <span className="text-muted-foreground">60 Ay Hedefi</span>
-                      <span className="text-accent">%{insuranceProgress.toFixed(1)}</span>
+                      <span className="text-category-sigorta">%{insuranceProgress.toFixed(1)}</span>
                     </div>
-                    <Progress value={insuranceProgress} className="h-1.5 bg-accent/10" />
+                    <Progress value={insuranceProgress} className="h-1.5 bg-category-sigorta/10" />
                   </div>
                 </div>
               </CardContent>
@@ -80,11 +91,11 @@ export function SummaryCards({ holdings }: SummaryCardsProps) {
           );
 
           return (
-            <Card key={cat} className="bg-card/50 border-white/5 shadow-lg hover:border-white/10 transition-colors">
+            <Card key={cat} className="bg-card/50 border-white/[0.06] shadow-lg hover:border-white/10 transition-all duration-300">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between pb-1">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">{cat}</p>
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className={cn("text-[10px] font-bold uppercase", CATEGORY_COLORS[cat as AssetCategory] || "text-muted-foreground")}>{cat}</p>
+                  <Icon className={cn("h-3.5 w-3.5", CATEGORY_COLORS[cat as AssetCategory] || "text-muted-foreground")} />
                 </div>
                 <div className="text-xl font-bold">₺{value.toLocaleString("tr-TR")}</div>
                 <p className="text-[9px] text-muted-foreground mt-1">Pay: %{totalAssets > 0 ? ((value/totalAssets)*100).toFixed(1) : 0}</p>

@@ -271,7 +271,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
       </div>
 
       {/* Ayarlar */}
-      <div className="p-4 bg-card/20 rounded-xl border border-white/5">
+      <div className="p-4 bg-card/20 rounded-xl border border-white/[0.06]">
         <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">Başlangıç Değerleri & Ayarlar</p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
           <div>
@@ -280,7 +280,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={manualInputs[TEMETTU_SYMBOLS[0]]?.usdRate || '43.83'}
               onChange={e => TEMETTU_SYMBOLS.forEach(sym => updateInput(sym, 'usdRate', e.target.value))}
-              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
             />
           </div>
           <div>
@@ -289,7 +289,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={growthRate}
               onChange={e => setGrowthRate(e.target.value)}
-              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
             />
           </div>
           <div>
@@ -298,7 +298,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={priceGrowth}
               onChange={e => setPriceGrowth(e.target.value)}
-              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
             />
           </div>
           <div>
@@ -307,7 +307,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={monthlyUSD}
               onChange={e => setMonthlyUSD(e.target.value)}
-              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
             />
           </div>
           <div>
@@ -316,7 +316,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={monthlyTargetUSD}
               onChange={e => setMonthlyTargetUSD(e.target.value)}
-              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
             />
           </div>
           <div>
@@ -325,7 +325,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={dollarInflation}
               onChange={e => setDollarInflation(e.target.value)}
-              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
             />
           </div>
           <div>
@@ -334,7 +334,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
               type="number"
               value={targetYear}
               onChange={e => setTargetYear(e.target.value)}
-              className="w-full mt-1 bg-background/50 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
+              className="w-full mt-1 bg-background/50 border border-white/[0.08] rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary/50"
             />
           </div>
         </div>
@@ -349,37 +349,37 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                   </div>
                   <p className="text-xs font-bold">{sym}</p>
                 </div>
-                <div className="border-b border-white/10 pb-2 mb-1">
+                <div className="border-b border-white/[0.08] pb-2 mb-1">
                   <p className="text-[10px] font-bold text-primary mb-1">2025</p>
                   <div className="space-y-1">
                     <div>
                       <label className="text-[10px] text-muted-foreground">Fiyat (₺)</label>
-                      <input type="number" value={manualInputs[sym]?.price2025 || ''} onChange={e => updateInput(sym, 'price2025', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
+                      <input type="number" value={manualInputs[sym]?.price2025 || ''} onChange={e => updateInput(sym, 'price2025', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/[0.08] rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">HBT (₺)</label>
-                      <input type="number" value={manualInputs[sym]?.hbt2025 || ''} onChange={e => updateInput(sym, 'hbt2025', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder={div?.netDividendPerShare?.toFixed(4) || '0'} />
+                      <input type="number" value={manualInputs[sym]?.hbt2025 || ''} onChange={e => updateInput(sym, 'hbt2025', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/[0.08] rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder={div?.netDividendPerShare?.toFixed(4) || '0'} />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">Lot</label>
-                      <input type="number" value={manualInputs[sym]?.lot2025 || ''} onChange={e => updateInput(sym, 'lot2025', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
+                      <input type="number" value={manualInputs[sym]?.lot2025 || ''} onChange={e => updateInput(sym, 'lot2025', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/[0.08] rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
                     </div>
                   </div>
                 </div>
                 <div className="pb-2">
-                  <p className="text-[10px] font-bold text-yellow-400 mb-1">2026</p>
+                  <p className="text-[10px] font-bold text-gold mb-1">2026</p>
                   <div className="space-y-1">
                     <div>
                       <label className="text-[10px] text-muted-foreground">Fiyat (₺)</label>
-                      <input type="number" value={manualInputs[sym]?.price2026 || ''} onChange={e => updateInput(sym, 'price2026', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
+                      <input type="number" value={manualInputs[sym]?.price2026 || ''} onChange={e => updateInput(sym, 'price2026', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/[0.08] rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">HBT (₺)</label>
-                      <input type="number" value={manualInputs[sym]?.hbt2026 || ''} onChange={e => updateInput(sym, 'hbt2026', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
+                      <input type="number" value={manualInputs[sym]?.hbt2026 || ''} onChange={e => updateInput(sym, 'hbt2026', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/[0.08] rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
                     </div>
                     <div>
                       <label className="text-[10px] text-muted-foreground">Lot</label>
-                      <input type="number" value={manualInputs[sym]?.lot2026 || ''} onChange={e => updateInput(sym, 'lot2026', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
+                      <input type="number" value={manualInputs[sym]?.lot2026 || ''} onChange={e => updateInput(sym, 'lot2026', e.target.value)} className="w-full mt-0.5 bg-background/50 border border-white/[0.08] rounded px-2 py-1 text-xs focus:outline-none focus:border-primary/50" placeholder="0" />
                     </div>
                   </div>
                 </div>
@@ -398,11 +398,11 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
           <p className="text-xs text-muted-foreground">10 Yıl Kümülatif (USD)</p>
           <p className="text-2xl font-black text-green-400">${kumulatif.toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</p>
         </div>
-        <div className="p-4 bg-card/20 rounded-xl border border-white/5">
+        <div className="p-4 bg-card/20 rounded-xl border border-white/[0.06]">
           <p className="text-xs text-muted-foreground">2025 Son Yıl (USD)</p>
           <p className="text-2xl font-black">${(yearTotals[YEARS-1]?.totalUSD || 0).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</p>
         </div>
-        <div className="p-4 bg-card/20 rounded-xl border border-white/5">
+        <div className="p-4 bg-card/20 rounded-xl border border-white/[0.06]">
           <p className="text-xs text-muted-foreground">Aylık (Son Yıl)</p>
           <p className="text-2xl font-black">${((yearTotals[YEARS-1]?.totalUSD || 0) / 12).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}</p>
         </div>
@@ -420,7 +420,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
         <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-3">Yıllık Projeksiyon Özeti</p>
         <div className="space-y-2">
           {yearTotals.map((yt, i) => (
-            <div key={yt.year} className="rounded-xl border border-white/5 overflow-hidden">
+            <div key={yt.year} className="rounded-xl border border-white/[0.06] overflow-hidden">
               <button
                 onClick={() => setExpandedYear(expandedYear === yt.year ? null : yt.year)}
                 className="w-full flex items-center justify-between p-4 bg-card/20 hover:bg-card/30 transition-colors"
@@ -429,7 +429,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                   <div className={cn(
                     "text-sm font-black px-3 py-1 rounded-lg",
                     i === 0 ? "bg-primary/20 text-primary" :
-                    i === parseInt(targetYear || '7') ? "bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/50" :
+                    i === parseInt(targetYear || '7') ? "bg-gold/20 text-gold ring-1 ring-gold/50" :
                     "bg-white/5 text-white"
                   )}>
                     {yt.year}
@@ -460,7 +460,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                       </p>
                     </div>
                     {i === parseInt(targetYear || '7') && (
-                      <div className="text-xs font-black bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                      <div className="text-xs font-black bg-gold/20 text-gold px-2 py-0.5 rounded-full">
                         🎯 HEDEF YIL
                       </div>
                     )}
@@ -476,7 +476,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-t border-white/5 bg-background/30">
+                      <tr className="border-t border-white/[0.06] bg-background/30">
                         <td className="px-4 py-2 text-muted-foreground font-bold"></td>
                         {TEMETTU_SYMBOLS.map(sym => (
                           <td key={sym} className="px-4 py-2 text-center font-black text-white">{sym}</td>
@@ -500,7 +500,7 @@ export function DividendProjection({ holdings, dividendMap }: DividendProjection
                         { key: 'temNet', label: 'TEM. NET', format: (v: any) => `₺${Number(v).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}`, highlight: true },
                         { key: 'temNetDL', label: 'TEM. NET DL', format: (v: any) => `$${Number(v).toLocaleString('tr-TR', { maximumFractionDigits: 0 })}`, green: true },
                       ].map(row => (
-                        <tr key={row.key} className={cn("border-t border-white/5", row.highlight ? "bg-white/5" : "")}>
+                        <tr key={row.key} className={cn("border-t border-white/[0.06]", row.highlight ? "bg-white/5" : "")}>
                           <td className={cn("px-4 py-2 font-bold", row.green ? "text-green-400" : row.highlight ? "text-white" : "text-muted-foreground")}>
                             {row.label}
                           </td>

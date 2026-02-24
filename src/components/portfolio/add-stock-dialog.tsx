@@ -95,12 +95,12 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-primary hover:bg-primary/80 text-primary-foreground gap-2 font-semibold shadow-lg shadow-primary/20">
+        <Button className="bg-primary hover:bg-primary/80 text-primary-foreground gap-2 font-semibold shadow-lg shadow-primary/25">
           <Plus className="w-4 h-4" />
           Varlık Ekle
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] bg-card border-white/10">
+      <DialogContent className="sm:max-w-[425px] bg-card border-white/[0.08]">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <Wallet className="w-5 h-5 text-primary" />
@@ -136,7 +136,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                 });
               }}
             >
-              <SelectTrigger className="bg-white/5 border-white/10">
+              <SelectTrigger className="bg-white/[0.04] border-white/[0.08]">
                 <SelectValue placeholder="Kategori Seçin" />
               </SelectTrigger>
               <SelectContent>
@@ -164,7 +164,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                     setFormData({ ...formData, symbol: val, name });
                   }}
                 >
-                  <SelectTrigger className="bg-white/5 border-white/10">
+                  <SelectTrigger className="bg-white/[0.04] border-white/[0.08]">
                     <SelectValue placeholder="Seçiniz" />
                   </SelectTrigger>
                   <SelectContent>
@@ -192,7 +192,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                 <Input
                   id="symbol"
                   placeholder="Örn: THYAO, ISMEN"
-                  className="bg-white/5 border-white/10"
+                  className="bg-white/[0.04] border-white/[0.08]"
                   value={formData.symbol}
                   onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
                 />
@@ -203,7 +203,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
               <Input
                 id="name"
                 placeholder="Örn: Bitcoin"
-                className="bg-white/5 border-white/10"
+                className="bg-white/[0.04] border-white/[0.08]"
                 value={formData.name}
                 disabled={needsDropdown}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -219,7 +219,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                 type="number"
                 step={getQuantityStep()}
                 placeholder="0"
-                className="bg-white/5 border-white/10"
+                className="bg-white/[0.04] border-white/[0.08]"
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
               />
@@ -231,7 +231,7 @@ export function AddStockDialog({ onAdd }: AddStockDialogProps) {
                 type="number"
                 step="0.01"
                 placeholder="0.00"
-                className="bg-white/5 border-white/10"
+                className="bg-white/[0.04] border-white/[0.08]"
                 value={formData.averageCost}
                 onChange={(e) => setFormData({ ...formData, averageCost: e.target.value })}
               />

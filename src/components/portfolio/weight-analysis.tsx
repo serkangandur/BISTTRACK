@@ -26,13 +26,13 @@ interface WeightAnalysisProps {
 const MAIN_INVESTMENT_CATEGORIES: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
 
 const CATEGORY_CONFIG: Record<AssetCategory, { icon: any; color: string }> = {
-  "Temettü": { icon: Receipt, color: "text-blue-400" },
-  "Büyüme": { icon: BarChart3, color: "text-purple-400" },
-  "Emtia": { icon: Landmark, color: "text-amber-400" },
-  "Kripto": { icon: Coins, color: "text-orange-400" },
-  "Nakit": { icon: Banknote, color: "text-emerald-400" },
-  "Sigorta": { icon: ShieldCheck, color: "text-cyan-400" },
-  "Temettü Sabit": { icon: Calculator, color: "text-slate-400" }
+  "Temettü": { icon: Receipt, color: "text-category-temettu" },
+  "Büyüme": { icon: BarChart3, color: "text-category-buyume" },
+  "Emtia": { icon: Landmark, color: "text-category-emtia" },
+  "Kripto": { icon: Coins, color: "text-category-kripto" },
+  "Nakit": { icon: Banknote, color: "text-category-nakit" },
+  "Sigorta": { icon: ShieldCheck, color: "text-category-sigorta" },
+  "Temettü Sabit": { icon: Calculator, color: "text-category-temettu-sabit" }
 };
 
 const DEFAULT_WEIGHTS = {
@@ -150,7 +150,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
     const isOver = diff >= 0;
 
     return (
-      <Card className="bg-card/40 border-white/5 shadow-xl flex flex-col hover:border-white/10 transition-all duration-300">
+      <Card className="bg-card/40 border-white/[0.06] shadow-xl flex flex-col hover:border-white/10 transition-all duration-300">
         <CardHeader className="p-4 pb-2 border-b border-white/5 flex flex-row items-center justify-between">
           <div className="flex items-center gap-2">
             <div className={cn("p-1.5 rounded-md bg-white/5", config.color)}>
@@ -236,7 +236,7 @@ export function WeightAnalysis({ holdings }: WeightAnalysisProps) {
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-primary/5 border-primary/20 shadow-2xl relative overflow-hidden group">
+        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 shadow-2xl relative overflow-hidden group">
           <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
             <Calculator className="w-24 h-24 rotate-12" />
           </div>

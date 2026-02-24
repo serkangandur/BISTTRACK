@@ -215,19 +215,19 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
       {/* Özet Kartları */}
       {totalAnapara > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Toplam Anapara</p>
             <p className="text-xl font-bold">{fInt(totalAnapara)}</p>
           </div>
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Toplam Temettü</p>
             <p className="text-xl font-bold text-green-400">{f(totalDividend)}</p>
           </div>
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Kalan Anapara</p>
             <p className="text-xl font-bold text-orange-400">{fInt(Math.max(0, totalAnapara - totalDividend))}</p>
           </div>
-          <div className="bg-card/30 border border-white/10 rounded-xl p-5">
+          <div className="bg-card/30 border border-white/[0.08] rounded-xl p-5">
             <p className="text-xs text-muted-foreground mb-1">Genel Amortisman</p>
             <div className="flex items-center gap-2">
               <p className={cn("text-xl font-bold", getAmortColor(totalAmortPct))}>
@@ -267,7 +267,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
         </div>
 
         {showAddForm && (
-          <div className="bg-card/40 border border-white/10 rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
+          <div className="bg-card/40 border border-white/[0.08] rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
             <div className="flex gap-3 items-end">
               <div className="flex-1">
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Hisse Adı</label>
@@ -275,7 +275,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                   <input
                     type="text" value={newStock} onChange={(e) => setNewStock(e.target.value)}
                     placeholder="THYAO" autoFocus list="amort-stock-suggestions"
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                     onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                   />
                   <datalist id="amort-stock-suggestions">
@@ -288,7 +288,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                 <input
                   type="text" value={newAmount} onChange={(e) => setNewAmount(formatNum(e.target.value))}
                   placeholder="50.000"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                   onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                 />
               </div>
@@ -296,7 +296,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                 <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Tarih</label>
                 <input
                   type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-primary transition"
                 />
               </div>
             </div>
@@ -306,7 +306,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                 <input
                   type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)}
                   placeholder="1. ara temettü"
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
                   onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                 />
               </div>
@@ -318,10 +318,10 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
           </div>
         )}
 
-        <div className="bg-card/20 border border-white/5 rounded-xl overflow-hidden">
+        <div className="bg-card/20 border border-white/[0.06] rounded-xl overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-white/5">
+              <tr className="border-b border-white/[0.06]">
                 <th className="text-left p-4 text-xs font-medium text-muted-foreground">Varlık</th>
                 <th className="text-right p-4 text-xs font-medium text-muted-foreground">Anapara (₺)</th>
                 <th className="text-right p-4 text-xs font-medium text-muted-foreground">Toplam Temettü (₺)</th>
@@ -340,7 +340,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                     return (
                       <Fragment key={group.stock}>
                         <tr
-                          className="border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+                          className="border-b border-white/[0.06] hover:bg-white/[0.02] transition-colors cursor-pointer"
                           onClick={() => toggleExpand(group.stock)}
                         >
                           <td className="p-4">
@@ -391,7 +391,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                         </tr>
 
                         {isExpanded && group.payments.length > 0 && group.payments.map((payment) => (
-                          <tr key={payment.id} className="border-b border-white/5 last:border-0 bg-white/[0.01]">
+                          <tr key={payment.id} className="border-b border-white/[0.06] last:border-0 bg-white/[0.01]">
                             <td className="p-3 pl-12">
                               <div className="text-xs text-muted-foreground">{formatDate(payment.date)}</div>
                               {payment.note && <div className="text-[10px] text-muted-foreground/60 mt-0.5">{payment.note}</div>}
@@ -412,7 +412,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                         ))}
 
                         {isExpanded && group.payments.length === 0 && (
-                          <tr className="border-b border-white/5 bg-white/[0.01]">
+                          <tr className="border-b border-white/[0.06] bg-white/[0.01]">
                             <td colSpan={6} className="p-4 pl-12 text-xs text-muted-foreground/50">
                               Henüz temettü ödemesi eklenmedi. &quot;Temettü Ekle&quot; butonunu kullanarak bu hisseye ödeme ekleyin.
                             </td>
@@ -423,7 +423,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                   })}
 
                   {totalDividend > 0 && (
-                    <tr className="bg-white/[0.03] font-bold border-t border-white/10">
+                    <tr className="bg-white/[0.03] font-bold border-t border-white/[0.08]">
                       <td className="p-4 text-sm">TOPLAM</td>
                       <td className="p-4 text-right text-sm">{fInt(totalAnapara)}</td>
                       <td className="p-4 text-right text-sm text-green-400">{f(totalDividend)}</td>
