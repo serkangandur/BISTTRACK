@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -32,8 +33,13 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
-    // Amortisman temettü ödemeleri (Güncellendi: redeploy tetiklendi)
+    // Amortisman temettü ödemeleri
     match /amortizationPayments/{paymentId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Dolar getiri temettü ödemeleri
+    match /dollarDividendPayments/{paymentId} {
       allow read, write: if isOwner(userId);
     }
 
@@ -51,3 +57,4 @@ service cloud.firestore {
   }
   }
 }
+// Triggering rules redeployment for dollarDividendPayments path synchronization.

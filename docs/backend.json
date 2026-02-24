@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -167,6 +168,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "stock", "netAmount", "date"]
+    },
+    "DollarDividendPayment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DollarDividendPayment",
+      "type": "object",
+      "description": "A record of a dividend payment received for dollar return analysis.",
+      "properties": {
+        "id": { "type": "string" },
+        "stock": { "type": "string" },
+        "netAmount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "stock", "netAmount", "date"]
     }
   },
   "auth": {
@@ -215,6 +231,20 @@
             "$ref": "#/backend/entities/AmortizationPayment"
           },
           "description": "Stores dividend payments for amortization analysis.",
+          "params": [
+            { "name": "userId", "description": "The unique identifier of the user." },
+            { "name": "paymentId", "description": "The unique identifier for a specific payment record." }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/dollarDividendPayments/{paymentId}",
+        "definition": {
+          "entityName": "DollarDividendPayment",
+          "schema": {
+            "$ref": "#/backend/entities/DollarDividendPayment"
+          },
+          "description": "Stores dividend payments for dollar return performance tracking.",
           "params": [
             { "name": "userId", "description": "The unique identifier of the user." },
             { "name": "paymentId", "description": "The unique identifier for a specific payment record." }
