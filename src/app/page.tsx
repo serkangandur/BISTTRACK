@@ -13,17 +13,18 @@ import { DividendAnalysis } from "@/components/portfolio/dividend-analysis";
 import { TaxCalculator } from "@/components/portfolio/tax-calculator";
 import { AmortizationAnalysis } from "@/components/portfolio/amortization-analysis";
 import { DollarReturnAnalysis } from "@/components/portfolio/dollar-return-analysis";
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  RefreshCcw, 
-  Loader2, 
-  Receipt, 
-  BarChart3, 
-  Wallet, 
-  Coins, 
-  Landmark, 
-  Banknote, 
+import { RebalancingAnalysis } from "@/components/portfolio/rebalancing-analysis";
+import {
+  LayoutDashboard,
+  TrendingUp,
+  RefreshCcw,
+  Loader2,
+  Receipt,
+  BarChart3,
+  Wallet,
+  Coins,
+  Landmark,
+  Banknote,
   ShieldCheck,
   History,
   PieChart,
@@ -31,7 +32,8 @@ import {
   Calculator,
   FileText,
   PiggyBank,
-  DollarSign
+  DollarSign,
+  Scale
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +58,7 @@ interface StockPriceUpdate {
   change: number;
 }
 
-type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | "Vergi Beyannamesi" | "Amortisman" | "Dolar Getiri" | AssetCategory;
+type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | "Vergi Beyannamesi" | "Amortisman" | "Dolar Getiri" | "Rebalancing" | AssetCategory;
 
 const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" | "analysis" }[] = [
   { label: "Özet", icon: LayoutDashboard, group: "main" },
@@ -66,6 +68,7 @@ const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" 
   { label: "Vergi Beyannamesi", icon: FileText, group: "analysis" },
   { label: "Amortisman", icon: PiggyBank, group: "analysis" },
   { label: "Dolar Getiri", icon: DollarSign, group: "analysis" },
+  { label: "Rebalancing", icon: Scale, group: "analysis" },
   { label: "Temettü", icon: Receipt, group: "portfolios" },
   { label: "Temettü Sabit", icon: History, group: "portfolios" },
   { label: "Büyüme", icon: BarChart3, group: "portfolios" },
@@ -226,7 +229,7 @@ export function PortfolioDashboard() {
   }, [assets]);
 
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi" || activeCategory === "Vergi Beyannamesi" || activeCategory === "Amortisman" || activeCategory === "Dolar Getiri") {
+    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi" || activeCategory === "Vergi Beyannamesi" || activeCategory === "Amortisman" || activeCategory === "Dolar Getiri" || activeCategory === "Rebalancing") {
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
@@ -380,6 +383,8 @@ export function PortfolioDashboard() {
             <AmortizationAnalysis holdings={assets} />
           ) : activeCategory === "Dolar Getiri" ? (
             <DollarReturnAnalysis holdings={assets} />
+          ) : activeCategory === "Rebalancing" ? (
+            <RebalancingAnalysis holdings={assets} />
           ) : activeCategory === "Temettü Analizi" ? (
             <DividendAnalysis 
               holdings={assets} 
