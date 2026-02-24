@@ -1,59 +1,53 @@
-/**
- * BISTrack Firestore Security Rules
- *
- * Core Philosophy:
- * This ruleset implements a strict User-Ownership model. Access to any data—whether it be 
- * a user profile, a portfolio, or specific stock holdings—is strictly bound to the 
- * authenticated user's unique ID (UID).
- */
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Helper Functions ---
+  function isSignedIn() {
+    return request.auth != null;
+  }
 
-    function isSignedIn() {
-      return request.auth != null;
+  function isOwner(userId) {
+    return isSignedIn() && request.auth.uid == userId;
+  }
+
+  // --- Collection Rules ---
+
+  // Küresel temettü verileri (Herkes okuyabilir ve giriş yapmış olanlar güncelleyebilir)
+  match /globalData/dividends/stocks/{symbol} {
+    allow read, write: if isSignedIn();
+  }
+
+  match /users/{userId} {
+    allow get, list: if isOwner(userId);
+    allow create: if isOwner(userId) && request.resource.data.id == userId;
+    allow update, delete: if isOwner(userId);
+
+    // Temettü verileri koleksiyonu
+    match /dividends/{dividendId} {
+      allow read, write: if isOwner(userId);
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // Vergi beyannamesi temettü ödemeleri
+    match /taxDividendPayments/{paymentId} {
+      allow read, write: if isOwner(userId);
     }
 
-    // --- Collection Rules ---
-
-    // Küresel temettü verileri (Herkes okuyabilir ve giriş yapmış olanlar güncelleyebilir)
-    match /globalData/dividends/stocks/{symbol} {
-      allow read, write: if isSignedIn();
+    // Amortisman temettü ödemeleri (Güncellendi: redeploy tetiklendi)
+    match /amortizationPayments/{paymentId} {
+      allow read, write: if isOwner(userId);
     }
 
-    match /users/{userId} {
+    match /portfolios/{portfolioId} {
       allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
       allow update, delete: if isOwner(userId);
 
-      // Temettü verileri koleksiyonu
-      match /dividends/{dividendId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      // Vergi beyannamesi temettü ödemeleri
-      match /taxDividendPayments/{paymentId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      match /portfolios/{portfolioId} {
+      match /stockHoldings/{stockHoldingId} {
         allow get, list: if isOwner(userId);
-        allow create: if isOwner(userId) && request.resource.data.userId == userId;
+        allow create: if isOwner(userId) && request.resource.data.portfolioId == portfolioId;
         allow update, delete: if isOwner(userId);
-
-        match /stockHoldings/{stockHoldingId} {
-          allow get, list: if isOwner(userId);
-          allow create: if isOwner(userId) && request.resource.data.portfolioId == portfolioId;
-          allow update, delete: if isOwner(userId);
-        }
       }
     }
+  }
   }
 }

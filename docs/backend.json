@@ -152,6 +152,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "stock", "netAmount", "date"]
+    },
+    "AmortizationPayment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AmortizationPayment",
+      "type": "object",
+      "description": "A record of a dividend payment received for amortization tracking.",
+      "properties": {
+        "id": { "type": "string" },
+        "stock": { "type": "string" },
+        "netAmount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "stock", "netAmount", "date"]
     }
   },
   "auth": {
@@ -186,6 +201,20 @@
             "$ref": "#/backend/entities/TaxDividendPayment"
           },
           "description": "Stores dividend payments for tax calculation purposes.",
+          "params": [
+            { "name": "userId", "description": "The unique identifier of the user." },
+            { "name": "paymentId", "description": "The unique identifier for a specific payment record." }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/amortizationPayments/{paymentId}",
+        "definition": {
+          "entityName": "AmortizationPayment",
+          "schema": {
+            "$ref": "#/backend/entities/AmortizationPayment"
+          },
+          "description": "Stores dividend payments for amortization analysis.",
           "params": [
             { "name": "userId", "description": "The unique identifier of the user." },
             { "name": "paymentId", "description": "The unique identifier for a specific payment record." }
