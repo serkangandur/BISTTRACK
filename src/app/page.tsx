@@ -11,6 +11,7 @@ import { WeightAnalysis } from "@/components/portfolio/weight-analysis";
 import { IncomeAnalysis } from "@/components/portfolio/income-analysis";
 import { DividendAnalysis } from "@/components/portfolio/dividend-analysis";
 import { TaxCalculator } from "@/components/portfolio/tax-calculator";
+import { AmortizationAnalysis } from "@/components/portfolio/amortization-analysis";
 import { 
   LayoutDashboard, 
   TrendingUp, 
@@ -27,7 +28,8 @@ import {
   PieChart,
   BanknoteIcon,
   Calculator,
-  FileText
+  FileText,
+  PiggyBank
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +54,7 @@ interface StockPriceUpdate {
   change: number;
 }
 
-type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | "Vergi Beyannamesi" | AssetCategory;
+type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | "Vergi Beyannamesi" | "Amortisman" | AssetCategory;
 
 const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" | "analysis" }[] = [
   { label: "Özet", icon: LayoutDashboard, group: "main" },
@@ -60,6 +62,7 @@ const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" 
   { label: "Gelirler", icon: BanknoteIcon, group: "analysis" },
   { label: "Temettü Analizi", icon: Calculator, group: "analysis" },
   { label: "Vergi Beyannamesi", icon: FileText, group: "analysis" },
+  { label: "Amortisman", icon: PiggyBank, group: "analysis" },
   { label: "Temettü", icon: Receipt, group: "portfolios" },
   { label: "Temettü Sabit", icon: History, group: "portfolios" },
   { label: "Büyüme", icon: BarChart3, group: "portfolios" },
@@ -220,7 +223,7 @@ export function PortfolioDashboard() {
   }, [assets]);
 
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi" || activeCategory === "Vergi Beyannamesi") {
+    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi" || activeCategory === "Vergi Beyannamesi" || activeCategory === "Amortisman") {
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
@@ -370,6 +373,8 @@ export function PortfolioDashboard() {
             <IncomeAnalysis holdings={assets} />
           ) : activeCategory === "Vergi Beyannamesi" ? (
             <TaxCalculator holdings={assets} />
+          ) : activeCategory === "Amortisman" ? (
+            <AmortizationAnalysis holdings={assets} />
           ) : activeCategory === "Temettü Analizi" ? (
             <DividendAnalysis 
               holdings={assets} 
