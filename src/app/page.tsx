@@ -14,6 +14,7 @@ import { TaxCalculator } from "@/components/portfolio/tax-calculator";
 import { AmortizationAnalysis } from "@/components/portfolio/amortization-analysis";
 import { DollarReturnAnalysis } from "@/components/portfolio/dollar-return-analysis";
 import { RebalancingAnalysis } from "@/components/portfolio/rebalancing-analysis";
+import { ReceivedDividendAnalysis } from "@/components/portfolio/received-dividend-analysis";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -33,7 +34,8 @@ import {
   FileText,
   PiggyBank,
   DollarSign,
-  Scale
+  Scale,
+  HandCoins
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,13 +60,14 @@ interface StockPriceUpdate {
   change: number;
 }
 
-type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | "Vergi Beyannamesi" | "Amortisman" | "Dolar Getiri" | "Rebalancing" | AssetCategory;
+type ViewType = "Özet" | "Ağırlıklar" | "Gelirler" | "Temettü Analizi" | "Alınan Temettü" | "Vergi Beyannamesi" | "Amortisman" | "Dolar Getiri" | "Rebalancing" | AssetCategory;
 
 const SIDEBAR_ITEMS: { label: ViewType; icon: any; group: "main" | "portfolios" | "analysis" }[] = [
   { label: "Özet", icon: LayoutDashboard, group: "main" },
   { label: "Ağırlıklar", icon: PieChart, group: "analysis" },
   { label: "Gelirler", icon: BanknoteIcon, group: "analysis" },
   { label: "Temettü Analizi", icon: Calculator, group: "analysis" },
+  { label: "Alınan Temettü", icon: HandCoins, group: "analysis" },
   { label: "Vergi Beyannamesi", icon: FileText, group: "analysis" },
   { label: "Amortisman", icon: PiggyBank, group: "analysis" },
   { label: "Dolar Getiri", icon: DollarSign, group: "analysis" },
@@ -229,7 +232,7 @@ export function PortfolioDashboard() {
   }, [assets]);
 
   const filteredAssets = useMemo(() => {
-    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi" || activeCategory === "Vergi Beyannamesi" || activeCategory === "Amortisman" || activeCategory === "Dolar Getiri" || activeCategory === "Rebalancing") {
+    if (activeCategory === "Özet" || activeCategory === "Ağırlıklar" || activeCategory === "Gelirler" || activeCategory === "Temettü Analizi" || activeCategory === "Alınan Temettü" || activeCategory === "Vergi Beyannamesi" || activeCategory === "Amortisman" || activeCategory === "Dolar Getiri" || activeCategory === "Rebalancing") {
       return assets.filter(a => a.category !== "Temettü Sabit");
     }
     return assets.filter(a => a.category.toLowerCase().trim() === activeCategory.toLowerCase().trim());
@@ -386,10 +389,17 @@ export function PortfolioDashboard() {
           ) : activeCategory === "Rebalancing" ? (
             <RebalancingAnalysis holdings={assets} />
           ) : activeCategory === "Temettü Analizi" ? (
-            <DividendAnalysis 
-              holdings={assets} 
-              dividendMap={dividendMap} 
-              onSaveDividend={saveDividend} 
+            <DividendAnalysis
+              holdings={assets}
+              dividendMap={dividendMap}
+              onSaveDividend={saveDividend}
+              isSaving={isSaving}
+            />
+          ) : activeCategory === "Alınan Temettü" ? (
+            <ReceivedDividendAnalysis
+              holdings={assets}
+              dividendMap={dividendMap}
+              onSaveDividend={saveDividend}
               isSaving={isSaving}
             />
           ) : (
