@@ -38,6 +38,11 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
+    // Amortisman manuel hisse/anapara verileri
+    match /amortizationStocks/{stockId} {
+      allow read, write: if isOwner(userId);
+    }
+
     // Dolar getiri temettü ödemeleri
     match /dollarDividendPayments/{paymentId} {
       allow read, write: if isOwner(userId);
