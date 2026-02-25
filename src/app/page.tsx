@@ -213,7 +213,7 @@ export function PortfolioDashboard() {
 
   const assets = useMemo((): StockHolding[] => {
     if (!dbStocks) return [];
-    return dbStocks.map((s: any) => {
+    return dbStocks.filter((s: any) => s.symbol).map((s: any) => {
       const symbolUpper = s.symbol.toUpperCase();
       const market = marketData[symbolUpper];
       return {

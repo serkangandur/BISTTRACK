@@ -59,7 +59,8 @@ export function IncomeAnalysis({ holdings, dividendMap = {} }: IncomeAnalysisPro
       if (cat === "Temettü" && Object.keys(dividendMap).length > 0) {
         // Temettü: Gerçek HBT × LOT hesabı
         yearly = filtered.reduce((acc, h) => {
-          const hbt = dividendMap[h.symbol.toUpperCase()]?.netDividendPerShare || 0;
+          const sym = h.symbol?.toUpperCase() || '';
+          const hbt = dividendMap[sym]?.netDividendPerShare || 0;
           return acc + (hbt * h.quantity);
         }, 0);
         monthly = yearly / 12;
@@ -76,7 +77,7 @@ export function IncomeAnalysis({ holdings, dividendMap = {} }: IncomeAnalysisPro
     });
 
     return data;
-  }, [holdings, USD_RATE]);
+  }, [holdings, USD_RATE, dividendMap]);
 
   // Toplam Gelirler (Sigorta hariç)
   const totalMonthlyIncomeTl = INCOME_CATEGORIES.reduce((acc, cat) => acc + (categoryIncomes[cat]?.monthly || 0), 0);
