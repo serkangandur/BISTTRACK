@@ -380,7 +380,7 @@ export function PortfolioDashboard() {
           ) : activeCategory === "Vergi Beyannamesi" ? (
             <TaxCalculator holdings={assets} />
           ) : activeCategory === "Amortisman" ? (
-            <AmortizationAnalysis holdings={assets} />
+            <AmortizationAnalysis />
           ) : activeCategory === "Dolar Getiri" ? (
             <DollarReturnAnalysis holdings={assets} />
           ) : activeCategory === "Rebalancing" ? (

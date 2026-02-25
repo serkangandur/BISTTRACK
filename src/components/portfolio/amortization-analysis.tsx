@@ -11,23 +11,23 @@ import {
   ChevronRight,
   Loader2,
   PiggyBank,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { StockHolding } from "@/lib/types";
 import { useAmortizationPayments, AmortizationPayment } from "@/hooks/use-amortization-payments";
+import { useAmortizationStocks } from "@/hooks/use-amortization-stocks";
 
 interface GroupedStock {
   stock: string;
+  stockId?: string;
   payments: AmortizationPayment[];
   totalNet: number;
   anapara: number;
   amortizationPct: number;
-}
-
-interface AmortizationAnalysisProps {
-  holdings?: StockHolding[];
 }
 
 function formatNum(val: string): string {
@@ -40,38 +40,41 @@ function parseNum(val: string): number {
   return parseFloat(val.replace(/\./g, "").replace(",", ".")) || 0;
 }
 
-export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProps) {
-  const { payments, isLoading, isSaving, addPayment, removePayment } = useAmortizationPayments();
+export function AmortizationAnalysis() {
+  const { payments, isLoading: paymentsLoading, isSaving: paymentsSaving, addPayment, removePayment } = useAmortizationPayments();
+  const { stocks: manualStocks, isLoading: stocksLoading, isSaving: stocksSaving, addStock, updateStockAnapara, removeStock } = useAmortizationStocks();
 
+  const isLoading = paymentsLoading || stocksLoading;
+  const isSaving = paymentsSaving || stocksSaving;
+
+  // Temettü ekleme formu
   const [newStock, setNewStock] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [newDate, setNewDate] = useState("");
   const [newNote, setNewNote] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // Hisse/Anapara ekleme formu
+  const [showAddStockForm, setShowAddStockForm] = useState(false);
+  const [newStockSymbol, setNewStockSymbol] = useState("");
+  const [newStockAnapara, setNewStockAnapara] = useState("");
+
+  // Anapara düzenleme
+  const [editingStockId, setEditingStockId] = useState<string | null>(null);
+  const [editAnaparaValue, setEditAnaparaValue] = useState("");
+
   const [expandedStocks, setExpandedStocks] = useState<Set<string>>(new Set());
 
-  // Portföydeki temettü hisselerinin sembolleri ve anapara bilgileri
-  const portfolioStocks = useMemo(() => {
-    const dividendCategories = ["Temettü", "Temettü Sabit"];
-    return holdings
-      .filter((h) => dividendCategories.includes(h.category))
-      .map((h) => ({
-        symbol: h.symbol.toUpperCase(),
-        anapara: h.quantity * h.averageCost,
-        quantity: h.quantity,
-        averageCost: h.averageCost,
-      }));
-  }, [holdings]);
-
-  const portfolioSymbols = useMemo(() => portfolioStocks.map((s) => s.symbol), [portfolioStocks]);
-
+  // Manuel hisselerden anapara haritası
   const anaparaMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    portfolioStocks.forEach((s) => {
-      map[s.symbol] = s.anapara;
+    const map: Record<string, { anapara: number; id: string }> = {};
+    manualStocks.forEach((s) => {
+      map[s.symbol] = { anapara: s.anapara, id: s.id };
     });
     return map;
-  }, [portfolioStocks]);
+  }, [manualStocks]);
+
+  const manualSymbols = useMemo(() => manualStocks.map((s) => s.symbol), [manualStocks]);
 
   const handleAddPayment = async () => {
     const amount = parseNum(newAmount);
@@ -93,8 +96,37 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
     setExpandedStocks((prev) => new Set(prev).add(symbol));
   };
 
+  const handleAddStock = async () => {
+    const anapara = parseNum(newStockAnapara);
+    const symbol = newStockSymbol.trim().toUpperCase();
+    if (!symbol || anapara <= 0) return;
+
+    // Eğer zaten varsa, güncelle
+    if (anaparaMap[symbol]) {
+      await updateStockAnapara(anaparaMap[symbol].id, anapara);
+    } else {
+      await addStock({ symbol, anapara });
+    }
+
+    setNewStockSymbol("");
+    setNewStockAnapara("");
+    setShowAddStockForm(false);
+  };
+
+  const handleUpdateAnapara = async (stockId: string) => {
+    const anapara = parseNum(editAnaparaValue);
+    if (anapara <= 0) return;
+    await updateStockAnapara(stockId, anapara);
+    setEditingStockId(null);
+    setEditAnaparaValue("");
+  };
+
   const handleRemovePayment = async (id: string) => {
     await removePayment(id);
+  };
+
+  const handleRemoveStock = async (stockId: string, symbol: string) => {
+    await removeStock(stockId);
   };
 
   const toggleExpand = (stock: string) => {
@@ -109,10 +141,12 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
   const grouped = useMemo((): GroupedStock[] => {
     const map = new Map<string, AmortizationPayment[]>();
 
-    portfolioSymbols.forEach((sym) => {
+    // Manuel hisseleri ekle
+    manualSymbols.forEach((sym) => {
       if (!map.has(sym)) map.set(sym, []);
     });
 
+    // Ödemeleri ekle (hisse listesinde olmayan ödemeler de dahil)
     payments.forEach((p) => {
       if (!map.has(p.stock)) map.set(p.stock, []);
       map.get(p.stock)!.push(p);
@@ -121,10 +155,11 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
     return Array.from(map.entries())
       .map(([stock, pmts]) => {
         const totalNet = pmts.reduce((s, p) => s + p.netAmount, 0);
-        const anapara = anaparaMap[stock] || 0;
+        const anapara = anaparaMap[stock]?.anapara || 0;
         const amortizationPct = anapara > 0 ? (totalNet / anapara) * 100 : 0;
         return {
           stock,
+          stockId: anaparaMap[stock]?.id,
           payments: pmts.sort((a, b) => a.date.localeCompare(b.date)),
           totalNet,
           anapara,
@@ -132,7 +167,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
         };
       })
       .sort((a, b) => b.amortizationPct - a.amortizationPct);
-  }, [payments, portfolioSymbols, anaparaMap]);
+  }, [payments, manualSymbols, anaparaMap]);
 
   const totalAnapara = useMemo(
     () => grouped.reduce((sum, g) => sum + g.anapara, 0),
@@ -203,8 +238,8 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
         <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
         <div className="text-sm text-blue-300/80 space-y-1">
           <p>
-            Portföyünüzdeki temettü hisseleri ve anapara maliyetleri otomatik listelenir.
-            Hisse bazında aldığınız <strong>net temettü</strong> tutarlarını girin.
+            Takip etmek istediğiniz hisseleri ve anapara tutarlarını manuel olarak ekleyin.
+            Ardından hisse bazında aldığınız <strong>net temettü</strong> tutarlarını girin.
           </p>
           <p>
             Sistem, toplam temettünüzün anaparanızın yüzde kaçını karşıladığını (%100 = yatırım tamamen amorte) hesaplar.
@@ -255,17 +290,60 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
               </Badge>
             )}
           </div>
-          <Button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="bg-primary text-primary-foreground"
-            size="sm"
-            disabled={isSaving}
-          >
-            {isSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
-            Temettü Ekle
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => { setShowAddStockForm(!showAddStockForm); setShowAddForm(false); }}
+              variant="outline"
+              size="sm"
+              disabled={isSaving}
+              className="border-white/[0.12]"
+            >
+              {stocksSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+              Hisse Ekle
+            </Button>
+            <Button
+              onClick={() => { setShowAddForm(!showAddForm); setShowAddStockForm(false); }}
+              className="bg-primary text-primary-foreground"
+              size="sm"
+              disabled={isSaving}
+            >
+              {paymentsSaving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+              Temettü Ekle
+            </Button>
+          </div>
         </div>
 
+        {/* Hisse/Anapara Ekleme Formu */}
+        {showAddStockForm && (
+          <div className="bg-card/40 border border-white/[0.08] rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Hisse Adı</label>
+                <input
+                  type="text" value={newStockSymbol} onChange={(e) => setNewStockSymbol(e.target.value)}
+                  placeholder="THYAO" autoFocus
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddStock()}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-muted-foreground block mb-1.5 font-medium">Anapara (₺)</label>
+                <input
+                  type="text" value={newStockAnapara} onChange={(e) => setNewStockAnapara(formatNum(e.target.value))}
+                  placeholder="100.000"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-primary transition"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddStock()}
+                />
+              </div>
+              <Button onClick={handleAddStock} size="sm" className="shrink-0" disabled={isSaving}>
+                {isSaving ? "Kaydediliyor..." : "Ekle"}
+              </Button>
+              <Button onClick={() => setShowAddStockForm(false)} variant="ghost" size="sm" className="shrink-0 text-muted-foreground">İptal</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Temettü Ekleme Formu */}
         {showAddForm && (
           <div className="bg-card/40 border border-white/[0.08] rounded-xl p-4 mb-4 space-y-3 animate-in fade-in duration-300">
             <div className="flex gap-3 items-end">
@@ -279,7 +357,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                     onKeyDown={(e) => e.key === "Enter" && handleAddPayment()}
                   />
                   <datalist id="amort-stock-suggestions">
-                    {portfolioSymbols.map((sym) => (<option key={sym} value={sym} />))}
+                    {manualSymbols.map((sym) => (<option key={sym} value={sym} />))}
                   </datalist>
                 </div>
               </div>
@@ -335,7 +413,7 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                 <>
                   {grouped.map((group) => {
                     const isExpanded = expandedStocks.has(group.stock);
-                    const isFromPortfolio = portfolioSymbols.includes(group.stock);
+                    const isEditing = editingStockId === group.stockId;
                     const kalan = Math.max(0, group.anapara - group.totalNet);
                     return (
                       <Fragment key={group.stock}>
@@ -348,19 +426,55 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                               {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                               <div>
                                 <div className="font-bold text-sm">{group.stock}</div>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", isFromPortfolio ? "border-primary/30 text-primary" : "border-white/20 text-muted-foreground")}>
-                                    {isFromPortfolio ? "Portföy" : "Manuel"}
-                                  </Badge>
-                                  {group.payments.length > 0 && (
-                                    <span className="text-[10px] text-muted-foreground">{group.payments.length} ödeme</span>
-                                  )}
-                                </div>
+                                {group.payments.length > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">{group.payments.length} ödeme</span>
+                                )}
                               </div>
                             </div>
                           </td>
-                          <td className="p-4 text-right font-medium text-sm">
-                            {group.anapara > 0 ? fInt(group.anapara) : "—"}
+                          <td className="p-4 text-right">
+                            {isEditing && group.stockId ? (
+                              <div className="flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="text" value={editAnaparaValue}
+                                  onChange={(e) => setEditAnaparaValue(formatNum(e.target.value))}
+                                  className="w-28 bg-white/[0.04] border border-primary/50 rounded-lg px-2 py-1 text-sm text-white text-right focus:outline-none focus:border-primary transition"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleUpdateAnapara(group.stockId!);
+                                    if (e.key === "Escape") { setEditingStockId(null); setEditAnaparaValue(""); }
+                                  }}
+                                />
+                                <button
+                                  onClick={() => handleUpdateAnapara(group.stockId!)}
+                                  className="text-green-400 hover:text-green-300 p-1 rounded hover:bg-white/5 transition"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => { setEditingStockId(null); setEditAnaparaValue(""); }}
+                                  className="text-muted-foreground/50 hover:text-white p-1 rounded hover:bg-white/5 transition"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 justify-end">
+                                <span className="font-medium text-sm">{group.anapara > 0 ? fInt(group.anapara) : "—"}</span>
+                                {group.stockId && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingStockId(group.stockId!);
+                                      setEditAnaparaValue(group.anapara > 0 ? group.anapara.toLocaleString("tr-TR") : "");
+                                    }}
+                                    className="text-muted-foreground/30 hover:text-primary p-1 rounded hover:bg-white/5 transition"
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="p-4 text-right">
                             <div className={cn("font-bold text-sm", group.totalNet > 0 ? "text-green-400" : "text-muted-foreground/40")}>
@@ -387,7 +501,17 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
                               </span>
                             </div>
                           </td>
-                          <td className="p-4"></td>
+                          <td className="p-4 text-right">
+                            {group.stockId && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRemoveStock(group.stockId!, group.stock); }}
+                                className="text-muted-foreground/20 hover:text-red-400 transition p-1 rounded-lg hover:bg-white/5"
+                                title="Hisseyi sil"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
                         </tr>
 
                         {isExpanded && group.payments.length > 0 && group.payments.map((payment) => (
@@ -448,8 +572,8 @@ export function AmortizationAnalysis({ holdings = [] }: AmortizationAnalysisProp
               ) : (
                 <tr>
                   <td colSpan={6} className="p-12 text-center">
-                    <p className="text-muted-foreground text-sm">Henüz temettü hissesi bulunmuyor.</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1">Portföyünüze temettü hissesi ekleyin.</p>
+                    <p className="text-muted-foreground text-sm">Henüz hisse eklenmedi.</p>
+                    <p className="text-xs text-muted-foreground/60 mt-1">&quot;Hisse Ekle&quot; butonunu kullanarak takip etmek istediğiniz hisseleri ekleyin.</p>
                   </td>
                 </tr>
               )}
