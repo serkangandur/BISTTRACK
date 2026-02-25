@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
-import { collection, doc, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { collection, doc, setDoc, deleteDoc, updateDoc, onSnapshot, serverTimestamp, DocumentData } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
 
 export interface AmortizationStock {
   id: string;
@@ -15,13 +15,39 @@ export function useAmortizationStocks() {
   const { user } = useUser();
   const firestore = useFirestore();
   const [isSaving, setIsSaving] = useState(false);
+  const [dbStocks, setDbStocks] = useState<DocumentData[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const stocksQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, 'users', user.uid, 'amortizationStocks');
+  useEffect(() => {
+    if (!user || !firestore) {
+      setDbStocks(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const colRef = collection(firestore, 'users', user.uid, 'amortizationStocks');
+
+    const unsubscribe = onSnapshot(
+      colRef,
+      (snapshot) => {
+        const results: DocumentData[] = [];
+        for (const d of snapshot.docs) {
+          results.push({ ...d.data(), id: d.id });
+        }
+        setDbStocks(results);
+        setIsLoading(false);
+      },
+      (error) => {
+        // Permission hatalarını sessizce yönet - sayfayı crash ettirme
+        console.warn('Amortisman stocks koleksiyonu okunamadı (kurallar deploy edilmemiş olabilir):', error.code);
+        setDbStocks([]);
+        setIsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, [user, firestore]);
-
-  const { data: dbStocks, isLoading } = useCollection(stocksQuery);
 
   const stocks = useMemo((): AmortizationStock[] => {
     if (!dbStocks) return [];
