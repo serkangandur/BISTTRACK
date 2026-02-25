@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { StockHolding, DividendRecord } from '@/lib/types';
-import { DividendProjection } from './dividend-projection';
 
 interface DividendAnalysisProps {
   holdings: StockHolding[];
@@ -362,7 +361,6 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
         )}
       </div>
 
-      <DividendProjection holdings={holdings} dividendMap={dividendMap} />
     </div>
   );
 }
