@@ -68,6 +68,7 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
         <TableHeader className="bg-white/[0.04]">
           <TableRow className="hover:bg-transparent border-white/[0.04]">
             <TableHead className="font-semibold py-4">Varlık & Kategori</TableHead>
+            <TableHead className="font-semibold">Anapara (₺)</TableHead>
             <TableHead className="font-semibold">Miktar</TableHead>
             <TableHead className="font-semibold">Maliyet (₺)</TableHead>
             <TableHead className="font-semibold">Güncel Fiyat (₺)</TableHead>
@@ -103,6 +104,9 @@ export function StockTable({ holdings, onDelete, onUpdate }: StockTableProps) {
                       <span className="text-[10px] font-normal text-muted-foreground uppercase">{stock.name}</span>
                     </div>
                   </div>
+                </TableCell>
+                <TableCell className="font-medium">
+                  ₺{totalCost.toLocaleString("tr-TR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </TableCell>
                 <TableCell className="font-medium text-muted-foreground">
                   {formatQuantity(stock)}
