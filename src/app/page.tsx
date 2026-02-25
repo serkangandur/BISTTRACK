@@ -379,7 +379,7 @@ export function PortfolioDashboard() {
           ) : activeCategory === "Ağırlıklar" ? (
             <WeightAnalysis holdings={assets} />
           ) : activeCategory === "Gelirler" ? (
-            <IncomeAnalysis holdings={assets} />
+            <IncomeAnalysis holdings={assets} dividendMap={dividendMap} />
           ) : activeCategory === "Vergi Beyannamesi" ? (
             <TaxCalculator holdings={assets} />
           ) : activeCategory === "Amortisman" ? (

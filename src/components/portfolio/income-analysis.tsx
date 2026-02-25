@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { StockHolding, AssetCategory } from "@/lib/types";
+import { StockHolding, AssetCategory, DividendRecord } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -21,6 +21,7 @@ import {
 
 interface IncomeAnalysisProps {
   holdings: StockHolding[];
+  dividendMap?: Record<string, DividendRecord>;
 }
 
 const INCOME_CATEGORIES: AssetCategory[] = ["Temettü", "Büyüme", "Emtia", "Kripto", "Nakit"];
@@ -35,7 +36,7 @@ const CATEGORY_CONFIG: Record<AssetCategory, { icon: any; color: string }> = {
   "Temettü Sabit": { icon: Calculator, color: "text-category-temettu-sabit" }
 };
 
-export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
+export function IncomeAnalysis({ holdings, dividendMap = {} }: IncomeAnalysisProps) {
   // Sabit Kur (Hesaplamalar için)
   const USD_RATE = 43.82;
 
@@ -47,15 +48,27 @@ export function IncomeAnalysis({ holdings }: IncomeAnalysisProps) {
 
     INCOME_CATEGORIES.forEach(cat => {
       const filtered = holdings.filter(h => h.category === cat);
-      
+
       const totalVal = filtered.reduce((acc, h) => {
         return acc + (Number(h.quantity) * Number(h.currentPrice || h.averageCost));
       }, 0);
 
-      // YILLIK: Toplam Portföy / 100 * 3.5
-      const yearly = (totalVal / 100) * 3.5;
-      // AYLIK: Yıllık / 12
-      const monthly = yearly / 12;
+      let yearly: number;
+      let monthly: number;
+
+      if (cat === "Temettü" && Object.keys(dividendMap).length > 0) {
+        // Temettü: Gerçek HBT × LOT hesabı
+        yearly = filtered.reduce((acc, h) => {
+          const hbt = dividendMap[h.symbol.toUpperCase()]?.netDividendPerShare || 0;
+          return acc + (hbt * h.quantity);
+        }, 0);
+        monthly = yearly / 12;
+      } else {
+        // Diğer kategoriler: %3.5 verim hesabı
+        yearly = (totalVal / 100) * 3.5;
+        monthly = yearly / 12;
+      }
+
       // USD: Aylık TL / Kur
       const monthlyUsd = monthly / USD_RATE;
 
