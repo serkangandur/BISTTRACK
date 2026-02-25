@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { StockHolding, DividendRecord } from '@/lib/types';
 import { DividendProjection } from './dividend-projection';
-import { TEMETTU_SYMBOLS } from '@/hooks/use-dividends';
 
 interface DividendAnalysisProps {
   holdings: StockHolding[];
@@ -26,6 +25,14 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
   const [searchNet, setSearchNet] = useState('');
   const [searchYear, setSearchYear] = useState(new Date().getFullYear().toString());
 
+  // Portföydeki Temettü hisselerinin sembolleri
+  const temettuSymbols = useMemo(() => {
+    return holdings
+      .filter(h => h.category === "Temettü")
+      .map(h => h.symbol?.toUpperCase())
+      .filter(Boolean) as string[];
+  }, [holdings]);
+
   // Temettü verimini hesapla
   const calculateYield = (symbol: string): { market: number; cost: number } => {
     const div = dividendMap[symbol];
@@ -39,7 +46,7 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
 
   // Portföy ağırlıklı ortalama verimi (İzleme listesindeki hisseler bazında)
   const portfolioYield = useMemo(() => {
-    const temettuHoldings = holdings.filter(h => TEMETTU_SYMBOLS.includes(h.symbol.toUpperCase()));
+    const temettuHoldings = holdings.filter(h => temettuSymbols.includes(h.symbol.toUpperCase()));
     if (temettuHoldings.length === 0) return 0;
     const totalValue = temettuHoldings.reduce((acc, h) => acc + (h.quantity * h.currentPrice), 0);
     if (totalValue === 0) return 0;
@@ -112,7 +119,7 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
       <div className="space-y-4">
         <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em]">Temettü İzleme Paneli</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {TEMETTU_SYMBOLS.map(symbol => {
+          {temettuSymbols.map(symbol => {
             const div = dividendMap[symbol];
             const holding = holdings.find(h => h.symbol.toUpperCase() === symbol);
             const yields = calculateYield(symbol);
