@@ -212,6 +212,19 @@ export function DividendAnalysis({ holdings, dividendMap, onSaveDividend, isSavi
                           {costYield > 0 ? `%${costYield.toFixed(2)}` : '%---'}
                         </span>
                       </div>
+                      {yieldValue > 0 && costYield > 0 && (() => {
+                        const verimFark = yieldValue - costYield;
+                        const verimFarkYuzde = (verimFark / costYield) * 100;
+                        const isPositive = verimFark >= 0;
+                        return (
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs text-muted-foreground">Verim Farkı</span>
+                            <span className={cn("text-sm font-bold", isPositive ? "text-green-400" : "text-red-400")}>
+                              {isPositive ? '+' : ''}{verimFark.toFixed(2)} ({isPositive ? '+' : ''}{verimFarkYuzde.toFixed(2)}%)
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {holding && holding.currentPrice > 0 && (
                         <div className="flex justify-between items-center">
                           <span className="text-xs text-muted-foreground">Canlı Fiyat</span>
